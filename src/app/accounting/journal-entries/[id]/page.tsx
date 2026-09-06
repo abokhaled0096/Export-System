@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
-import { getCurrentOrgId } from "@/lib/org";
+import { requireCurrentUser } from "@/lib/session";
+import { requirePermission } from "@/lib/permissions";
 import PostEntryButton from "./PostEntryButton";
 import ReverseEntryButton from "./ReverseEntryButton";
 import DeleteDraftButton from "./DeleteDraftButton";
@@ -15,7 +16,25 @@ export const dynamic = "force-dynamic";
 
 export default async function JournalEntryDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const orgId = await getCurrentOrgId();
+  const user = await requireCurrentUser();
+
+  // ⚠️ الصفحة دي كانت بلا أي فحص صلاحية خالص — نفس فئة /compliance/[id]/[logistics/[id]
+  // (اتكشف في مراجعة وحدة 8، 6 سبتمبر). أخطر مثال على الفئة دي لحد دلوقتي: أي حد مسجّل دخول
+  // في المنظمة، بغض النظر عن دوره، كان يقدر يفتح تفاصيل أي قيد يومية (مبالغ مدين/دائن حقيقية،
+  // أبعاد dealId/supplierId/shipmentId) لو عرف/خمّن الـid بتاعه.
+  try {
+    await requirePermission(user.roleId, "JournalEntry", "View");
+  } catch {
+    return (
+      <main className="mx-auto max-w-3xl px-6 py-10">
+        <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-6 text-center text-sm text-destructive">
+          معندكش صلاحية الوصول للصفحة دي.
+        </div>
+      </main>
+    );
+  }
+
+  const orgId = user.orgId;
   const prisma = await getScopedPrisma();
 
   const entry = await prisma.journalEntry.findFirst({

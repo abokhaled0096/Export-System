@@ -473,6 +473,13 @@ export async function createPayment(_prevState: PaymentFormState, formData: Form
   try {
     await requirePermission(user.roleId, "Payment", "Create");
 
+    // bankAccountId إلزامي وبيتعرض بلا `?.` في `/accounting/payments`/`payments/[id]`
+    // (`p.bankAccount.accountName`/`payment.bankAccount.accountName`) — لازم يتحقق قبل الإنشاء
+    // (اتكشف في مراجعة وحدة 8، 6 سبتمبر).
+    const scopedPrisma = await getScopedPrisma();
+    const bankAccount = await scopedPrisma.bankAccount.findFirst({ where: { id: rest.bankAccountId } });
+    if (!bankAccount) return { formError: "الحساب البنكي غير موجود." };
+
     // الفحص بعد الصلاحية عمدًا مش قبلها — مستخدم بلا Payment.Create مايشوفش حتى إن السجل موجود.
     if (idempotencyKey) {
       const scopedPrisma = await getScopedPrisma();
@@ -613,6 +620,12 @@ export async function createPaymentAllocation(paymentId: string, _prevState: All
   const user = await requireCurrentUser();
   try {
     await requirePermission(user.roleId, "Payment", "Edit");
+    // ده تحقق وجود/عضوية منظمة بس (مختلف عن حدود المبلغ اللي الـTrigger مسؤول عنها فوق) —
+    // invoiceId بيتعرض بلا `?.` في `/accounting/payments/[id]` (`a.invoice.invoiceNumber`)،
+    // فأي id عابر للمنظمة كان هيكسر الصفحة (اتكشف في مراجعة وحدة 8، 6 سبتمبر).
+    const scopedPrisma = await getScopedPrisma();
+    const invoice = await scopedPrisma.invoice.findFirst({ where: { id: parsed.data.invoiceId } });
+    if (!invoice) return { formError: "الفاتورة غير موجودة." };
     await withScopedTransaction(async (tx) => {
       const allocation = await tx.paymentAllocation.create({
         data: { orgId: user.orgId, paymentId, ...parsed.data },

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { withScopedTransaction } from "@/lib/scoped-prisma";
+import { getScopedPrisma, withScopedTransaction } from "@/lib/scoped-prisma";
 import { requireCurrentUser } from "@/lib/session";
 import { requirePermission } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
@@ -284,6 +284,29 @@ export async function createJournalEntry(_prevState: JournalEntryFormState, form
   const user = await requireCurrentUser();
   try {
     await requirePermission(user.roleId, "JournalEntry", "Create");
+
+    // periodId/accountId/costCenterId/profitCenterId كلهم من فورم القيد اليدوي بلا تحقق —
+    // `entry.period.periodName`/`l.account.accountCode` بيتعرضوا بلا `?.` في صفحة تفاصيل القيد
+    // (أخطر صفحة في المشروع كله من ناحية البيانات المالية الخام) — أي id عابر للمنظمة كان
+    // هيكسرها بالكامل (اتكشف في مراجعة وحدة 8، 6 سبتمبر). ⚠️ مش Promise.all — راجع P2028.
+    const scopedPrisma = await getScopedPrisma();
+    const period = await scopedPrisma.accountingPeriod.findFirst({ where: { id: periodId } });
+    if (!period) return { formError: "الفترة المحاسبية غير موجودة." };
+    const accountIdSet = [...new Set(parsedLines.data.map((l) => l.accountId))];
+    const foundAccounts = await scopedPrisma.chartOfAccount.findMany({ where: { id: { in: accountIdSet } } });
+    if (foundAccounts.length !== accountIdSet.length) return { formError: "فيه حساب غير موجود ضمن بنود القيد." };
+    const centerIdSet = [
+      ...new Set(parsedLines.data.flatMap((l) => [l.costCenterId, l.profitCenterId].filter((v): v is string => Boolean(v)))),
+    ];
+    if (centerIdSet.length > 0) {
+      const foundCostCenters = await scopedPrisma.costCenter.findMany({ where: { id: { in: centerIdSet } } });
+      const foundProfitCenters = await scopedPrisma.profitCenter.findMany({ where: { id: { in: centerIdSet } } });
+      const foundIds = new Set([...foundCostCenters.map((c) => c.id), ...foundProfitCenters.map((c) => c.id)]);
+      if (!centerIdSet.every((id) => foundIds.has(id))) {
+        return { formError: "فيه مركز تكلفة أو ربحية غير موجود ضمن بنود القيد." };
+      }
+    }
+
     const entryId = await withScopedTransaction(async (tx) => {
       const id = await createJournalEntryDraft(tx, {
         orgId: user.orgId,

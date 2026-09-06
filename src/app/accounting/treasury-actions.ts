@@ -577,6 +577,11 @@ export async function createReconciliation(
 
   try {
     await requirePermission(user.roleId, "BankReconciliation", "Create");
+    // bankAccountId إلزامي وبيتعرض بلا `?.` في `/accounting/reconciliations`/`reconciliations/[id]`
+    // — لازم يتحقق قبل الإنشاء (اتكشف في مراجعة وحدة 8، 6 سبتمبر).
+    const scopedPrisma = await getScopedPrisma();
+    const bankAccount = await scopedPrisma.bankAccount.findFirst({ where: { id: bankAccountId } });
+    if (!bankAccount) return { formError: "الحساب البنكي غير موجود." };
     const reconciliationId = await withScopedTransaction(async (tx) => {
       const reconciliation = await tx.bankReconciliation.create({
         data: {

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { Prisma } from "@/generated/prisma/client";
-import { withScopedTransaction } from "@/lib/scoped-prisma";
+import { getScopedPrisma, withScopedTransaction } from "@/lib/scoped-prisma";
 import { requireCurrentUser } from "@/lib/session";
 import { requirePermission } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
@@ -40,6 +40,15 @@ export async function createBudget(_prevState: BudgetFormState, formData: FormDa
 
   try {
     await requirePermission(user.roleId, "Budget", "Create");
+    // periodId إلزامي وبيتعرض بلا `?.` في `/accounting/budgets` (`b.period.periodName`) — لازم
+    // يتحقق قبل الإنشاء (اتكشف في مراجعة وحدة 8، 6 سبتمبر).
+    const scopedPrisma = await getScopedPrisma();
+    const period = await scopedPrisma.accountingPeriod.findFirst({ where: { id: periodId } });
+    if (!period) return { formError: "الفترة المحاسبية غير موجودة." };
+    if (costCenterId) {
+      const costCenter = await scopedPrisma.costCenter.findFirst({ where: { id: costCenterId } });
+      if (!costCenter) return { formError: "مركز التكلفة غير موجود." };
+    }
     await withScopedTransaction(async (tx) => {
       const budget = await tx.budget.create({
         data: { orgId: user.orgId, periodId, budgetType, costCenterId: costCenterId || undefined, amount: new Prisma.Decimal(amount), currency },
@@ -273,6 +282,11 @@ export async function createTaxRecord(_prevState: TaxRecordFormState, formData: 
 
   try {
     await requirePermission(user.roleId, "TaxRecord", "Create");
+    // periodId إلزامي وبيتعرض بلا `?.` في `/accounting/tax-records` (`r.period.periodName`) —
+    // لازم يتحقق قبل الإنشاء (اتكشف في مراجعة وحدة 8، 6 سبتمبر).
+    const scopedPrisma = await getScopedPrisma();
+    const period = await scopedPrisma.accountingPeriod.findFirst({ where: { id: periodId } });
+    if (!period) return { formError: "الفترة المحاسبية غير موجودة." };
     await withScopedTransaction(async (tx) => {
       const record = await tx.taxRecord.create({
         data: { orgId: user.orgId, taxType, periodId, amount: new Prisma.Decimal(amount), currency, etaReference: etaReference || undefined },
