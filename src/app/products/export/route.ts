@@ -1,14 +1,24 @@
 import { NextResponse } from "next/server";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
-import { getCurrentOrgId } from "@/lib/org";
+import { requireCurrentUser } from "@/lib/session";
+import { requirePermission } from "@/lib/permissions";
 import { toCsv } from "@/lib/csv";
 import type { Prisma } from "@/generated/prisma/client";
 import type { ProductStatus } from "@/generated/prisma/enums";
 
 const statuses = ["Draft", "Verified", "NeedsReview"];
 
+/** ⚠️ كانت بلا أي فحص صلاحية خالص — أخطر من عرض سجل واحد لأنها بتصدّر كل المنتجات دفعة واحدة
+ * (اتكشف في إعادة مراجعة وحدة 1، 7 سبتمبر، بعد ما نفس الفئة اتلقطت في routes تحميل وحدات تانية). */
 export async function GET(req: Request) {
-  const orgId = await getCurrentOrgId();
+  const user = await requireCurrentUser();
+  try {
+    await requirePermission(user.roleId, "Product", "View");
+  } catch {
+    return new NextResponse("معندكش صلاحية الوصول لهذه البيانات", { status: 403 });
+  }
+
+  const orgId = user.orgId;
   const prisma = await getScopedPrisma();
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q") ?? undefined;

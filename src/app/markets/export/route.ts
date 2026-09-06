@@ -1,10 +1,20 @@
 import { NextResponse } from "next/server";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
-import { getCurrentOrgId } from "@/lib/org";
+import { requireCurrentUser } from "@/lib/session";
+import { requirePermission } from "@/lib/permissions";
 import { toCsv } from "@/lib/csv";
 
+/** ⚠️ كانت بلا أي فحص صلاحية خالص (اتكشف في إعادة مراجعة وحدة 1، 7 سبتمبر) — نفس فئة
+ * /products/export. */
 export async function GET() {
-  const orgId = await getCurrentOrgId();
+  const user = await requireCurrentUser();
+  try {
+    await requirePermission(user.roleId, "Market", "View");
+  } catch {
+    return new NextResponse("معندكش صلاحية الوصول لهذه البيانات", { status: 403 });
+  }
+
+  const orgId = user.orgId;
   const prisma = await getScopedPrisma();
 
   const markets = await prisma.market.findMany({ where: { orgId, deletedAt: null }, orderBy: { createdAt: "desc" } });

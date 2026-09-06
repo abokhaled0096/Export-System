@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
-import { getCurrentOrgId } from "@/lib/org";
+import { requireCurrentUser } from "@/lib/session";
+import { requirePermission } from "@/lib/permissions";
 import { restoreMarket } from "../actions";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,7 +16,23 @@ import {
 export const dynamic = "force-dynamic";
 
 export default async function ArchivedMarketsPage() {
-  const orgId = await getCurrentOrgId();
+  const user = await requireCurrentUser();
+
+  // ⚠️ نفس فجوة /products/archived — القائمة الرئيسية (/markets) بقى فيها فحص Market.View، لكن
+  // نسخة الأرشيف اتنسيت وقتها (اتكشف في إعادة مراجعة وحدة 1، 7 سبتمبر).
+  try {
+    await requirePermission(user.roleId, "Market", "View");
+  } catch {
+    return (
+      <main className="mx-auto max-w-3xl px-6 py-10">
+        <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-6 text-center text-sm text-destructive">
+          معندكش صلاحية الوصول للصفحة دي.
+        </div>
+      </main>
+    );
+  }
+
+  const orgId = user.orgId;
   const prisma = await getScopedPrisma();
 
   const markets = await prisma.market.findMany({

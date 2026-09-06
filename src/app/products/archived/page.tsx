@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
 import { requireCurrentUser } from "@/lib/session";
+import { requirePermission } from "@/lib/permissions";
 import { restoreProduct } from "../actions";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,6 +17,21 @@ export const dynamic = "force-dynamic";
 
 export default async function ArchivedProductsPage() {
   const user = await requireCurrentUser();
+
+  // ⚠️ القائمة الرئيسية (/products) بقى فيها فحص Product.View (مراجعة وحدة 1 السابقة)، لكن
+  // نسخة الأرشيف اتنسيت وقتها — اتكشف في إعادة المراجعة (7 سبتمبر).
+  try {
+    await requirePermission(user.roleId, "Product", "View");
+  } catch {
+    return (
+      <main className="mx-auto max-w-3xl px-6 py-10">
+        <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-6 text-center text-sm text-destructive">
+          معندكش صلاحية الوصول للصفحة دي.
+        </div>
+      </main>
+    );
+  }
+
   const orgId = user.orgId;
   const prisma = await getScopedPrisma();
 
