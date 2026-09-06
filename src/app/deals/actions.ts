@@ -1170,6 +1170,12 @@ export async function createDocumentVersion(dealId: string, _prevState: Document
     });
     await assertOwnScope(scope, deal.opportunity.ownerId, user);
 
+    // documentId جاي من الفورم — لازم يتأكد إنه فعلًا مستند تابع لنفس الصفقة اللي فحص الملكية
+    // اتعمل عليها، وإلا كان ينفع يتسجّل "إصدار" على مستند صفقة تانية خالص (نفس فئة الباگ في
+    // createNegotiationRound بوحدة 3، اتكشف هنا في مراجعة وحدة 4، 6 سبتمبر).
+    const document = await scopedPrisma.document.findFirst({ where: { id: rest.documentId, dealId } });
+    if (!document) return { formError: "المستند غير موجود لهذه الصفقة." };
+
     await withScopedTransaction(async (tx) => {
       const version = await tx.documentVersion.create({
         data: {
