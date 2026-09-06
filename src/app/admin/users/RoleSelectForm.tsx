@@ -1,0 +1,47 @@
+"use client";
+
+import { useActionState } from "react";
+import { assignUserRole, type AssignRoleFormState } from "./actions";
+
+const initialState: AssignRoleFormState = {};
+
+export default function RoleSelectForm({
+  userId,
+  currentRoleId,
+  roles,
+  isSelf,
+}: {
+  userId: string;
+  currentRoleId: string;
+  roles: { id: string; name: string }[];
+  isSelf: boolean;
+}) {
+  const [state, formAction, pending] = useActionState(assignUserRole, initialState);
+
+  return (
+    <form action={formAction} className="flex items-center gap-2">
+      <input type="hidden" name="userId" value={userId} />
+      <select
+        name="roleId"
+        defaultValue={currentRoleId}
+        disabled={pending}
+        className="rounded-lg border border-neutral-300 bg-white px-2 py-1.5 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+      >
+        {roles.map((r) => (
+          <option key={r.id} value={r.id}>
+            {r.name}
+          </option>
+        ))}
+      </select>
+      <button
+        type="submit"
+        disabled={pending}
+        className="rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-800 disabled:opacity-50"
+      >
+        {pending ? "جاري الحفظ..." : "حفظ"}
+      </button>
+      {isSelf && <span className="text-xs text-amber-600">ده حسابك — احذر لو غيّرت دورك</span>}
+      {state.formError && <span role="alert" className="text-xs text-rose-600">{state.formError}</span>}
+    </form>
+  );
+}

@@ -1,0 +1,117 @@
+import Link from "next/link";
+import { requireCurrentUser } from "@/lib/session";
+import { requirePermission } from "@/lib/permissions";
+import { getScopedPrisma } from "@/lib/scoped-prisma";
+import ChangeRequestForm from "./ChangeRequestForm";
+import DecisionButtons from "./DecisionButtons";
+import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
+const ENTITY_LINK_BASE: Record<string, string> = {
+  Company: "/companies",
+  Supplier: "/suppliers",
+  BankAccount: "/accounting/bank-accounts",
+};
+
+export const dynamic = "force-dynamic";
+
+const STATUS_LABEL: Record<string, string> = { Pending: "قيد المراجعة", Approved: "معتمَد", Rejected: "مرفوض" };
+const STATUS_STYLE: Record<string, string> = {
+  Pending: "bg-amber-100 text-amber-700 hover:bg-amber-100",
+  Approved: "bg-emerald-100 text-emerald-700 hover:bg-emerald-100",
+  Rejected: "bg-rose-100 text-rose-700 hover:bg-rose-100",
+};
+
+export default async function ChangeRequestsPage() {
+  const user = await requireCurrentUser();
+
+  try {
+    await requirePermission(user.roleId, "MasterDataChangeRequest", "View");
+  } catch {
+    return (
+      <main className="mx-auto max-w-3xl px-6 py-10">
+        <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-6 text-center text-sm text-destructive">
+          معندكش صلاحية الوصول للصفحة دي.
+        </div>
+      </main>
+    );
+  }
+
+  const orgId = user.orgId;
+  const prisma = await getScopedPrisma();
+
+  let canDecide = true;
+  try {
+    await requirePermission(user.roleId, "MasterDataChangeRequest", "Edit");
+  } catch {
+    canDecide = false;
+  }
+
+  const requests = await prisma.masterDataChangeRequest.findMany({
+    where: { orgId },
+    orderBy: { createdAt: "desc" },
+    include: { requestedByUser: { select: { fullName: true } }, approvedByUser: { select: { fullName: true } } },
+  });
+
+  return (
+    <main className="mx-auto max-w-6xl px-6 py-10">
+      <div>
+        <h1 className="text-2xl font-semibold text-foreground">طلبات تعديل البيانات الأساسية</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{requests.length} طلب</p>
+      </div>
+
+      <div className="mt-6">
+        <ChangeRequestForm />
+      </div>
+
+      <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>الكيان</TableHead>
+              <TableHead>المعرّف</TableHead>
+              <TableHead>التغييرات المقترحة</TableHead>
+              <TableHead>مقدَّم بمعرفة</TableHead>
+              <TableHead>الحالة</TableHead>
+              <TableHead>قرار بمعرفة</TableHead>
+              {canDecide && <TableHead />}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {requests.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={canDecide ? 7 : 6} className="py-6 text-center text-muted-foreground">
+                  لسه مفيش طلبات مسجّلة.
+                </TableCell>
+              </TableRow>
+            ) : (
+              requests.map((r) => (
+                <TableRow key={r.id}>
+                  <TableCell className="text-foreground/80">{r.entityType}</TableCell>
+                  <TableCell className="font-mono text-xs text-foreground/60">
+                    {r.entityId === "NEW" ? (
+                      <span className="rounded bg-sky-100 px-1.5 py-0.5 font-sans text-xs text-sky-700">طلب إنشاء جديد</span>
+                    ) : r.status === "Approved" && ENTITY_LINK_BASE[r.entityType] ? (
+                      <Link href={`${ENTITY_LINK_BASE[r.entityType]}/${r.entityId}`} className="text-primary hover:underline">
+                        {r.entityId.slice(0, 8)}
+                      </Link>
+                    ) : (
+                      r.entityId
+                    )}
+                  </TableCell>
+                  <TableCell className="max-w-xs truncate font-mono text-xs text-foreground/80">{JSON.stringify(r.proposedChanges)}</TableCell>
+                  <TableCell className="text-foreground/80">{r.requestedByUser.fullName}</TableCell>
+                  <TableCell>
+                    <Badge className={STATUS_STYLE[r.status]}>{STATUS_LABEL[r.status]}</Badge>
+                  </TableCell>
+                  <TableCell className="text-foreground/80">{r.approvedByUser?.fullName ?? "—"}</TableCell>
+                  {canDecide && <TableCell>{r.status === "Pending" && <DecisionButtons requestId={r.id} />}</TableCell>}
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    </main>
+  );
+}

@@ -1,0 +1,26 @@
+import LoginForm from "./LoginForm";
+
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string; error?: string }>;
+}) {
+  const { next, error } = await searchParams;
+
+  return (
+    <main className="flex flex-1 items-center justify-center px-6 py-16">
+      <div className="flex flex-col items-center gap-8 w-full">
+        <div className="text-center">
+          <h1 className="text-2xl font-semibold text-neutral-900">أبوهيبة للتصدير</h1>
+          <p className="mt-1 text-sm text-neutral-500">سجّل الدخول للمتابعة</p>
+        </div>
+        {error === "unlinked" && (
+          <p className="w-full max-w-sm rounded-lg bg-amber-50 px-3 py-2 text-center text-sm text-amber-800">
+            جلستك انتهت — سجّل دخول تاني، أي بيانات كنت بتكتبها في فورم طويل هترجع تلقائيًا.
+          </p>
+        )}
+        <LoginForm next={next} />
+      </div>
+    </main>
+  );
+}

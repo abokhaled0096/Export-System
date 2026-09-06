@@ -1,0 +1,434 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
+import type { ScopedTx } from "@/lib/scoped-prisma";
+import { withScopedTransaction } from "@/lib/scoped-prisma";
+import { requireCurrentUser } from "@/lib/session";
+import { requirePermission, getPermissionScope } from "@/lib/permissions";
+import { logAudit } from "@/lib/audit";
+import { logError, isNextControlFlowError, businessRuleMessage } from "@/lib/errorLog";
+import { NEW_ENTITY_SENTINEL } from "@/lib/masterDataChangeRequest";
+import { CompanySchema } from "@/app/companies/actions";
+import { SupplierSchema } from "@/app/suppliers/actions";
+import { BankAccountSchema } from "@/app/accounting/arap-actions";
+
+/**
+ * بيحوّل طلب إنشاء (entityId === NEW_ENTITY_SENTINEL) لكيان حقيقي وقت الاعتماد — هنا بالظبط
+ * الفرق بين "بوابة فعلية" و"تسجيل شكلي بلا أثر" اللي كان موثّق في BACKLOG.md. إعادة فحص
+ * proposedChanges بنفس الـSchema بتاعة الإنشاء المباشر إلزامية (defense in depth) — الـJSON ده
+ * جاي من صف قاعدة بيانات مش مدخل نموذج، لكن لسه مش نوع مضمون وقت التخزين.
+ *
+ * ⚠️ `requestedBy` ≠ `approverId` عمدًا: صاحب الكيان (`Company.ownerId`) ومنشئه (`Supplier.createdBy`)
+ * لازم يكونوا اللي طلب الإضافة أصلًا، مش المعتمِد. غلط ده كان هيبوّظ حاجتين حقيقيتين: (1) فلترة
+ * Own-scope كانت هترجّع الشركة الجديدة "مش ملك" الشخص اللي هيشتغل عليها أصلًا؛ (2) قاعدة فصل
+ * المهام على Supplier (راجع docs/ERD.md §12 وBACKLOG.md § خلصان) بتقارن `createdBy` بمعتمِد أول
+ * دفعة — لو `createdBy` بقى المعتمِد نفسه بدل الطالب الحقيقي، القاعدة كانت هتفقد معناها الأمني
+ * تمامًا (سيناريو الاحتيال اللي بتحمي منه هو "الطالب" اللي ممكن يعمل مورّد وهمي، مش المعتمِد المحايد).
+ */
+async function createEntityFromChangeRequest(
+  tx: ScopedTx,
+  orgId: string,
+  requestedBy: string,
+  approverId: string,
+  entityType: string,
+  proposedChanges: unknown
+): Promise<string> {
+  switch (entityType) {
+    case "Company": {
+      const { classification, ...rest } = CompanySchema.parse(proposedChanges);
+      const company = await tx.company.create({
+        data: { orgId, ...rest, classification: [classification], status: "Lead", ownerId: requestedBy },
+      });
+      await logAudit(tx, { orgId, userId: approverId, action: "company.created", entityType: "Company", entityId: company.id, afterValue: { ...rest, source: "changeRequest", requestedBy } });
+      return company.id;
+    }
+    case "Supplier": {
+      const data = SupplierSchema.parse(proposedChanges);
+      // نفس تطبيع createSupplier المباشر بالحرف: نص فاضي يتخزّن NULL مش ""، وsupplierType
+      // (عمود مطلوب بلا default) بيدّيله [] لو مفيش. بلا ده، الاعتماد كان هيسيب فرق بيانات
+      // ملموس عن نفس الحقول لو اتعملت بالإنشاء المباشر (عرض "" بدل "—" في أي صفحة تفاصيل).
+      const supplier = await tx.supplier.create({
+        data: {
+          orgId,
+          ...data,
+          tradeName: data.tradeName || undefined,
+          country: data.country || undefined,
+          governorate: data.governorate || undefined,
+          city: data.city || undefined,
+          taxId: data.taxId || undefined,
+          commercialRegNo: data.commercialRegNo || undefined,
+          supplierType: data.supplierType ?? [],
+          createdBy: requestedBy,
+        },
+      });
+      await logAudit(tx, { orgId, userId: approverId, action: "supplier.created", entityType: "Supplier", entityId: supplier.id, afterValue: { ...data, source: "changeRequest", requestedBy } });
+      return supplier.id;
+    }
+    case "BankAccount": {
+      const data = BankAccountSchema.parse(proposedChanges);
+      const account = await tx.bankAccount.create({ data: { orgId, ...data } });
+      await logAudit(tx, { orgId, userId: approverId, action: "bankAccount.created", entityType: "BankAccount", entityId: account.id, afterValue: { ...data, source: "changeRequest", requestedBy } });
+      return account.id;
+    }
+    default:
+      throw new Error(`اعتماد طلبات إنشاء ${entityType} مش مدعوم لسه.`);
+  }
+}
+
+// ==================== SegregationOfDutyRule ====================
+
+const SoDRuleSchema = z.object({
+  action1: z.string().trim().min(1, "الفعل الأول مطلوب"),
+  action2: z.string().trim().min(1, "الفعل الثاني مطلوب"),
+  mustBeDifferentUser: z.coerce.boolean().default(true),
+});
+
+export type SoDRuleFormState = { errors?: Record<string, string[]>; formError?: string };
+
+/** جدول قواعد قابل للتخصيص — القاعدة مش مفروضة إلا لو `isActive`. الإنفاذ الفعلي دلوقتي على
+ * Payment.createdBy/approvedBy بس (Trigger enforce_segregation_of_duty_payment). */
+export async function createSoDRule(_prevState: SoDRuleFormState, formData: FormData): Promise<SoDRuleFormState> {
+  const parsed = SoDRuleSchema.safeParse({
+    action1: formData.get("action1"),
+    action2: formData.get("action2"),
+    mustBeDifferentUser: formData.get("mustBeDifferentUser") === "on",
+  });
+  if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
+
+  const user = await requireCurrentUser();
+  try {
+    await requirePermission(user.roleId, "SegregationOfDutyRule", "Create");
+    await withScopedTransaction(async (tx) => {
+      const rule = await tx.segregationOfDutyRule.create({ data: { orgId: user.orgId, ...parsed.data } });
+      await logAudit(tx, {
+        orgId: user.orgId,
+        userId: user.id,
+        action: "sodRule.created",
+        entityType: "SegregationOfDutyRule",
+        entityId: rule.id,
+        afterValue: parsed.data,
+      });
+    });
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "createSoDRule", error: e });
+    return { formError: businessRuleMessage(e, "حصل خطأ أثناء إضافة القاعدة — حاول تاني.") };
+  }
+
+  revalidatePath("/governance/sod-rules");
+  return {};
+}
+
+/** تفعيل/إيقاف قاعدة — الإنفاذ الفعلي بيتشغّل/يتوقّف فورًا (الـTrigger بيقرأ isActive لحظيًا). */
+export async function toggleSoDRuleAction(ruleId: string, isActive: boolean) {
+  const user = await requireCurrentUser();
+  await requirePermission(user.roleId, "SegregationOfDutyRule", "Create");
+
+  try {
+    await withScopedTransaction(async (tx) => {
+      await tx.segregationOfDutyRule.update({ where: { id: ruleId }, data: { isActive } });
+    });
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "toggleSoDRuleAction", error: e });
+    throw new Error(businessRuleMessage(e, "حصل خطأ أثناء تعديل القاعدة."));
+  }
+
+  revalidatePath("/governance/sod-rules");
+}
+
+// ==================== DecisionLogEntry ====================
+
+const DecisionSchema = z.object({
+  title: z.string().trim().min(1, "العنوان مطلوب"),
+  decisionDate: z.string().trim().min(1, "تاريخ القرار مطلوب"),
+  decidedBy: z.string().uuid("اختر مين اتخذ القرار"),
+  context: z.string().trim().optional().or(z.literal("")),
+  outcome: z.string().trim().optional().or(z.literal("")),
+});
+
+export type DecisionFormState = { errors?: Record<string, string[]>; formError?: string };
+
+export async function createDecisionLogEntry(_prevState: DecisionFormState, formData: FormData): Promise<DecisionFormState> {
+  const parsed = DecisionSchema.safeParse({
+    title: formData.get("title"),
+    decisionDate: formData.get("decisionDate"),
+    decidedBy: formData.get("decidedBy"),
+    context: formData.get("context") || undefined,
+    outcome: formData.get("outcome") || undefined,
+  });
+  if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
+
+  const user = await requireCurrentUser();
+  const { title, decisionDate, decidedBy, context, outcome } = parsed.data;
+
+  try {
+    await requirePermission(user.roleId, "DecisionLogEntry", "Create");
+    await withScopedTransaction(async (tx) => {
+      const entry = await tx.decisionLogEntry.create({
+        data: { orgId: user.orgId, title, decisionDate: new Date(decisionDate), decidedBy, context: context || undefined, outcome: outcome || undefined },
+      });
+      await logAudit(tx, {
+        orgId: user.orgId,
+        userId: user.id,
+        action: "decisionLogEntry.created",
+        entityType: "DecisionLogEntry",
+        entityId: entry.id,
+        afterValue: { title },
+      });
+    });
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "createDecisionLogEntry", error: e });
+    return { formError: businessRuleMessage(e, "حصل خطأ أثناء تسجيل القرار — حاول تاني.") };
+  }
+
+  revalidatePath("/governance/decisions");
+  return {};
+}
+
+// ==================== RiskRegisterItem ====================
+
+const RiskSchema = z.object({
+  title: z.string().trim().min(1, "العنوان مطلوب"),
+  category: z.string().trim().min(1, "الفئة مطلوبة"),
+  probability: z.coerce.number().int().min(0, "من 0 لـ100").max(100, "من 0 لـ100"),
+  financialImpact: z.coerce.number().min(0, "الأثر المالي مطلوب"),
+  currency: z.string().trim().length(3).toUpperCase(),
+  ownerId: z.string().uuid("اختر المسؤول"),
+  mitigation: z.string().trim().optional().or(z.literal("")),
+});
+
+export type RiskFormState = { errors?: Record<string, string[]>; formError?: string };
+
+export async function createRiskRegisterItem(_prevState: RiskFormState, formData: FormData): Promise<RiskFormState> {
+  const parsed = RiskSchema.safeParse({
+    title: formData.get("title"),
+    category: formData.get("category"),
+    probability: formData.get("probability"),
+    financialImpact: formData.get("financialImpact"),
+    currency: formData.get("currency"),
+    ownerId: formData.get("ownerId"),
+    mitigation: formData.get("mitigation") || undefined,
+  });
+  if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
+
+  const user = await requireCurrentUser();
+  try {
+    await requirePermission(user.roleId, "RiskRegisterItem", "Create");
+    await withScopedTransaction(async (tx) => {
+      const item = await tx.riskRegisterItem.create({ data: { orgId: user.orgId, ...parsed.data, mitigation: parsed.data.mitigation || undefined } });
+      await logAudit(tx, {
+        orgId: user.orgId,
+        userId: user.id,
+        action: "riskRegisterItem.created",
+        entityType: "RiskRegisterItem",
+        entityId: item.id,
+        afterValue: { title: parsed.data.title },
+      });
+    });
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "createRiskRegisterItem", error: e });
+    return { formError: businessRuleMessage(e, "حصل خطأ أثناء تسجيل الخطر — حاول تاني.") };
+  }
+
+  revalidatePath("/governance/risks");
+  return {};
+}
+
+export async function updateRiskStatusAction(riskId: string, status: "Open" | "Mitigated" | "Closed") {
+  const user = await requireCurrentUser();
+  await requirePermission(user.roleId, "RiskRegisterItem", "Edit");
+
+  try {
+    await withScopedTransaction(async (tx) => {
+      await tx.riskRegisterItem.update({ where: { id: riskId }, data: { status } });
+      await logAudit(tx, { orgId: user.orgId, userId: user.id, action: "riskRegisterItem.statusChanged", entityType: "RiskRegisterItem", entityId: riskId, afterValue: { status } });
+    });
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "updateRiskStatusAction", error: e });
+    throw new Error(businessRuleMessage(e, "حصل خطأ أثناء تعديل حالة الخطر."));
+  }
+
+  revalidatePath("/governance/risks");
+}
+
+// ==================== KPI ====================
+
+const KpiSchema = z.object({
+  name: z.string().trim().min(1, "الاسم مطلوب"),
+  category: z.string().trim().min(1, "الفئة مطلوبة"),
+  ownerId: z.string().uuid("اختر المسؤول"),
+  targetValue: z.coerce.number().min(0, "القيمة المستهدفة مطلوبة"),
+  actualValue: z.coerce.number().optional(),
+  periodId: z.string().uuid("اختر فترة محاسبية"),
+});
+
+export type KpiFormState = { errors?: Record<string, string[]>; formError?: string };
+
+/** actualValue إدخال يدوي عمدًا — مفيش محرك BI عام يحسبه تلقائيًا لكل نوع KPI ممكن. */
+export async function createKPI(_prevState: KpiFormState, formData: FormData): Promise<KpiFormState> {
+  const parsed = KpiSchema.safeParse({
+    name: formData.get("name"),
+    category: formData.get("category"),
+    ownerId: formData.get("ownerId"),
+    targetValue: formData.get("targetValue"),
+    actualValue: formData.get("actualValue") || undefined,
+    periodId: formData.get("periodId"),
+  });
+  if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
+
+  const user = await requireCurrentUser();
+  try {
+    await requirePermission(user.roleId, "KPI", "Create");
+    await withScopedTransaction(async (tx) => {
+      const kpi = await tx.kPI.create({ data: { orgId: user.orgId, ...parsed.data } });
+      await logAudit(tx, { orgId: user.orgId, userId: user.id, action: "kpi.created", entityType: "KPI", entityId: kpi.id, afterValue: { name: parsed.data.name } });
+    });
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "createKPI", error: e });
+    return { formError: businessRuleMessage(e, "حصل خطأ أثناء تسجيل المؤشر — حاول تاني.") };
+  }
+
+  revalidatePath("/governance/kpis");
+  return {};
+}
+
+// ==================== Notification ====================
+
+export async function markNotificationReadAction(notificationId: string) {
+  const user = await requireCurrentUser();
+  await requirePermission(user.roleId, "Notification", "Edit");
+
+  try {
+    await withScopedTransaction(async (tx) => {
+      // ⚠️ فلترة صريحة بـuserId — الإشعار شخصي، مش أي صف يقدر أي مستخدم يعلّمه مقروء لمجرد
+      // إنه شايفه (Notification مالهاش scope حقيقي غير Own، والفحص هنا هو الـOwn الفعلي).
+      const notification = await tx.notification.findUniqueOrThrow({ where: { id: notificationId } });
+      if (notification.userId !== user.id) throw new Error("الإشعار ده مش بتاعك.");
+      await tx.notification.update({ where: { id: notificationId }, data: { readAt: new Date() } });
+    });
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "markNotificationReadAction", error: e });
+    throw new Error(businessRuleMessage(e, "حصل خطأ أثناء تعليم الإشعار."));
+  }
+
+  revalidatePath("/notifications");
+}
+
+// ==================== MasterDataChangeRequest ====================
+
+const ChangeRequestSchema = z.object({
+  entityType: z.string().trim().min(1, "نوع الكيان مطلوب"),
+  entityId: z.string().trim().min(1, "معرّف الكيان مطلوب"),
+  proposedChanges: z.string().trim().min(1, "التغييرات المقترحة مطلوبة"),
+});
+
+export type ChangeRequestFormState = { errors?: Record<string, string[]>; formError?: string };
+
+/** فورم عام لطلب تعديل كيان موجود بالفعل (entityId حقيقي) — لسه تسجيل بس، الاعتماد هنا
+ * مبيطبّقش التغييرات على الصف تلقائيًا (محتاج قرار نطاق منفصل، مسجَّل في BACKLOG.md).
+ * ⚠️ ده غير طلبات "إنشاء كيان جديد" (`requestEntityCreation` في src/lib/masterDataChangeRequest.ts،
+ * مستدعاة من createCompany/createSupplier/createBankAccount) — دي بقت بوابة فعلية حقيقية،
+ * الاعتماد بيولّد الصف فعليًا (راجع createEntityFromChangeRequest تحت). */
+export async function createMasterDataChangeRequest(_prevState: ChangeRequestFormState, formData: FormData): Promise<ChangeRequestFormState> {
+  const parsed = ChangeRequestSchema.safeParse({
+    entityType: formData.get("entityType"),
+    entityId: formData.get("entityId"),
+    proposedChanges: formData.get("proposedChanges"),
+  });
+  if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
+
+  let proposedChangesJson: object;
+  try {
+    proposedChangesJson = JSON.parse(parsed.data.proposedChanges);
+  } catch {
+    return { errors: { proposedChanges: ["التغييرات المقترحة لازم تكون JSON صالح — مثال: {\"creditLimit\": 50000}"] } };
+  }
+
+  const user = await requireCurrentUser();
+  try {
+    await requirePermission(user.roleId, "MasterDataChangeRequest", "Create");
+    await withScopedTransaction(async (tx) => {
+      const request = await tx.masterDataChangeRequest.create({
+        data: {
+          orgId: user.orgId,
+          entityType: parsed.data.entityType,
+          entityId: parsed.data.entityId,
+          proposedChanges: proposedChangesJson,
+          requestedBy: user.id,
+        },
+      });
+      await logAudit(tx, {
+        orgId: user.orgId,
+        userId: user.id,
+        action: "masterDataChangeRequest.created",
+        entityType: "MasterDataChangeRequest",
+        entityId: request.id,
+        afterValue: { entityType: parsed.data.entityType, entityId: parsed.data.entityId },
+      });
+    });
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "createMasterDataChangeRequest", error: e });
+    return { formError: businessRuleMessage(e, "حصل خطأ أثناء تسجيل الطلب — حاول تاني.") };
+  }
+
+  revalidatePath("/governance/change-requests");
+  return {};
+}
+
+export async function decideMasterDataChangeRequestAction(requestId: string, status: "Approved" | "Rejected") {
+  const user = await requireCurrentUser();
+  await requirePermission(user.roleId, "MasterDataChangeRequest", "Edit");
+
+  try {
+    await withScopedTransaction(async (tx) => {
+      const request = await tx.masterDataChangeRequest.findUniqueOrThrow({ where: { id: requestId } });
+      if (request.status !== "Pending") throw new Error("الطلب ده اتقرر فيه بالفعل.");
+
+      // اعتماد طلب "إنشاء جديد" (entityId === NEW) بيولّد الكيان فعليًا هنا — لو ده طلب تعديل
+      // كيان موجود (entityId حقيقي)، مفيش تنفيذ آلي لسه (خارج نطاق هذا البند، راجع BACKLOG.md).
+      //
+      // ⚠️ دفاع في العمق ضروري هنا بالذات: MasterDataChangeRequest.Edit لوحدها ماينفعش تبقى
+      // كافية لاعتماد إنشاء كيان — المعتمِد لازم يكون أصلًا عنده صلاحية {entityType}.Create
+      // نفسها. دلوقتي Admin/CompanyOwner بس عندهم Edit وعندهم كل صلاحيات الإنشاء أصلًا (بلا
+      // أثر فعلي)، لكن لو دور تاني اتضاف لـMasterDataChangeRequest.Edit مستقبلًا بلا Create
+      // لنوع الكيان، كان هيقدر "يمنح نفسه" صلاحية إنشاء ماكانتلوش أصلًا — تصعيد صلاحيات صريح.
+      const isCreationRequest = status === "Approved" && request.entityId === NEW_ENTITY_SENTINEL;
+      if (isCreationRequest && !(await getPermissionScope(user.roleId, request.entityType, "Create"))) {
+        throw new Error(`معندكش صلاحية ${request.entityType}.Create — مينفعش تعتمد طلب إنشاء ${request.entityType} من غيرها.`);
+      }
+      const createdEntityId = isCreationRequest
+        ? await createEntityFromChangeRequest(tx, user.orgId, request.requestedBy, user.id, request.entityType, request.proposedChanges)
+        : null;
+
+      await tx.masterDataChangeRequest.update({
+        where: { id: requestId },
+        data: { status, approvedBy: user.id, ...(createdEntityId ? { entityId: createdEntityId } : {}) },
+      });
+      await logAudit(tx, {
+        orgId: user.orgId,
+        userId: user.id,
+        action: "masterDataChangeRequest.decided",
+        entityType: "MasterDataChangeRequest",
+        entityId: requestId,
+        afterValue: { status, createdEntityId },
+      });
+    });
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "decideMasterDataChangeRequestAction", error: e });
+    throw new Error(businessRuleMessage(e, "حصل خطأ أثناء تسجيل القرار."));
+  }
+
+  revalidatePath("/governance/change-requests");
+  revalidatePath("/companies");
+  revalidatePath("/suppliers");
+  revalidatePath("/accounting/bank-accounts");
+}

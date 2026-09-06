@@ -1,0 +1,4837 @@
+// منظومة أبوهيبة للتصدير — Prisma schema
+// نطاق P1 فقط (راجع ../docs/SCOPE-P1.md) — لا الـ92 كيان في ../docs/ERD.md دفعة واحدة.
+// كل كيان هنا موثّق بنفس الاسم والحقول في ERD v3 §0 (الطبقة المشتركة) و§4 (وحدة 1) و§6 (وحدة 3).
+//
+// قواعد عامة (ERD v3 §1) مطبّقة هنا:
+// - id: uuid بقيمة افتراضية uuidv7() (Postgres 18) — ما عدا User، راجع الملاحظة عليه تحت.
+// - orgId على كل كيان تشغيلي — أساس كل RLS policy لاحقًا.
+// - deletedAt nullable = أرشفة، لا حذف فعلي.
+// - AuditLog: جدول Insert-only فعليًا — لا updatedAt ولا deletedAt هنا، والإنفاذ الفعلي
+//   لمنع UPDATE/DELETE عليه لازم يتعمل بـ Migration خام (RLS Policy) بعد أول `prisma migrate dev`،
+//   Prisma نفسه مايقدرش يعبّر عن "insert-only" كقيد schema.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ==================== الطبقة المشتركة (Platform) ====================
+
+/// صف واحد مزروع — بلا أي واجهة إدارة مستأجرين (قرار معماري، راجع CLAUDE.md).
+model Organization {
+  id        String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  name      String
+  legalName String
+  taxId     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users                    User[]
+  products                 Product[]
+  markets                  Market[]
+  companies                Company[]
+  roles                    Role[]
+  departments              Department[]
+  teams                    Team[]
+  exchangeRates            ExchangeRate[]
+  approvalPolicies         ApprovalPolicy[]
+  approvals                Approval[]
+  deals                    Deal[]
+  complianceCases          ComplianceCase[]
+  requirements             Requirement[]
+  gates                    Gate[]
+  hsClassifications        HSClassification[]
+  certificates             Certificate[]
+  registrations            Registration[]
+  originProofs             OriginProof[]
+  rejectionCases           RejectionCase[]
+  lcRequirements           LCRequirement[]
+  shipments                Shipment[]
+  shipmentParties          ShipmentParty[]
+  bookings                 Booking[]
+  containers               Container[]
+  milestones               Milestone[]
+  shipmentEvents           ShipmentEvent[]
+  logisticsExceptions      LogisticsException[]
+  freeTimeRecords          FreeTimeRecord[]
+  actualLogisticsCosts     ActualLogisticsCost[]
+  temperatureLogs          TemperatureLog[]
+  transportTrips           TransportTrip[]
+  claims                   Claim[]
+  serviceProviders         ServiceProvider[]
+  routes                   Route[]
+  freightQuotes            FreightQuote[]
+  freightQuoteLines        FreightQuoteLine[]
+  suppliers                Supplier[]
+  facilities               Facility[]
+  sourcingRequests         SourcingRequest[]
+  supplierQuotes           SupplierQuote[]
+  purchaseOrders           PurchaseOrder[]
+  batches                  Batch[]
+  inspections              Inspection[]
+  qualityReleases          QualityRelease[]
+  lots                     Lot[]
+  shipmentLots             ShipmentLot[]
+  productionPlans          ProductionPlan[]
+  inventories              Inventory[]
+  ncrs                     NCR[]
+  labTests                 LabTest[]
+  farms                    Farm[]
+  batchRawMaterialLines    BatchRawMaterialLine[]
+  supplierRFQs             SupplierRFQ[]
+  batchMarketEligibilities BatchMarketEligibility[]
+  supplierAudits           SupplierAudit[]
+  supplyContracts          SupplyContract[]
+  packagingMaterials       PackagingMaterial[]
+  supplierSamples          SupplierSample[]
+  cargoReadinesses         CargoReadiness[]
+  supplierPerformances     SupplierPerformance[]
+  productSpecifications    ProductSpecification[]
+  documents                Document[]
+  capas                    CAPA[]
+  documentVersions         DocumentVersion[]
+  templates                Template[]
+  documentPackages         DocumentPackage[]
+  clauses                  Clause[]
+  communications           Communication[]
+  rfqAnalyses              RFQAnalysis[]
+  customerSamples          CustomerSample[]
+  negotiations             Negotiation[]
+  negotiationRounds        NegotiationRound[]
+  redFlags                 RedFlag[]
+  leadAssignmentRules      LeadAssignmentRule[]
+  salesTargets             SalesTarget[]
+  commissionPlans          CommissionPlan[]
+  commissionEntries        CommissionEntry[]
+  customerServiceCases     CustomerServiceCase[]
+  chartOfAccounts          ChartOfAccount[]
+  accountingPeriods        AccountingPeriod[]
+  journalEntries           JournalEntry[]
+  journalLines             JournalLine[]
+  costCenters              CostCenter[]
+  profitCenters            ProfitCenter[]
+  bankAccounts             BankAccount[]
+  invoices                 Invoice[]
+  payments                 Payment[]
+  paymentAllocations       PaymentAllocation[]
+  bankTransactions         BankTransaction[]
+  bankReconciliations      BankReconciliation[]
+  loans                    Loan[]
+  loanInstallments         LoanInstallment[]
+  cashFlowForecastLines    CashFlowForecastLine[]
+  budgets                  Budget[]
+  fixedAssets              FixedAsset[]
+  depreciationEntries      DepreciationEntry[]
+  taxRecords               TaxRecord[]
+  segregationOfDutyRules   SegregationOfDutyRule[]
+  decisionLogEntries       DecisionLogEntry[]
+  riskRegisterItems        RiskRegisterItem[]
+  kpis                     KPI[]
+  notifications            Notification[]
+  masterDataChangeRequests MasterDataChangeRequest[]
+  quoteBundles             QuoteBundle[]
+}
+
+// ==================== الوحدة 9 — الحوكمة والإدارة (شريحة أولى فقط، ERD v4 §12) ====================
+// نطاق هذه الشريحة: Role/Permission/RolePermission/Department/Team بس — باقي الـ8 كيانات
+// (FieldPermission, WorkflowDefinition, SegregationOfDutyRule, MasterDataChangeRequest,
+// RiskRegisterItem, DecisionLogEntry, KPI, Notification) مؤجَّلة عن قصد، راجع STATUS.md.
+
+enum PermissionAction {
+  View
+  Create
+  Edit
+  Delete
+  Approve
+  Export
+  /// استيراد بالجملة (CSV) — خطر مختلف عن Create لحركة واحدة، صلاحية مستقلة عمدًا. أول استخدام: BankTransaction.
+  Import
+}
+
+enum PermissionScope {
+  Own
+  Team
+  Org
+}
+
+/// أدوار قابلة للتخصيص بدل enum ثابت — الأدوار التسعة الأصلية بتتزرع كصفوف isSystemRole=true.
+model Role {
+  id           String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId        String   @db.Uuid
+  name         String
+  description  String?
+  isSystemRole Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  organization        Organization     @relation(fields: [orgId], references: [id])
+  users               User[]
+  rolePermissions     RolePermission[]
+  requiredForPolicies ApprovalPolicy[] @relation("ApprovalPolicyRequiredRole")
+
+  @@unique([orgId, name])
+  @@index([orgId])
+}
+
+/// كتالوج عالمي مشترك بين كل المنظمات — بلا orgId عن قصد (نفس "Quote" هو نفس المورد للجميع).
+model Permission {
+  id        String           @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  resource  String // مثال "Opportunity", "Deal", "Quote"
+  action    PermissionAction
+  createdAt DateTime         @default(now())
+
+  rolePermissions RolePermission[]
+
+  @@unique([resource, action])
+}
+
+model RolePermission {
+  id           String          @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  roleId       String          @db.Uuid
+  permissionId String          @db.Uuid
+  scope        PermissionScope
+
+  role       Role       @relation(fields: [roleId], references: [id])
+  permission Permission @relation(fields: [permissionId], references: [id])
+
+  @@unique([roleId, permissionId])
+  @@index([roleId])
+}
+
+model Department {
+  id                 String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId              String   @db.Uuid
+  name               String
+  parentDepartmentId String?  @db.Uuid
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  organization     Organization @relation(fields: [orgId], references: [id])
+  parentDepartment Department?  @relation("DepartmentHierarchy", fields: [parentDepartmentId], references: [id])
+  subDepartments   Department[] @relation("DepartmentHierarchy")
+  teams            Team[]
+
+  @@index([orgId])
+}
+
+model Team {
+  id           String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId        String   @db.Uuid
+  name         String
+  departmentId String   @db.Uuid
+  managerId    String?  @db.Uuid
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  organization        Organization         @relation(fields: [orgId], references: [id])
+  department          Department           @relation(fields: [departmentId], references: [id])
+  manager             User?                @relation("TeamManager", fields: [managerId], references: [id])
+  members             User[]               @relation("TeamMembers")
+  leadAssignmentRules LeadAssignmentRule[]
+  salesTargets        SalesTarget[]
+
+  @@index([orgId])
+}
+
+/// ملاحظة: id هنا بدون @default(dbgenerated) عن قصد — لازم يساوي Supabase auth.users.id
+/// وقت الإدخال (نفس الـuuid اللي Supabase Auth بيولّده)، مش uuidv7 مستقل. هذا الاستثناء
+/// الوحيد لقاعدة uuidv7() في ERD v3 §1.1.
+model User {
+  id         String   @id @db.Uuid
+  orgId      String   @db.Uuid
+  fullName   String
+  email      String   @unique
+  roleId     String   @db.Uuid
+  teamId     String?  @db.Uuid
+  isActive   Boolean  @default(true)
+  mfaEnabled Boolean  @default(false) // غير مُفعَّل إلزاميًا في P1 — يصير إلزاميًا مع أول عملية حساسة (P2+, راجع CLAUDE.md)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  role         Role         @relation(fields: [roleId], references: [id])
+  team         Team?        @relation("TeamMembers", fields: [teamId], references: [id])
+
+  opportunitiesOwned                Opportunity[]             @relation("OpportunityOwner")
+  companiesOwned                    Company[]                 @relation("CompanyOwner")
+  auditLogs                         AuditLog[]
+  errorLogs                         ErrorLog[]
+  gatesDecided                      Gate[]
+  managedTeams                      Team[]                    @relation("TeamManager")
+  approvalsRequested                Approval[]                @relation("ApprovalRequestedBy")
+  approvalsDecided                  Approval[]                @relation("ApprovalDecidedBy")
+  milestonesOwned                   Milestone[]               @relation("MilestoneOwner")
+  shipmentEventsEntered             ShipmentEvent[]           @relation("ShipmentEventEnteredBy")
+  qualityReleasesDone               QualityRelease[]          @relation("QualityReleaseReleasedBy")
+  labTestsVerified                  LabTest[]                 @relation("LabTestVerifiedBy")
+  batchMarketEligibilitiesAssessed  BatchMarketEligibility[]  @relation("BatchMarketEligibilityAssessedBy")
+  inspections                       Inspection[]
+  productSpecificationsApproved     ProductSpecification[]    @relation("ProductSpecificationApprovedBy")
+  capasOwned                        CAPA[]                    @relation("CAPAOwner")
+  capasVerified                     CAPA[]                    @relation("CAPAVerifiedBy")
+  documentVersionsCreated           DocumentVersion[]
+  redFlagsRaised                    RedFlag[]                 @relation("RedFlagRaisedBy")
+  leadAssignmentRulesTarget         LeadAssignmentRule[]      @relation("LeadAssignmentRuleAssignToUser")
+  salesTargets                      SalesTarget[]
+  commissionEntries                 CommissionEntry[]
+  customerServiceCasesOwned         CustomerServiceCase[]     @relation("CustomerServiceCaseOwner")
+  accountingPeriodsClosed           AccountingPeriod[]        @relation("AccountingPeriodClosedBy")
+  journalEntriesPrepared            JournalEntry[]            @relation("JournalEntryPreparedBy")
+  journalEntriesReviewed            JournalEntry[]            @relation("JournalEntryReviewedBy")
+  journalEntriesApproved            JournalEntry[]            @relation("JournalEntryApprovedBy")
+  suppliersCreated                  Supplier[]                @relation("SupplierCreatedBy")
+  quoteBundlesCreated               QuoteBundle[]
+  paymentsCreated                   Payment[]                 @relation("PaymentCreatedBy")
+  paymentsApproved                  Payment[]                 @relation("PaymentApprovedBy")
+  reconciliationsReconciled         BankReconciliation[]      @relation("ReconciliationReconciledBy")
+  decisionLogEntriesDecided         DecisionLogEntry[]        @relation("DecisionLogDecidedBy")
+  riskRegisterItemsOwned            RiskRegisterItem[]        @relation("RiskRegisterItemOwner")
+  kpisOwned                         KPI[]                     @relation("KPIOwner")
+  notificationsReceived             Notification[]            @relation("NotificationUser")
+  masterDataChangeRequestsRequested MasterDataChangeRequest[] @relation("MasterDataChangeRequestedBy")
+  masterDataChangeRequestsApproved  MasterDataChangeRequest[] @relation("MasterDataChangeApprovedBy")
+
+  @@index([orgId])
+  @@index([roleId])
+}
+
+/// Insert-only فعليًا — منفصل ماديًا عن الجداول التشغيلية (ERD v3 §3).
+/// ⚠️ منع UPDATE/DELETE عليه (حتى لـAdmin) لازم يُنفَّذ كـRLS Policy في Migration خام،
+/// مش مجرد غياب دالة تعديل في الكود.
+model AuditLog {
+  id          String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId       String   @db.Uuid
+  userId      String?  @db.Uuid
+  action      String // مثل "product.created", "opportunity.stage_changed"
+  entityType  String
+  entityId    String   @db.Uuid
+  beforeValue Json?
+  afterValue  Json?
+  ipAddress   String?
+  occurredAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([orgId])
+  @@index([entityType, entityId])
+}
+
+/// Insert-only فعليًا (نفس نمط AuditLog) — سجل تشخيصي لأي استثناء غير متوقع بتبتلعه
+/// `catch` blocks الحالية (كانت بترجع formError عام بلا أي أثر — راجع BACKLOG.md/STATUS.md
+/// § متابعة الأخطاء 30 أغسطس). orgId/userId nullable لأن بعض الأخطاء بتحصل قبل ما نعرف
+/// هوية المستخدم أصلًا (مثلًا session.ts requireCurrentUser() نفسه بيرمي). الكتابة بتتم عبر
+/// src/lib/errorLog.ts (raw prisma، مش scoped-prisma — لازم تنجح حتى لو مفيش سياق RLS صالح).
+model ErrorLog {
+  id         String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId      String?  @db.Uuid
+  userId     String?  @db.Uuid
+  action     String // اسم الـServer Action/route اللي فشلت، مثل "createDeal"
+  message    String
+  stack      String?
+  occurredAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([orgId])
+  @@index([occurredAt])
+}
+
+// ==================== الوحدة 1 — المنتج والسوق (ERD v3 §4) ====================
+
+enum ProductStatus {
+  Draft
+  Verified
+  NeedsReview
+}
+
+model Product {
+  id        String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId     String    @db.Uuid
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime? // أرشفة، لا حذف
+
+  nameAr                String
+  nameEn                String
+  hsCode                String
+  category              String
+  originCountry         String
+  harvestSeason         String?
+  availableMonths       Int[]
+  storageTempC          Decimal?      @db.Decimal(5, 2)
+  shelfLifeDays         Int?
+  requiresRefrigeration Boolean       @default(false)
+  status                ProductStatus @default(Draft)
+
+  organization      Organization            @relation(fields: [orgId], references: [id])
+  analyses          ProductMarketAnalysis[]
+  competitors       Competitor[]
+  opportunities     Opportunity[]
+  deals             Deal[]
+  salesOrderLines   SalesOrderLine[]
+  complianceCases   ComplianceCase[]
+  requirements      Requirement[]
+  hsClassifications HSClassification[]
+  certificates      Certificate[]
+  registrations     Registration[]
+  shipments         Shipment[]
+  sourcingRequests  SourcingRequest[]
+  inventories       Inventory[]
+  supplierSamples   SupplierSample[]
+  specifications    ProductSpecification[]
+  customerSamples   CustomerSample[]
+
+  @@index([orgId])
+}
+
+model Market {
+  id        String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId     String    @db.Uuid
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  countryNameAr      String
+  countryNameEn      String
+  countryCode        String // ISO 3166
+  continent          String
+  currency           String    @db.Char(3) // ISO 4217
+  mainPorts          String[]
+  tradeAgreement     String?
+  politicalRiskScore Int? // 0-100
+  logisticsRiskScore Int? // 0-100
+  lastReviewedAt     DateTime?
+
+  organization             Organization             @relation(fields: [orgId], references: [id])
+  analyses                 ProductMarketAnalysis[]
+  competitors              Competitor[]
+  opportunities            Opportunity[]
+  deals                    Deal[]
+  complianceCases          ComplianceCase[]
+  requirements             Requirement[]
+  hsClassifications        HSClassification[]
+  sourcingRequests         SourcingRequest[]
+  batchMarketEligibilities BatchMarketEligibility[]
+  templates                Template[]
+
+  @@index([orgId])
+}
+
+enum PmaRecommendation {
+  Start
+  Study
+  Monitor
+  Avoid
+}
+
+/// 27 أغسطس: مصدر التحليل — Manual (فورم يدوي، P1 الأصلي) أو AI (بحث حي فعلي عبر Claude + web_search).
+enum AnalysisSource {
+  Manual
+  AI
+}
+
+model ProductMarketAnalysis {
+  id        String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId     String    @db.Uuid
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  productId        String            @db.Uuid
+  marketId         String            @db.Uuid
+  year             Int
+  opportunityScore Int // 0-100 — يدوي أو من AI حسب source
+  riskScore        Int // 0-100
+  confidenceLevel  Int? // 0-100
+  recommendation   PmaRecommendation
+  source           AnalysisSource    @default(Manual)
+  /// نص تبرير Claude للدرجة — إلزامي فعليًا لتحاليل AI (قاعدة "لا تُعطِ درجة بلا سبب"، ERD §3).
+  aiReasoning      String?
+  /// [{title, url}] من نتائج web_search الفعلية اللي اعتمد عليها التحليل.
+  aiSources        Json?
+
+  product Product @relation(fields: [productId], references: [id])
+  market  Market  @relation(fields: [marketId], references: [id])
+
+  @@index([orgId])
+  @@index([productId, marketId])
+}
+
+/// منافسين حقيقيين لمنتج/سوق (ERD §194) — بحث آلي بالذكاء الاصطناعي (Manual/AI زي
+/// ProductMarketAnalysis بالحرف) بدل إدخال يدوي بحت، بناءً على طلب المستخدم (6 سبتمبر).
+/// strengthMonths/weaknessMonths أرقام شهور (1-12) — شهور قوة/ضعف المنافس موسميًا، تتقارن
+/// بـProduct.availableMonths عشان تحدد الفجوات/التداخلات الموسمية الحقيقية.
+model Competitor {
+  id             String         @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId          String         @db.Uuid
+  productId      String         @db.Uuid
+  marketId       String         @db.Uuid
+  countryName    String
+  strengthMonths Int[]
+  weaknessMonths Int[]
+  priceRangeMin  Decimal?       @db.Decimal(14, 4)
+  priceRangeMax  Decimal?       @db.Decimal(14, 4)
+  currency       String         @db.Char(3)
+  source         AnalysisSource @default(Manual)
+  /// نص تبرير الذكاء الاصطناعي — إلزامي فعليًا لسجلات AI (نفس قاعدة ProductMarketAnalysis).
+  aiReasoning    String?
+  /// [{title, url}] من نتائج web_search الفعلية.
+  aiSources      Json?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  deletedAt      DateTime?
+
+  product Product @relation(fields: [productId], references: [id])
+  market  Market  @relation(fields: [marketId], references: [id])
+
+  @@index([orgId])
+  @@index([productId, marketId])
+}
+
+// ==================== الوحدة 3 — العملاء (نطاق P1 فقط، ERD v3 §6) ====================
+
+enum CompanyStatus {
+  Lead
+  Suspect
+  Prospect
+  Qualified
+  ActiveOpportunity
+  Customer
+  RepeatCustomer
+  StrategicAccount
+  Dormant
+  Rejected
+  Blacklisted
+}
+
+model Company {
+  id        String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId     String    @db.Uuid
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  legalName      String
+  tradeName      String?
+  country        String
+  city           String?
+  classification String[] // Importer, Distributor, Wholesaler...
+  status         CompanyStatus @default(Lead)
+  ownerId        String?       @db.Uuid
+
+  /// 🔒 مشفّر عموديًا عبر Supabase Vault (src/lib/vault.ts) — العمود بيخزّن secretId (UUID)
+  /// مش القيمة نفسها، نفس نمط Document.fileUrl. بلا واجهة إدخال لسه (4 سبتمبر 2026).
+  bankAccountNameSecretId String? @db.Uuid
+  bankIBANSecretId        String? @db.Uuid
+  bankSWIFTSecretId       String? @db.Uuid
+
+  organization         Organization          @relation(fields: [orgId], references: [id])
+  owner                User?                 @relation("CompanyOwner", fields: [ownerId], references: [id])
+  contacts             Contact[]
+  opportunities        Opportunity[]
+  deals                Deal[]
+  quotes               Quote[]               @relation("QuoteCustomer")
+  quoteBundles         QuoteBundle[]
+  salesOrders          SalesOrder[]          @relation("SalesOrderCustomer")
+  certificates         Certificate[]
+  shipmentParties      ShipmentParty[]
+  documents            Document[]
+  templates            Template[]
+  communications       Communication[]
+  redFlags             RedFlag[]
+  customerServiceCases CustomerServiceCase[]
+  invoices             Invoice[]
+  payments             Payment[]
+
+  @@index([orgId])
+}
+
+enum DecisionRole {
+  DecisionMaker
+  EconomicBuyer
+  TechnicalEvaluator
+  User
+  Procurement
+  Finance
+  Quality
+  Logistics
+  Gatekeeper
+  Influencer
+  Champion
+  Opponent
+  Unknown
+}
+
+model Contact {
+  id        String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId     String    @db.Uuid
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  companyId     String        @db.Uuid
+  name          String
+  title         String?
+  email         String?
+  /// 🔒 مشفّر عبر Supabase Vault (src/lib/vault.ts، بيانات شخصية حساسة، ERD v3 §1.4).
+  phoneSecretId String?       @db.Uuid
+  decisionRole  DecisionRole?
+
+  /// PDPL — موافقة صريحة على معالجة بيانات الشخص ده (Contact هو "صاحب البيانات" الفعلي،
+  /// مش Company اللي هو شخص اعتباري). بيتسجّل وقت الموظف بيدخل بيانات جهة الاتصال، مش موافقة
+  /// ذاتية عبر النظام — لسه محتاج قناة فعلية (إيميل/توقيع) توثّق موافقة الشخص نفسه، راجع STATUS.md.
+  consentGiven Boolean   @default(false)
+  consentAt    DateTime?
+  /// PDPL — محو حقيقي (Anonymization) لا حذف الصف كامل، عشان مايتكسرش تاريخ الفرص/الصفقات
+  /// المرتبطة (referential integrity). لما يتحط، الحقول الشخصية (name/title/email/phoneSecretId)
+  /// بتتمسح فعليًا (والـsecret الفعلي في Vault بيتمسح كمان — راجع eraseContactData) والصف
+  /// بيفضل موجود بـid بس كمرجع تاريخي محايد.
+  erasedAt     DateTime?
+
+  company        Company         @relation(fields: [companyId], references: [id])
+  opportunities  Opportunity[]
+  communications Communication[]
+
+  @@index([orgId])
+  @@index([companyId])
+}
+
+enum OpportunityStage {
+  NewLead
+  Contacted
+  Qualified
+  QuoteSent
+  Won
+  Lost
+}
+
+model Opportunity {
+  id        String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId     String    @db.Uuid
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  companyId          String           @db.Uuid
+  contactId          String?          @db.Uuid
+  productId          String           @db.Uuid
+  marketId           String           @db.Uuid
+  stage              OpportunityStage @default(NewLead)
+  expectedValue      Decimal?         @db.Decimal(14, 2)
+  currency           String?          @db.Char(3)
+  probabilityOfClose Int? // 0-100
+  expectedCloseDate  DateTime?
+  ownerId            String?          @db.Uuid
+  nextAction         String?
+  nextActionDate     DateTime?
+
+  // حقول تسليم أولية (ERD v3 §13) — تغذّي DealScenario وقت التحويل في P2.
+  indicativeQuantity     Decimal? @db.Decimal(14, 3)
+  indicativeIncoterm     String?
+  indicativePaymentTerms String?
+
+  company Company  @relation(fields: [companyId], references: [id])
+  contact Contact? @relation(fields: [contactId], references: [id])
+  product Product  @relation(fields: [productId], references: [id])
+  market  Market   @relation(fields: [marketId], references: [id])
+  owner   User?    @relation("OpportunityOwner", fields: [ownerId], references: [id])
+  deals   Deal[]
+
+  communications  Communication[]
+  rfqAnalyses     RFQAnalysis[]
+  customerSamples CustomerSample[]
+  negotiations    Negotiation[]
+
+  @@index([orgId])
+  @@index([companyId])
+  @@index([stage])
+}
+
+// ==================== وحدة 3 (تابع) — شريحة أولى: Communication, RFQAnalysis, CustomerSample, ====================
+// ====================                  Negotiation+NegotiationRound, RedFlag ====================
+// راجع docs/ERD.md §6 و docs/SCOPE-P1.md §3 للتفاصيل الكاملة. بلا Trigger جديد — الـTrigger الوحيد
+// المفروض في الـERD (منع قفز Opportunity.stage بلا RFQAnalysis) مؤجَّل عمدًا لحد ما يوجد UI فعلي
+// لتغيير stage أصلًا (مفيش تدفّق تعديل stage دلوقتي، القيد مش قابل للانتهاك عمليًا). راجع BACKLOG.md.
+
+enum CommunicationChannel {
+  Email
+  WhatsApp
+  Phone
+  VideoMeeting
+  PhysicalMeeting
+  LinkedIn
+  WebsiteInquiry
+  Exhibition
+}
+
+enum CommunicationDirection {
+  Inbound
+  Outbound
+}
+
+/// responseTimeHours (⚙️) بيتحسب في الـServer Action وقت الحفظ لو respondedAt موجود (نفس نمط
+/// quantitySaleable/expectedProfit في docs/SCOPE-P2.md §4) — عمود عادي قابل للكتابة، مش Generated.
+model Communication {
+  id                String                 @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId             String                 @db.Uuid
+  companyId         String                 @db.Uuid
+  contactId         String?                @db.Uuid
+  opportunityId     String?                @db.Uuid
+  channel           CommunicationChannel
+  direction         CommunicationDirection
+  subject           String?
+  summary           String?
+  occurredAt        DateTime
+  requiresReply     Boolean                @default(false)
+  respondedAt       DateTime?
+  responseTimeHours Decimal?               @db.Decimal(10, 2)
+  createdAt         DateTime               @default(now())
+
+  organization Organization  @relation(fields: [orgId], references: [id])
+  company      Company       @relation(fields: [companyId], references: [id])
+  contact      Contact?      @relation(fields: [contactId], references: [id])
+  opportunity  Opportunity?  @relation(fields: [opportunityId], references: [id])
+  rfqAnalyses  RFQAnalysis[]
+
+  @@index([orgId])
+  @@index([companyId])
+  @@index([opportunityId])
+}
+
+enum RFQSeriousnessLevel {
+  SeriousBuyer
+  PromisingIncomplete
+  PriceShopper
+  EarlyResearch
+  LowIntent
+  SuspiciousInquiry
+}
+
+/// extractedFields (jsonb)/completenessScore/missingFields/suggestedQuestions اتشالوا من الفورم —
+/// نفس نمط Document.content/completenessScore (بلا صيغة حساب واضحة في الـERD، ومفيش قناة استخراج
+/// AI حقيقية لسه). destinationPort/paymentMethod/quantity/incoterm أعمدة صريحة زي ما الـERD رقّاها v3.
+model RFQAnalysis {
+  id                 String               @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId              String               @db.Uuid
+  communicationId    String?              @db.Uuid
+  opportunityId      String               @db.Uuid
+  destinationPort    String?
+  paymentMethod      String?
+  quantity           Decimal?             @db.Decimal(14, 3)
+  incoterm           String?
+  extractedFields    Json?
+  completenessScore  Decimal?             @db.Decimal(5, 2)
+  seriousnessLevel   RFQSeriousnessLevel?
+  missingFields      String[]
+  suggestedQuestions String[]
+  createdAt          DateTime             @default(now())
+
+  organization  Organization   @relation(fields: [orgId], references: [id])
+  communication Communication? @relation(fields: [communicationId], references: [id])
+  opportunity   Opportunity    @relation(fields: [opportunityId], references: [id])
+
+  @@index([orgId])
+  @@index([opportunityId])
+}
+
+enum CustomerSampleStatus {
+  Requested
+  ApprovedInternally
+  Preparing
+  Shipped
+  InTransit
+  Delivered
+  FeedbackPending
+  Approved
+  Rejected
+  ConvertedToOrder
+  Closed
+}
+
+model CustomerSample {
+  id              String               @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId           String               @db.Uuid
+  opportunityId   String               @db.Uuid
+  productId       String               @db.Uuid
+  batchId         String?              @db.Uuid
+  quantity        Decimal?             @db.Decimal(14, 3)
+  totalCost       Decimal?             @db.Decimal(14, 2)
+  currency        String?              @db.Char(3)
+  trackingNumber  String?
+  status          CustomerSampleStatus @default(Requested)
+  feedback        String?
+  rejectionReason String?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  opportunity  Opportunity  @relation(fields: [opportunityId], references: [id])
+  product      Product      @relation(fields: [productId], references: [id])
+  batch        Batch?       @relation(fields: [batchId], references: [id])
+
+  @@index([orgId])
+  @@index([opportunityId])
+}
+
+enum NegotiationStatus {
+  Open
+  Stalled
+  Agreed
+  Failed
+}
+
+/// supplierId/sourcingRequestId (وحدة 7 — تفاوض الموردين) اتشالوا من الفورم — nullable، بلا واجهة
+/// اختيار، استخدام وحدة 7 خارج نطاق الشريحة دي، نفس نمط Document.shipmentId.
+model Negotiation {
+  id                String            @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId             String            @db.Uuid
+  dealId            String?           @db.Uuid
+  opportunityId     String?           @db.Uuid
+  supplierId        String?           @db.Uuid
+  sourcingRequestId String?           @db.Uuid
+  status            NegotiationStatus @default(Open)
+  currentPrice      Decimal?          @db.Decimal(14, 4)
+  currency          String?           @db.Char(3)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  organization Organization       @relation(fields: [orgId], references: [id])
+  deal         Deal?              @relation(fields: [dealId], references: [id])
+  opportunity  Opportunity?       @relation(fields: [opportunityId], references: [id])
+  rounds       NegotiationRound[]
+
+  @@index([orgId])
+  @@index([dealId])
+  @@index([opportunityId])
+}
+
+enum NegotiationConcessionType {
+  Discount
+  Credit
+  LowerAdvance
+  SpecialPackaging
+  PrivateLabel
+  FasterShipping
+  Exclusivity
+  FreeSample
+  LowerMOQ
+}
+
+/// approvalId اتشال من الفورم — nullable، بلا واجهة، مفيش قيد مالي صريح ⚠️ في الـERD يستدعي تدفّق
+/// موافقة استثنائية هنا (عكس walkAwayPrice).
+model NegotiationRound {
+  id                    String                     @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId                 String                     @db.Uuid
+  negotiationId         String                     @db.Uuid
+  roundNumber           Int
+  roundDate             DateTime?
+  customerOffer         Decimal?                   @db.Decimal(14, 4)
+  ourOffer              Decimal?                   @db.Decimal(14, 4)
+  discountPct           Decimal?                   @db.Decimal(5, 2)
+  concessionType        NegotiationConcessionType?
+  concessionValue       Decimal?                   @db.Decimal(14, 2)
+  considerationObtained String?
+  considerationValue    Decimal?                   @db.Decimal(14, 2)
+  approvalId            String?                    @db.Uuid
+  outcome               String?
+  createdAt             DateTime                   @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  negotiation  Negotiation  @relation(fields: [negotiationId], references: [id])
+  approval     Approval?    @relation(fields: [approvalId], references: [id])
+
+  @@index([orgId])
+  @@index([negotiationId])
+}
+
+enum RedFlagSeverity {
+  Low
+  Medium
+  High
+  Critical
+}
+
+/// raisedBy بيتحدَّد تلقائيًا بالمستخدم الحالي وقت الإنشاء — نفس نمط CAPA.ownerId. بلا واجهة تعديل
+/// بعد الإنشاء (resolvedAt) — نفس نمط create-only باقي المشروع.
+model RedFlag {
+  id            String          @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId         String          @db.Uuid
+  companyId     String          @db.Uuid
+  flagType      String
+  severity      RedFlagSeverity @default(Medium)
+  description   String?
+  blocksDealing Boolean         @default(false)
+  raisedBy      String          @db.Uuid
+  resolvedAt    DateTime?
+  createdAt     DateTime        @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  company      Company      @relation(fields: [companyId], references: [id])
+  raisedByUser User         @relation("RedFlagRaisedBy", fields: [raisedBy], references: [id])
+
+  @@index([orgId])
+  @@index([companyId])
+}
+
+// ==================== وحدة 3 (تابع) — إقفال أخير: LeadAssignmentRule, SalesTarget, ====================
+// ====================                  CommissionPlan+CommissionEntry, CustomerServiceCase ====================
+// راجع docs/ERD.md §6 للتفاصيل الكاملة. بلا Trigger جديد. وحدة 3 بتقفل بالكامل 12/12 بالشريحة دي.
+
+/// كيان مشترك مستقل (زي CAPA) — تسجيل قواعد بس، بلا محرك توزيع تلقائي فعلي يربطه بإنشاء
+/// Opportunity (نفس صراحة Template.usageCount "بلا آلية تتبّع فعلية"). criteria (jsonb) اتشال من
+/// الفورم — محتاج محرر معايير منظّم، مش نص jsonb حر، نفس نمط Template.bodySchema.
+model LeadAssignmentRule {
+  id             String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId          String   @db.Uuid
+  criteria       Json?
+  assignToUserId String?  @db.Uuid
+  assignToTeamId String?  @db.Uuid
+  priority       Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  assignToUser User?        @relation("LeadAssignmentRuleAssignToUser", fields: [assignToUserId], references: [id])
+  assignToTeam Team?        @relation(fields: [assignToTeamId], references: [id])
+
+  @@index([orgId])
+}
+
+enum SalesTargetType {
+  Revenue
+  Volume
+  DealsCount
+}
+
+/// period نص حر ("2026-Q3"/"سبتمبر 2026") — الـERD ما حددش صيغة. actualValue (⚙️) اتشال من الفورم
+/// — بلا محرك تجميع فعلي من Deal/SalesOrder، نفس فلسفة "لا تُعطِ رقم محسوب بلا محرك حقيقي".
+model SalesTarget {
+  id          String          @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId       String          @db.Uuid
+  userId      String?         @db.Uuid
+  teamId      String?         @db.Uuid
+  period      String
+  targetType  SalesTargetType
+  targetValue Decimal         @db.Decimal(14, 2)
+  currency    String?         @db.Char(3)
+  actualValue Decimal?        @db.Decimal(14, 2)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  user         User?        @relation(fields: [userId], references: [id])
+  team         Team?        @relation(fields: [teamId], references: [id])
+
+  @@index([orgId])
+}
+
+enum CommissionBasis {
+  RevenuePercent
+  GrossProfitPercent
+  Tiered
+  CollectionBased
+}
+
+enum CommissionTriggerEvent {
+  OnWon
+  OnInvoice
+  OnCollection
+}
+
+/// tiers (jsonb) اتشال من الفورم — نفس نمط باقي حقول jsonb الحرة في المشروع.
+model CommissionPlan {
+  id           String                 @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId        String                 @db.Uuid
+  name         String
+  basis        CommissionBasis
+  ratePct      Decimal?               @db.Decimal(5, 2)
+  tiers        Json?
+  triggerEvent CommissionTriggerEvent
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+
+  organization Organization      @relation(fields: [orgId], references: [id])
+  entries      CommissionEntry[]
+
+  @@index([orgId])
+}
+
+enum CommissionEntryStatus {
+  Accrued
+  Approved
+  Paid
+}
+
+/// journalEntryId بقى FK حقيقي لـJournalEntry (وحدة 8 قفلت بالكامل 19/19 في 2 سبتمبر — كان
+/// عمود UUID خام بلا علاقة قبل كده). userId مش تلقائي بالمستخدم الحالي — العمولة بتتسجّل
+/// لموظف مبيعات تاني غالبًا، select من مستخدمي المنظمة. status=Paid مرفوض بلا journalEntryId
+/// (Trigger enforce_commission_entry_paid) — الترحيل الفعلي عبر payCommissionEntryAction
+/// (src/lib/accounting.ts: postCommissionPayment)، مش تغيير حالة مجرد.
+model CommissionEntry {
+  id             String                @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId          String                @db.Uuid
+  planId         String                @db.Uuid
+  dealId         String?               @db.Uuid
+  salesOrderId   String?               @db.Uuid
+  userId         String                @db.Uuid
+  amount         Decimal               @db.Decimal(14, 2)
+  currency       String?               @db.Char(3)
+  status         CommissionEntryStatus @default(Accrued)
+  journalEntryId String?               @db.Uuid
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  organization Organization   @relation(fields: [orgId], references: [id])
+  plan         CommissionPlan @relation(fields: [planId], references: [id])
+  deal         Deal?          @relation(fields: [dealId], references: [id])
+  salesOrder   SalesOrder?    @relation(fields: [salesOrderId], references: [id])
+  user         User           @relation(fields: [userId], references: [id])
+  journalEntry JournalEntry?  @relation(fields: [journalEntryId], references: [id])
+
+  @@index([orgId])
+  @@index([dealId])
+  @@index([planId])
+}
+
+enum CustomerServiceCaseType {
+  Complaint
+  Claim
+  QualityIssue
+  Shortage
+  Damage
+  LateShipment
+  WrongDocumentation
+}
+
+enum CustomerServiceCaseStatus {
+  Open
+  Investigating
+  PendingCustomer
+  Resolved
+  Closed
+}
+
+/// ownerId بيتحدَّد تلقائيًا بالمستخدم الحالي وقت الإنشاء — نفس نمط RedFlag.raisedBy. كيان بعد-
+/// البيع، مختلف عن RedFlag (تحذير قبل التعامل) وRejectionCase (رفض جمركي/جودة قبل التسليم).
+model CustomerServiceCase {
+  id                 String                    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId              String                    @db.Uuid
+  companyId          String                    @db.Uuid
+  caseType           CustomerServiceCaseType
+  slaDeadline        DateTime?
+  ownerId            String                    @db.Uuid
+  rootCause          String?
+  capaId             String?                   @db.Uuid
+  compensationAmount Decimal?                  @db.Decimal(14, 2)
+  currency           String?                   @db.Char(3)
+  status             CustomerServiceCaseStatus @default(Open)
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  company      Company      @relation(fields: [companyId], references: [id])
+  owner        User         @relation("CustomerServiceCaseOwner", fields: [ownerId], references: [id])
+  capa         CAPA?        @relation(fields: [capaId], references: [id])
+
+  @@index([orgId])
+  @@index([companyId])
+}
+
+// ==================== الوحدة 2 — التسعير والقرار (شريحة أولى فقط، ERD v4 §5) ====================
+// نطاق هذه الشريحة: Deal/DealScenario/CostItem/Quote بس — راجع docs/SCOPE-P2.md للتفاصيل
+// والتأجيلات المقصودة (RiskItem, QuoteLine, SalesOrder*, DealActual، ومحرك الحساب التكراري).
+// + 3 كيانات من الطبقة المشتركة لازمة كأساس: ExchangeRate, ApprovalPolicy, Approval.
+
+enum ExchangeRateType {
+  Spot
+  Budget
+  Contracted
+  Actual
+}
+
+/// عملة الأساس مقابل عملة الاقتباس في تاريخ معيّن — DealScenario.fxRateId إلزامي (بلا افتراضي 1.0،
+/// راجع CLAUDE.md §الأمان: "ممنوع تمامًا أي fxRateId يكون فاضي/افتراضي").
+model ExchangeRate {
+  id            String           @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId         String           @db.Uuid
+  baseCurrency  String           @db.Char(3)
+  quoteCurrency String           @db.Char(3)
+  rate          Decimal          @db.Decimal(18, 8)
+  rateDate      DateTime
+  rateType      ExchangeRateType
+  createdAt     DateTime         @default(now())
+
+  organization         Organization          @relation(fields: [orgId], references: [id])
+  dealScenarios        DealScenario[]
+  costItems            CostItem[]
+  actualLogisticsCosts ActualLogisticsCost[]
+  freightQuotes        FreightQuote[]
+  supplierQuotes       SupplierQuote[]
+  purchaseOrders       PurchaseOrder[]
+  journalLines         JournalLine[]
+  payments             Payment[]
+
+  @@index([orgId])
+}
+
+enum ApprovalOperator {
+  GT
+  GTE
+  LT
+  LTE
+  EQ
+}
+
+/// قابلة للتعديل من الإعدادات بلا كود لاحقًا — v1 بتتزرع يدويًا (قاعدة CostItem/policy إدارية مؤجَّلة).
+model ApprovalPolicy {
+  id               String           @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId            String           @db.Uuid
+  subjectType      String
+  conditionField   String
+  operator         ApprovalOperator
+  thresholdValue   Decimal          @db.Decimal(14, 4)
+  requiredRoleId   String           @db.Uuid
+  escalationRoleId String?          @db.Uuid
+  isActive         Boolean          @default(true)
+  createdAt        DateTime         @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  requiredRole Role         @relation("ApprovalPolicyRequiredRole", fields: [requiredRoleId], references: [id])
+  approvals    Approval[]
+
+  @@index([orgId])
+}
+
+enum ApprovalDecision {
+  Pending
+  Approved
+  Rejected
+  Escalated
+}
+
+/// موافقة استثنائية موثّقة — الاستخدام الأول: تجاوز walkAwayPrice على Quote (Trigger على مستوى القاعدة
+/// بيتحقق من وجود صف هنا بحالة Approved قبل ما يسمح بسعر تحت الحد الأدنى، راجع migration الـRLS).
+model Approval {
+  id          String           @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId       String           @db.Uuid
+  subjectType String
+  subjectId   String           @db.Uuid
+  policyId    String?          @db.Uuid
+  requestedBy String           @db.Uuid
+  decidedBy   String?          @db.Uuid
+  decision    ApprovalDecision @default(Pending)
+  reason      String?
+  /// بيانات الكيان المطلوب إنشاؤه بعد الموافقة — subjectId محجوز مقدّمًا (uuidv7())، لكن الصف
+  /// الفعلي (زي Quote) مينفعش يتعمل قبل الموافقة (الـTrigger بيمنعه)، فبنخزّن بياناته هنا مؤقتًا.
+  payload     Json?
+  decidedAt   DateTime?
+  expiresAt   DateTime?
+  createdAt   DateTime         @default(now())
+
+  organization      Organization       @relation(fields: [orgId], references: [id])
+  policy            ApprovalPolicy?    @relation(fields: [policyId], references: [id])
+  requestedByUser   User               @relation("ApprovalRequestedBy", fields: [requestedBy], references: [id])
+  decidedByUser     User?              @relation("ApprovalDecidedBy", fields: [decidedBy], references: [id])
+  quotes            Quote[]
+  gates             Gate[]
+  purchaseOrders    PurchaseOrder[]
+  documents         Document[]
+  documentVersions  DocumentVersion[]
+  negotiationRounds NegotiationRound[]
+
+  @@index([orgId])
+  @@index([subjectType, subjectId])
+}
+
+enum DealObjective {
+  MaximizeProfit
+  NewMarketEntry
+  WinCustomer
+  ProtectAccount
+  ClearInventory
+  TestMarket
+}
+
+enum DealStatus {
+  Draft
+  Pricing
+  Negotiation
+  Approved
+  Won
+  Lost
+  Cancelled
+}
+
+/// الهوية التجارية الثابتة للصفقة — كل الأرقام في DealScenario (فصل مقصود، ERD v2 §5).
+model Deal {
+  id               String        @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId            String        @db.Uuid
+  opportunityId    String        @db.Uuid
+  productId        String        @db.Uuid
+  marketId         String        @db.Uuid
+  customerId       String        @db.Uuid
+  dealObjective    DealObjective
+  status           DealStatus    @default(Draft)
+  activeScenarioId String?       @db.Uuid
+  lostReason       String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  deletedAt        DateTime?
+
+  organization      Organization      @relation(fields: [orgId], references: [id])
+  opportunity       Opportunity       @relation(fields: [opportunityId], references: [id])
+  product           Product           @relation(fields: [productId], references: [id])
+  market            Market            @relation(fields: [marketId], references: [id])
+  customer          Company           @relation(fields: [customerId], references: [id])
+  scenarios         DealScenario[]    @relation("DealScenarios")
+  quotes            Quote[]
+  salesOrders       SalesOrder[]
+  complianceCases   ComplianceCase[]
+  originProofs      OriginProof[]
+  lcRequirements    LCRequirement[]
+  shipments         Shipment[]
+  sourcingRequests  SourcingRequest[]
+  inventories       Inventory[]
+  documents         Document[]
+  documentPackages  DocumentPackage[]
+  negotiations      Negotiation[]
+  commissionEntries CommissionEntry[]
+  journalLines      JournalLine[]
+  invoices          Invoice[]
+
+  @@index([orgId])
+  @@index([opportunityId])
+}
+
+enum Incoterm {
+  EXW
+  FCA
+  FAS
+  FOB
+  CFR
+  CIF
+  CPT
+  CIP
+  DAP
+  DPU
+  DDP
+}
+
+/// كل الأرقام هنا — مقارنة السيناريوهات هي الميزة الأساسية لوحدة 2 (ERD v2 §5).
+/// ⚠️ v1: quantitySaleable/expectedProfit/expectedMarginPct/expectedMarkupPct أعمدة عادية
+/// محسوبة في الـServer Action وقت الحفظ (مش DB Generated Column لسه — PG17.6، راجع docs/SCOPE-P2.md).
+model DealScenario {
+  id                String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId             String   @db.Uuid
+  dealId            String   @db.Uuid
+  version           Int
+  scenarioName      String
+  quantityRaw       Decimal  @db.Decimal(14, 3)
+  yieldRate         Decimal? @db.Decimal(5, 4)
+  quantitySaleable  Decimal  @db.Decimal(14, 3)
+  incoterm          Incoterm
+  namedPlace        String?
+  paymentTerms      String?
+  advanceRatePct    Decimal? @db.Decimal(5, 2)
+  creditDays        Int?
+  currency          String   @db.Char(3)
+  fxRateId          String   @db.Uuid
+  breakEvenPrice    Decimal? @db.Decimal(14, 4)
+  walkAwayPrice     Decimal  @db.Decimal(14, 4)
+  targetPrice       Decimal? @db.Decimal(14, 4)
+  openingPrice      Decimal? @db.Decimal(14, 4)
+  finalPrice        Decimal? @db.Decimal(14, 4)
+  expectedProfit    Decimal? @db.Decimal(14, 2)
+  expectedMarginPct Decimal? @db.Decimal(5, 2)
+  expectedMarkupPct Decimal? @db.Decimal(5, 2)
+  financeCost       Decimal? @db.Decimal(14, 2)
+  riskReserve       Decimal? @db.Decimal(14, 2)
+  isLocked          Boolean  @default(false)
+  /// Optimistic Locking — بيتزوّد في كل كتابة (مش نفس `version` الفوق اللي هو رقم نسخة تجارية
+  /// زي Current/BestCase). الفورمات اللي بتعدّل حقل مباشر (finalPrice/isLocked) بتبعت القيمة
+  /// اللي شافتها وقت تحميل الصفحة كـhidden field، ولو اتغيّرت في القاعدة من ساعتها، الكتابة
+  /// بترفض برسالة واضحة بدل "آخر واحد يحفظ بيكسب من غير تحذير". راجع STATUS.md § Optimistic Locking.
+  lockVersion       Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  deal            Deal             @relation("DealScenarios", fields: [dealId], references: [id])
+  fxRate          ExchangeRate     @relation(fields: [fxRateId], references: [id])
+  costItems       CostItem[]
+  riskItems       RiskItem[]
+  quotes          Quote[]
+  complianceCases ComplianceCase[]
+
+  @@unique([dealId, version])
+  @@index([orgId])
+  @@index([dealId])
+}
+
+enum CostCategory {
+  Product
+  Processing
+  Packaging
+  Quality
+  ExportLogistics
+  InternationalFreight
+  DestinationCharges
+  SellingAdmin
+  Finance
+  RiskReserve
+}
+
+enum CostConfidenceLevel {
+  Contract100
+  OfficialQuote90
+  ExpiringQuote75
+  HistoricalAvg60
+  InternalEstimate40
+  Assumption20
+}
+
+model CostItem {
+  id              String              @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId           String              @db.Uuid
+  scenarioId      String              @db.Uuid
+  category        CostCategory
+  subcategory     String?
+  amount          Decimal             @db.Decimal(14, 2)
+  /// عملة البند نفسه — مش لازم تبقى نفس عملة السيناريو (زي تكلفة محلية بالجنيه المصري في
+  /// سيناريو بالدولار). لو مختلفة، fxRateId لازم يبقى موجود عشان recomputeScenario() يقدر
+  /// يحوّلها. راجع STATUS.md § آلية سعر الصرف.
+  currency        String              @db.Char(3)
+  fxRateId        String?             @db.Uuid
+  confidenceLevel CostConfidenceLevel
+  expiryDate      DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  scenario DealScenario  @relation(fields: [scenarioId], references: [id])
+  fxRate   ExchangeRate? @relation(fields: [fxRateId], references: [id])
+
+  @@index([orgId])
+  @@index([scenarioId])
+}
+
+enum RiskType {
+  FX
+  Freight
+  Supplier
+  Quality
+  Credit
+  Compliance
+  Weather
+  Political
+}
+
+/// شريحة ثالثة من P2 (27-28 أغسطس، ERD §5). ⚠️ v1: expectedCost محسوب في الـServer Action وقت
+/// الحفظ (مش DB Generated Column — نفس قيد PG17.6 الموثّق في docs/SCOPE-P2.md §4.1).
+model RiskItem {
+  id              String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId           String   @db.Uuid
+  scenarioId      String   @db.Uuid
+  riskType        RiskType
+  probability     Decimal  @db.Decimal(3, 2) // 0.00–1.00
+  financialImpact Decimal  @db.Decimal(14, 2)
+  expectedCost    Decimal  @db.Decimal(14, 2) // = probability × financialImpact
+  mitigation      String?
+  residualRisk    Decimal? @db.Decimal(14, 2) // بعد التخفيف — إدخال يدوي في v1
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  scenario DealScenario @relation(fields: [scenarioId], references: [id])
+
+  @@index([orgId])
+  @@index([scenarioId])
+}
+
+enum QuoteStatus {
+  Draft
+  PendingApproval
+  Sent
+  Accepted
+  Rejected
+  Expired
+  Superseded
+}
+
+/// ⚠️ walkAwayPrice مُنفَّذ كـTrigger على مستوى القاعدة (migration الـRLS) — مش تحقق واجهة بس،
+/// طبقًا لقاعدة CLAUDE.md غير القابلة للتفاوض عن القيود التجارية الحرجة.
+model Quote {
+  id         String      @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId      String      @db.Uuid
+  dealId     String      @db.Uuid
+  scenarioId String      @db.Uuid
+  version    Int
+  customerId String      @db.Uuid
+  currency   String      @db.Char(3)
+  incoterm   Incoterm
+  namedPlace String?
+  validUntil DateTime?
+  unitPrice  Decimal     @db.Decimal(14, 4)
+  priceUnit  String
+  status     QuoteStatus @default(Draft)
+  approvalId String?     @db.Uuid
+  /// تجميع بصري بس لعرض أسعار مستقلة في مستند واحد للعميل — كل Quote هنا لسه ليه Deal/DealScenario/
+  /// walkAwayPrice مستقل بالكامل زي ما هو، مفيش أي تغيير في محرك التسعير نفسه (راجع QuoteBundle).
+  bundleId   String?     @db.Uuid
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  deal     Deal         @relation(fields: [dealId], references: [id])
+  scenario DealScenario @relation(fields: [scenarioId], references: [id])
+  customer Company      @relation("QuoteCustomer", fields: [customerId], references: [id])
+  approval Approval?    @relation(fields: [approvalId], references: [id])
+  bundle   QuoteBundle? @relation(fields: [bundleId], references: [id])
+
+  @@unique([dealId, version])
+  @@index([orgId])
+  @@index([scenarioId])
+  @@index([bundleId])
+}
+
+/// تجميع عروض أسعار مستقلة (Deals مختلفة، نفس العميل) في مستند واحد بيتبعت مرة واحدة — نفس
+/// فلسفة تسعير التصدير الحقيقية: كل منتج تكلفته وwalkAwayPrice بتاعته مختلفة، فمفيش "Deal
+/// واحدة بمنتجات متعددة"، لكن العميل بيستحق مستند واحد بدل عرض منفصل لكل منتج. القاعدة الوحيدة
+/// المفروضة: كل الـQuotes في الحزمة لازم تكون لنفس العميل (Trigger enforce_quote_bundle_same_customer).
+model QuoteBundle {
+  id         String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId      String   @db.Uuid
+  customerId String   @db.Uuid
+  createdBy  String   @db.Uuid
+  createdAt  DateTime @default(now())
+
+  organization  Organization @relation(fields: [orgId], references: [id])
+  customer      Company      @relation(fields: [customerId], references: [id])
+  createdByUser User         @relation(fields: [createdBy], references: [id])
+  quotes        Quote[]
+
+  @@index([orgId])
+  @@index([customerId])
+}
+
+enum SalesOrderStatus {
+  Draft
+  Confirmed
+  InProduction
+  PartiallyDelivered
+  Delivered
+  Invoiced
+  Closed
+  Cancelled
+}
+
+/// "Won" وحدها مش التزام تجاري حقيقي (ERD §5، 🆕v4) — الالتزام الفعلي يبدأ من هنا، بدليل PO حقيقي.
+/// ⚠️ إنفاذ إلزامي على مستوى القاعدة (CHECK constraint، migration الـRLS): أي status غير Draft
+/// لازم يكون معاه poNumber+poDate فعليًا — مش تحقق واجهة بس.
+/// مؤجَّل عن قصد: poDocumentId (رفع مستند PO فعلي) — يحتاج Supabase Storage/Signed URLs لسه مبنيّة،
+/// راجع docs/SCOPE-P2.md.
+model SalesOrder {
+  id                  String           @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId               String           @db.Uuid
+  dealId              String           @db.Uuid
+  customerId          String           @db.Uuid
+  soNumber            String           @unique
+  poNumber            String?
+  poDate              DateTime?
+  currency            String           @db.Char(3)
+  totalValue          Decimal          @db.Decimal(14, 2)
+  incoterm            Incoterm
+  paymentTerms        String?
+  deliveryWindowStart DateTime?
+  deliveryWindowEnd   DateTime?
+  status              SalesOrderStatus @default(Draft)
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  deal              Deal              @relation(fields: [dealId], references: [id])
+  customer          Company           @relation("SalesOrderCustomer", fields: [customerId], references: [id])
+  lines             SalesOrderLine[]
+  commissionEntries CommissionEntry[]
+  invoices          Invoice[]
+
+  @@index([orgId])
+  @@index([dealId])
+}
+
+model SalesOrderLine {
+  id           String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId        String   @db.Uuid
+  salesOrderId String   @db.Uuid
+  productId    String   @db.Uuid
+  quantity     Decimal  @db.Decimal(14, 3)
+  unitPrice    Decimal  @db.Decimal(14, 4)
+  currency     String   @db.Char(3)
+  createdAt    DateTime @default(now())
+
+  salesOrder SalesOrder @relation(fields: [salesOrderId], references: [id])
+  product    Product    @relation(fields: [productId], references: [id])
+
+  @@index([orgId])
+  @@index([salesOrderId])
+}
+
+// ==================== الوحدة 5 — الامتثال والجمارك (شريحة أولى، ERD v3 §8) ====================
+// نطاق هذه الشريحة: ComplianceCase/Requirement/Gate/HSClassification/Certificate بس —
+// راجع docs/SCOPE-P5.md للتفاصيل والتأجيلات المقصودة (Registration, OriginProof, RejectionCase,
+// LCRequirement — وحدة 6/7 لسه ما اتبنتش، فمفيش Shipment/Supplier يتربطوا بيهم أصلًا).
+
+enum ComplianceOperationType {
+  CommercialExport
+  Sample
+  Tender
+  TrialShipment
+  AnnualContract
+  PrivateLabel
+}
+
+enum ComplianceCaseStatus {
+  Draft
+  UnderAssessment
+  MissingInformation
+  Conditional
+  Compliant
+  Hold
+  Blocked
+  ApprovedForPricing
+  ApprovedForContract
+  ApprovedForProduction
+  ApprovedForShipment
+  Closed
+  Rejected
+}
+
+/// ⚠️ بلا readinessScore/riskScore عمدًا — نفس قرار DealScenario.dealScore/costConfidenceScore
+/// في docs/SCOPE-P2.md §3 ("لا تُعطِ درجة موزونة بلا تبرير"، ERD §3). بترجع لما ScoreSnapshot يتبني.
+/// shipments موجود فعليًا (وحدة 6، الشريحة الأولى، 30 أغسطس) عبر Shipment.complianceCaseId.
+model ComplianceCase {
+  id                      String                  @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId                   String                  @db.Uuid
+  dealId                  String                  @db.Uuid
+  scenarioId              String?                 @db.Uuid
+  productId               String                  @db.Uuid
+  marketId                String                  @db.Uuid
+  supplierId              String?                 @db.Uuid
+  operationType           ComplianceOperationType
+  status                  ComplianceCaseStatus    @default(Draft)
+  estimatedComplianceCost Decimal?                @db.Decimal(14, 2)
+  estimatedComplianceDays Int?
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime                @updatedAt
+  deletedAt               DateTime?
+
+  organization   Organization    @relation(fields: [orgId], references: [id])
+  deal           Deal            @relation(fields: [dealId], references: [id])
+  scenario       DealScenario?   @relation(fields: [scenarioId], references: [id])
+  product        Product         @relation(fields: [productId], references: [id])
+  market         Market          @relation(fields: [marketId], references: [id])
+  supplier       Supplier?       @relation(fields: [supplierId], references: [id])
+  requirements   Requirement[]
+  gates          Gate[]
+  rejectionCases RejectionCase[]
+  shipments      Shipment[]
+
+  @@index([orgId])
+  @@index([dealId])
+  @@index([supplierId])
+}
+
+enum RequirementCategory {
+  MarketAccess
+  Customs
+  Health
+  Phytosanitary
+  Quality
+  Packaging
+  Labeling
+  Origin
+  Transport
+  Banking
+}
+
+enum RequirementStatus {
+  NotApplicable
+  Applicable
+  PossiblyApplicable
+  Met
+  PartiallyMet
+  NotMet
+  Blocking
+  NeedsExpertReview
+}
+
+/// complianceCaseId أو (productId+marketId) — لازم أحدهما يتملى، مش الاتنين (بحث متطلبات سوق عام
+/// قبل وجود صفقة أصلًا، ERD §8 ملاحظة 🆕v3.1). يتفحص في الـServer Action، بلا CHECK constraint
+/// (منطق شرطي، مش قيد مالي/أمني حرج يستاهل Trigger). evidenceId/sourceId اتشالوا (Attachment/Source
+/// مش مبنيين لسه).
+model Requirement {
+  id               String              @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId            String              @db.Uuid
+  complianceCaseId String?             @db.Uuid
+  productId        String?             @db.Uuid
+  marketId         String?             @db.Uuid
+  category         RequirementCategory
+  name             String
+  mandatory        Boolean             @default(true)
+  status           RequirementStatus   @default(Applicable)
+  responsibleParty String?
+  issuingAuthority String?
+  estimatedCost    Decimal?            @db.Decimal(14, 2)
+  estimatedDays    Int?
+  dueDate          DateTime?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  organization   Organization    @relation(fields: [orgId], references: [id])
+  complianceCase ComplianceCase? @relation(fields: [complianceCaseId], references: [id])
+  product        Product?        @relation(fields: [productId], references: [id])
+  market         Market?         @relation(fields: [marketId], references: [id])
+
+  @@index([orgId])
+  @@index([complianceCaseId])
+}
+
+enum GateStatus {
+  Passed
+  PassedWithConditions
+  Pending
+  Failed
+  Waived
+  NotApplicable
+}
+
+/// إنفاذ إلزامي على مستوى القاعدة (Trigger، migration الـRLS بتاعة الوحدة دي):
+/// (1) status=Waived لازم يكون معاه approvalId لصف Approval معتمد (نفس نمط enforce_quote_walk_away_price).
+/// (2) status=Passed لازم كل Requirement في blockingRequirementIds تكون Met أو NotApplicable.
+/// (3) requiresOriginProofVerification=true محتاج OriginProof متحقّق (وحدة 5، الشريحة الثانية).
+/// (4) requiresAciVerification=true محتاج Shipment.aciDeadlineMet=true أو aciStatus=NotRequired
+///     (وحدة 6، الشريحة الأولى — enforce_gate_aci_deadline_met، ERD §8 ملاحظة سطر 288).
+model Gate {
+  id                              String     @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId                           String     @db.Uuid
+  complianceCaseId                String     @db.Uuid
+  gateNumber                      Int
+  gateName                        String
+  status                          GateStatus @default(Pending)
+  blockingRequirementIds          String[]
+  /// مش من الـERD الأصلي — إضافة معمارية (30 أغسطس، الشريحة الثانية) لتفعيل قاعدة PEM بدقة:
+  /// "دي البوابة المسؤولة عن الشحن/الإبحار" بدل قاعدة عامة تفحص كل بوابات الحالة. راجع
+  /// enforce_gate_origin_proof_verified في migration الشريحة الثانية وdocs/SCOPE-P5.md.
+  requiresOriginProofVerification Boolean    @default(false)
+  /// مش من الـERD الأصلي — نفس نمط requiresOriginProofVerification، بس لقاعدة مهلة ACI (وحدة 6).
+  requiresAciVerification         Boolean    @default(false)
+  decidedBy                       String?    @db.Uuid
+  decidedAt                       DateTime?
+  approvalId                      String?    @db.Uuid
+  waiverExpiresAt                 DateTime?
+  createdAt                       DateTime   @default(now())
+  updatedAt                       DateTime   @updatedAt
+
+  organization   Organization   @relation(fields: [orgId], references: [id])
+  complianceCase ComplianceCase @relation(fields: [complianceCaseId], references: [id])
+  decidedByUser  User?          @relation(fields: [decidedBy], references: [id])
+  approval       Approval?      @relation(fields: [approvalId], references: [id])
+
+  @@unique([complianceCaseId, gateNumber])
+  @@index([orgId])
+}
+
+enum HSClassificationStatus {
+  Proposed
+  UnderReview
+  ConfirmedInternally
+  ConfirmedByBroker
+  ConfirmedByRuling
+  Disputed
+  NeedsExpertReview
+  Rejected
+}
+
+/// منفصل عن Product.hsCode (نص خام من وحدة 1) — ده تصنيف مُتتبَّع لكل زوج منتج×سوق بحالة اعتماد
+/// حقيقية ونسبة رسوم جمركية. sourceId اتشال (Source مؤجَّل، نفس سبب docs/SCOPE-P2.md §3).
+model HSClassification {
+  id              String                 @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId           String                 @db.Uuid
+  productId       String                 @db.Uuid
+  marketId        String                 @db.Uuid
+  hsCode          String
+  status          HSClassificationStatus @default(Proposed)
+  confidenceScore Int?
+  dutyRatePct     Decimal?               @db.Decimal(5, 2)
+  rulingReference String?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  product      Product      @relation(fields: [productId], references: [id])
+  market       Market       @relation(fields: [marketId], references: [id])
+
+  @@index([orgId])
+  @@index([productId, marketId])
+}
+
+enum CertificateType {
+  HACCP
+  BRCGS
+  IFS
+  FSSC
+  GlobalGAP
+  ISO
+  Organic
+  Halal
+  Kosher
+  GMP
+  Phytosanitary
+  HealthCertificate
+  COA
+  Fumigation
+}
+
+enum CertificateStatus {
+  Valid
+  ExpiringSoon
+  Expired
+  Suspended
+  UnderRenewal
+  Pending
+  Rejected
+  NotVerified
+}
+
+/// attachmentId اتشال (Attachment/Storage مش مبنيين لسه، نفس منطق poDocumentId المؤجَّل في SCOPE-P2.md).
+model Certificate {
+  id                  String            @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId               String            @db.Uuid
+  companyId           String?           @db.Uuid
+  productId           String?           @db.Uuid
+  supplierId          String?           @db.Uuid
+  facilityId          String?           @db.Uuid
+  certificateType     CertificateType
+  certificateNumber   String
+  issuingAuthority    String
+  issueDate           DateTime
+  expiryDate          DateTime?
+  scope               String?
+  marketsCovered      String[]
+  status              CertificateStatus @default(Valid)
+  renewalLeadTimeDays Int?
+  lastVerifiedAt      DateTime?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  company      Company?     @relation(fields: [companyId], references: [id])
+  product      Product?     @relation(fields: [productId], references: [id])
+  supplier     Supplier?    @relation(fields: [supplierId], references: [id])
+  facility     Facility?    @relation(fields: [facilityId], references: [id])
+
+  @@index([orgId])
+  @@index([supplierId])
+  @@index([facilityId])
+}
+
+// ==================== وحدة 5 (تابع) — شريحة تانية: Registration + OriginProof ====================
+// راجع docs/SCOPE-P5.md §"الشريحة الثانية" للتفاصيل والتبسيطات الكاملة.
+
+enum RegistrationType {
+  FacilityRegistration
+  ProductRegistration
+  ExporterRegistration
+  ImporterRegistration
+  LabelRegistration
+}
+
+enum RegistrationStatus {
+  NotStarted
+  CollectingDocuments
+  Submitted
+  UnderReview
+  InspectionRequired
+  Approved
+  Rejected
+  Expired
+  Suspended
+  RenewalRequired
+}
+
+/// productId مربوطة بشاشة تفاصيل الحالة بمطابقة productId = ComplianceCase.productId.
+model Registration {
+  id                 String             @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId              String             @db.Uuid
+  registrationType   RegistrationType
+  country            String
+  authority          String
+  productId          String?            @db.Uuid
+  supplierId         String?            @db.Uuid
+  facilityId         String?            @db.Uuid
+  registrationNumber String?
+  submissionDate     DateTime?
+  approvalDate       DateTime?
+  expiryDate         DateTime?
+  status             RegistrationStatus @default(NotStarted)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  product      Product?     @relation(fields: [productId], references: [id])
+  supplier     Supplier?    @relation(fields: [supplierId], references: [id])
+  facility     Facility?    @relation(fields: [facilityId], references: [id])
+
+  @@index([orgId])
+  @@index([supplierId])
+  @@index([facilityId])
+}
+
+enum OriginProofType {
+  EUR1
+  InvoiceDeclaration
+  StatementOnOrigin
+  CertificateOfOrigin
+}
+
+enum OriginProofCumulationType {
+  None
+  Bilateral
+  Diagonal
+  Full
+}
+
+/// ⚠️ الـERD (docs/ERD.md §8) ذكر `status` بلا قيم enum محدّدة صراحةً — دي قيم تفسيرية موثّقة هنا،
+/// بنفس روح enums المستندات التانية في نفس الوحدة (Certificate/HSClassification).
+enum OriginProofStatus {
+  Draft
+  Issued
+  Verified
+  Rejected
+  Expired
+}
+
+/// evidenceIds اتشال (Attachment/Storage مؤجَّلين، نفس سبب باقي حقول evidence في الوحدة).
+///
+/// ⚠️ revisedRulesWordingVerified: قواعد PEM المنقّحة لإثبات المنشأ المصري — سارية فعليًا من يناير
+/// 2026 (CLAUDE.md §مواعيد نهائية قانونية). أي Gate بعلامة requiresOriginProofVerification=true
+/// لازم تتحقق من الحقل ده = true قبل ما تعدّي — Trigger enforce_gate_origin_proof_verified على
+/// مستوى القاعدة (migration الشريحة الثانية)، مش تحقق واجهة بس.
+model OriginProof {
+  id                          String                     @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId                       String                     @db.Uuid
+  dealId                      String                     @db.Uuid
+  shipmentId                  String?                    @db.Uuid
+  proofType                   OriginProofType
+  usesRevisedPemRules         Boolean                    @default(false)
+  revisedRulesWordingVerified Boolean                    @default(false)
+  cumulationType              OriginProofCumulationType?
+  certificateNumber           String?
+  issuedDate                  DateTime?
+  issuingAuthority            String?
+  status                      OriginProofStatus          @default(Draft)
+  createdAt                   DateTime                   @default(now())
+  updatedAt                   DateTime                   @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  deal         Deal         @relation(fields: [dealId], references: [id])
+  shipment     Shipment?    @relation(fields: [shipmentId], references: [id])
+
+  @@index([orgId])
+  @@index([dealId])
+  @@index([shipmentId])
+}
+
+enum RejectionType {
+  DocumentRejection
+  SampleRejection
+  TestFailure
+  LabelRejection
+  CustomsHold
+  OriginRejection
+  HSDispute
+  HealthRejection
+  WeightMismatch
+}
+
+enum RejectionSeverity {
+  Low
+  Medium
+  High
+  Critical
+}
+
+/// قرار تفسيري (الـERD ما حدّدش قيم enum صراحةً لـstatus هنا، زي OriginProofStatus قبل كده) —
+/// دورة حياة رفض جمركي/فحص واقعية: بيتفتح، بيتحقّق فيه، ممكن يحتاج CAPA، وبيتقفل بنتيجة.
+enum RejectionCaseStatus {
+  Open
+  UnderInvestigation
+  CAPARequired
+  Resolved
+  Closed
+  Disputed
+}
+
+/// complianceCaseId إلزامي (مطابق للـERD)، مربوطة مباشرة بشاشة تفاصيل الحالة، بلا حاجة مطابقة
+/// استنتاجية زي Certificate.
+model RejectionCase {
+  id                String              @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId             String              @db.Uuid
+  complianceCaseId  String              @db.Uuid
+  capaId            String?             @db.Uuid
+  shipmentId        String?             @db.Uuid
+  rejectionType     RejectionType
+  authority         String
+  severity          RejectionSeverity
+  financialExposure Decimal?            @db.Decimal(14, 2)
+  currency          String?
+  status            RejectionCaseStatus @default(Open)
+  finalResult       String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  organization   Organization   @relation(fields: [orgId], references: [id])
+  complianceCase ComplianceCase @relation(fields: [complianceCaseId], references: [id])
+  capa           CAPA?          @relation(fields: [capaId], references: [id])
+  shipment       Shipment?      @relation(fields: [shipmentId], references: [id])
+
+  @@index([orgId])
+  @@index([complianceCaseId])
+  @@index([capaId])
+  @@index([shipmentId])
+}
+
+/// dealId إلزامي (نفس نمط OriginProof بالظبط) — ربط مباشر بالصفقة، عرض في شاشة تفاصيل الحالة
+/// بمطابقة dealId = ComplianceCase.dealId. مفيش status — الـERD مش بيذكر واحد لهذا الكيان أصلًا؛
+/// ده توثيق شروط LC، مش Workflow object بحالة متغيّرة. requiredDocuments كـString[] بدل jsonb —
+/// نفس قرار Gate.blockingRequirementIds/Certificate.marketsCovered (قايمة نصية بسيطة).
+model LCRequirement {
+  id                     String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId                  String    @db.Uuid
+  dealId                 String    @db.Uuid
+  lcNumber               String
+  issuingBank            String
+  amount                 Decimal   @db.Decimal(14, 2)
+  currency               String
+  expiryDate             DateTime
+  latestShipmentDate     DateTime?
+  presentationPeriodDays Int?
+  requiredDocuments      String[]
+  requiredWording        String?
+  partialShipmentAllowed Boolean   @default(false)
+  transshipmentAllowed   Boolean   @default(false)
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  deal         Deal         @relation(fields: [dealId], references: [id])
+
+  @@index([orgId])
+  @@index([dealId])
+}
+
+// ==================== الوحدة 6 — اللوجستيات (ERD §9) — الشريحة الأولى (30 أغسطس) ====================
+// الحلقة الأساسية بس: Shipment/ShipmentParty/Booking/Container/Milestone (5 من 17 كيان).
+// مؤجَّل: ShipmentLot (محتاج Lot من وحدة 7)، Route/FreightQuote/FreightQuoteLine/ServiceProvider
+// (تسعير الشحن، محتاج بيانات مزوّدين حقيقية)، ShipmentEvent/TemperatureLog/TransportTrip/
+// FreeTimeRecord/LogisticsException/Claim/ActualLogisticsCost (تشغيل ميداني بعد ما الحلقة تشتغل).
+
+enum ShipmentType {
+  Commercial
+  Sample
+  Trial
+  Tender
+  Consolidated
+}
+
+enum TransportMode {
+  Sea
+  Air
+  Road
+  Rail
+  Multimodal
+  Courier
+}
+
+enum LoadType {
+  FCL
+  LCL
+}
+
+enum ShipmentStatus {
+  Draft
+  Planning
+  AwaitingRates
+  BookingRequested
+  BookingConfirmed
+  CargoPreparation
+  Loading
+  CustomsClearance
+  GateIn
+  Departed
+  InTransit
+  Transshipment
+  Arrived
+  CustomsHold
+  Clearance
+  OutForDelivery
+  Delivered
+  EmptyReturned
+  Closed
+  Cancelled
+  Exception
+}
+
+enum AciStatus {
+  NotRequired
+  Pending
+  Submitted
+  Approved
+  Rejected
+}
+
+/// ⚠️ بلا readinessScore/riskScore عمدًا — نفس قرار ComplianceCase (schema.prisma §وحدة 5،
+/// "لا تُعطِ درجة موزونة بلا تبرير"). aciDeadlineMet مش DB generated column (PG17.6 معقّد مع
+/// interval logic) — عمود Boolean عادي بيتحسب في createShipment/updateShipmentAci Server Action
+/// من aciSubmittedAt <= etd - interval '48 hours'، نفس قرار DealScenario.quantitySaleable
+/// (docs/SCOPE-P2.md). الـTrigger على Gate (enforce_gate_aci_deadline_met) بيقرا القيمة المخزَّنة
+/// دي مباشرة، بلا حساب مكرر جوه الـDB.
+///
+/// ⚠️ aciSubmittedAt: الـACID لازم يتصدر قبل 48 ساعة على الأقل من مغادرة البضاعة (ERD §9 ملاحظة).
+/// المهلة دي قيد ملزم على المسار الحرج — Gate الشحن/الإبحار في وحدة 5 لازم تفحص aciDeadlineMet
+/// صراحة قبل Passed (ERD §8 ملاحظة سطر 288)، وده بالظبط الـTrigger الرابع على Gate هنا.
+model Shipment {
+  id               String         @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId            String         @db.Uuid
+  dealId           String         @db.Uuid
+  productId        String         @db.Uuid
+  complianceCaseId String?        @db.Uuid
+  shipmentType     ShipmentType
+  transportMode    TransportMode
+  loadType         LoadType?
+  incoterm         Incoterm
+  originPort       String
+  destinationPort  String
+  finalDestination String?
+  cargoReadyDate   DateTime?
+  etd              DateTime?
+  actualDeparture  DateTime?
+  eta              DateTime?
+  revisedEta       DateTime?
+  actualArrival    DateTime?
+  status           ShipmentStatus @default(Draft)
+  acidNumber       String?
+  aciStatus        AciStatus      @default(NotRequired)
+  aciSubmittedAt   DateTime?
+  aciDeadlineMet   Boolean        @default(false)
+  cargoXRef        String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  deletedAt        DateTime?
+
+  organization     Organization          @relation(fields: [orgId], references: [id])
+  deal             Deal                  @relation(fields: [dealId], references: [id])
+  product          Product               @relation(fields: [productId], references: [id])
+  complianceCase   ComplianceCase?       @relation(fields: [complianceCaseId], references: [id])
+  parties          ShipmentParty[]
+  bookings         Booking[]
+  containers       Container[]
+  milestones       Milestone[]
+  events           ShipmentEvent[]
+  exceptions       LogisticsException[]
+  freeTimeRecords  FreeTimeRecord[]
+  actualCosts      ActualLogisticsCost[]
+  temperatureLogs  TemperatureLog[]
+  transportTrips   TransportTrip[]
+  claims           Claim[]
+  shipmentLots     ShipmentLot[]
+  cargoReadiness   CargoReadiness[]
+  documents        Document[]
+  rejectionCases   RejectionCase[]
+  originProofs     OriginProof[]
+  documentPackages DocumentPackage[]
+  journalLines     JournalLine[]
+
+  @@index([orgId])
+  @@index([dealId])
+  @@index([complianceCaseId])
+}
+
+enum PartyRole {
+  Buyer
+  Consignee
+  NotifyParty
+  ImporterOfRecord
+  CustomsBroker
+}
+
+/// بديل customerId المفرد — شحنة واحدة ممكن يكون فيها 4 أطراف مختلفة (ERD §9).
+model ShipmentParty {
+  id         String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId      String    @db.Uuid
+  shipmentId String    @db.Uuid
+  partyRole  PartyRole
+  companyId  String    @db.Uuid
+  createdAt  DateTime  @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  shipment     Shipment     @relation(fields: [shipmentId], references: [id])
+  company      Company      @relation(fields: [companyId], references: [id])
+
+  @@index([orgId])
+  @@index([shipmentId])
+}
+
+enum BookingStatus {
+  Draft
+  Requested
+  Pending
+  Confirmed
+  Amended
+  Rolled
+  Split
+  Cancelled
+  Expired
+  Completed
+}
+
+/// providerId/freightQuoteId (اختياريين) بيرجعوا لـService Provider/FreightQuote (الشريحة الرابعة،
+/// 30 أغسطس) — كانوا اتشالوا في الشريحة الأولى لغياب الكيانين، دلوقتي موجودين.
+model Booking {
+  id                  String        @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId               String        @db.Uuid
+  shipmentId          String        @db.Uuid
+  bookingNumber       String?
+  vessel              String?
+  voyage              String?
+  etd                 DateTime?
+  eta                 DateTime?
+  documentationCutoff DateTime?
+  vgmDeadline         DateTime?
+  portClosingDate     DateTime?
+  freeTimeDays        Int?
+  providerId          String?       @db.Uuid
+  freightQuoteId      String?       @db.Uuid
+  status              BookingStatus @default(Draft)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  organization Organization     @relation(fields: [orgId], references: [id])
+  shipment     Shipment         @relation(fields: [shipmentId], references: [id])
+  provider     ServiceProvider? @relation(fields: [providerId], references: [id])
+  freightQuote FreightQuote?    @relation(fields: [freightQuoteId], references: [id])
+
+  @@index([orgId])
+  @@index([shipmentId])
+}
+
+enum ContainerType {
+  GP20
+  GP40
+  HC40
+  RF20
+  RF40
+  HCRF40
+  OpenTop
+  FlatRack
+  Tank
+}
+
+/// weightUtilization/volumeUtilization/isOverweight (⚙️) بيتحسبوا وقت العرض في الصفحة (getter بسيط)
+/// مش أعمدة مخزَّنة — نفس نمط FreeTimeRecord.chargeDays وActualLogisticsCost.variance تحت.
+model Container {
+  id              String        @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId           String        @db.Uuid
+  shipmentId      String        @db.Uuid
+  containerNumber String?
+  containerType   ContainerType
+  sealNumber      String?
+  maxPayload      Decimal?      @db.Decimal(10, 2)
+  netWeight       Decimal?      @db.Decimal(10, 2)
+  grossWeight     Decimal?      @db.Decimal(10, 2)
+  usedVolume      Decimal?      @db.Decimal(10, 3)
+  availableVolume Decimal?      @db.Decimal(10, 3)
+  setPointTempC   Decimal?      @db.Decimal(5, 2)
+  vgmSubmittedAt  DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  organization    Organization     @relation(fields: [orgId], references: [id])
+  shipment        Shipment         @relation(fields: [shipmentId], references: [id])
+  freeTimeRecords FreeTimeRecord[]
+  temperatureLogs TemperatureLog[]
+
+  @@index([orgId])
+  @@index([shipmentId])
+}
+
+enum MilestoneStatus {
+  NotStarted
+  Planned
+  InProgress
+  Completed
+  Delayed
+  Missed
+  Blocked
+  NotApplicable
+}
+
+/// 8 معالم ثابتة بتتقترح تلقائيًا من createShipment (Cargo Ready, Booking Confirmed, Empty
+/// Container Pickup, Loading Completed, VGM Submitted, Customs Cleared Export, Gate-In, Vessel
+/// Departed, Destination Arrival, Delivered) — جدول مرن بدل الـ32 معلم اليدوي في المواصفة الأصلية
+/// (ERD §9)، اختيرت لأنها تحمل التزام مالي/قانوني فعلي (Free Time، VGM، ACI).
+model Milestone {
+  id            String          @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId         String          @db.Uuid
+  shipmentId    String          @db.Uuid
+  milestoneName String
+  sequence      Int
+  plannedDate   DateTime?
+  forecastDate  DateTime?
+  actualDate    DateTime?
+  status        MilestoneStatus @default(NotStarted)
+  ownerId       String?         @db.Uuid
+  delayReason   String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  shipment     Shipment     @relation(fields: [shipmentId], references: [id])
+  owner        User?        @relation("MilestoneOwner", fields: [ownerId], references: [id])
+
+  @@index([orgId])
+  @@index([shipmentId])
+}
+
+// ==================== الوحدة 6 — اللوجستيات: الشريحة الثانية (التتبع التشغيلي، 30 أغسطس) ====================
+// ShipmentEvent/LogisticsException/FreeTimeRecord/ActualLogisticsCost (4 من الـ12 كيان المتبقي).
+// بلا Trigger جديد — مفيش قيد عمل حرج مذكور في docs/ERD.md/CLAUDE.md بيتعلق بيهم (نفس فلسفة
+// RejectionCase/LCRequirement في وحدة 5 الشريحة الثالثة). راجع docs/SCOPE-P6.md.
+// مؤجَّل: TemperatureLog/TransportTrip (تخصص تبريد/نقل بري)، Claim (نتيجة LogisticsException،
+// أنضف بعد ما يبقى فيه استثناءات حقيقية)، ShipmentLot/Route/FreightQuote/ServiceProvider (نفس
+// تأجيلات الشريحة الأولى).
+
+enum ShipmentEventSource {
+  Manual
+  ShippingLineWebsite
+  FreightForwarder
+  Port
+  CustomsBroker
+  Customer
+  ImportedCSV
+  API
+}
+
+/// eventType نص حر — الـERD (§9) مش بيحدد enum ثابت له (سجل أحداث مفتوح، عكس LogisticsException).
+/// reliability Int? (نسبة ثقة 0-100) — نفس نمط HSClassification.confidenceScore.
+model ShipmentEvent {
+  id          String              @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId       String              @db.Uuid
+  shipmentId  String              @db.Uuid
+  eventType   String
+  occurredAt  DateTime
+  location    String?
+  source      ShipmentEventSource @default(Manual)
+  reliability Int?
+  enteredBy   String?             @db.Uuid
+  createdAt   DateTime            @default(now())
+
+  organization  Organization @relation(fields: [orgId], references: [id])
+  shipment      Shipment     @relation(fields: [shipmentId], references: [id])
+  enteredByUser User?        @relation("ShipmentEventEnteredBy", fields: [enteredBy], references: [id])
+
+  @@index([orgId])
+  @@index([shipmentId])
+}
+
+enum LogisticsExceptionType {
+  BookingRejected
+  ContainerShortage
+  TruckDelay
+  LoadingDelay
+  CustomsHold
+  DocumentationError
+  VGMError
+  SealMismatch
+  Overweight
+  GateInMissed
+  VesselDelay
+  VesselChange
+  RollOver
+  PortCongestion
+  TransshipmentDelay
+  CargoDamage
+  TemperatureExcursion
+  ReeferFailure
+  Shortage
+  Demurrage
+  Detention
+  Strike
+  Weather
+  PortClosure
+}
+
+enum LogisticsExceptionSeverity {
+  Informational
+  Low
+  Medium
+  High
+  Critical
+}
+
+enum LogisticsExceptionStatus {
+  Open
+  InProgress
+  Resolved
+  Closed
+}
+
+model LogisticsException {
+  id                 String                     @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId              String                     @db.Uuid
+  shipmentId         String                     @db.Uuid
+  exceptionType      LogisticsExceptionType
+  severity           LogisticsExceptionSeverity
+  detectedAt         DateTime
+  rootCause          String?
+  financialExposure  Decimal?                   @db.Decimal(14, 2)
+  scheduleImpactDays Int?
+  recoveryPlan       String?
+  status             LogisticsExceptionStatus   @default(Open)
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  shipment     Shipment     @relation(fields: [shipmentId], references: [id])
+
+  @@index([orgId])
+  @@index([shipmentId])
+}
+
+enum FreeTimeChargeType {
+  Demurrage
+  Detention
+}
+
+enum FreeTimeLocation {
+  Origin
+  Destination
+}
+
+/// chargeDays (⚙️) بيتحسب وقت العرض في الصفحة من startDate/endDate/freeDays — مش عمود مخزَّن،
+/// نفس نمط Container.weightUtilization بالظبط. containerId اختياري (شحنات LCL بلا حاوية مخصَّصة).
+model FreeTimeRecord {
+  id               String             @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId            String             @db.Uuid
+  shipmentId       String             @db.Uuid
+  containerId      String?            @db.Uuid
+  chargeType       FreeTimeChargeType
+  location         FreeTimeLocation
+  freeDays         Int?
+  startDate        DateTime?
+  endDate          DateTime?
+  tierRates        Json?
+  estimatedCost    Decimal?           @db.Decimal(14, 2)
+  actualCost       Decimal?           @db.Decimal(14, 2)
+  currency         String?
+  responsibleParty String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  shipment     Shipment     @relation(fields: [shipmentId], references: [id])
+  container    Container?   @relation(fields: [containerId], references: [id])
+
+  @@index([orgId])
+  @@index([shipmentId])
+}
+
+/// variance (⚙️) بيتحسب وقت العرض (actualAmount - expectedAmount) — مش عمود مخزَّن، نفس نمط
+/// Container.weightUtilization.
+model ActualLogisticsCost {
+  id               String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId            String   @db.Uuid
+  shipmentId       String   @db.Uuid
+  costType         String
+  expectedAmount   Decimal? @db.Decimal(14, 2)
+  actualAmount     Decimal? @db.Decimal(14, 2)
+  currency         String?
+  fxRateId         String?  @db.Uuid
+  invoiceReference String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  organization Organization  @relation(fields: [orgId], references: [id])
+  shipment     Shipment      @relation(fields: [shipmentId], references: [id])
+  fxRate       ExchangeRate? @relation(fields: [fxRateId], references: [id])
+
+  @@index([orgId])
+  @@index([shipmentId])
+}
+
+// ==================== الوحدة 6 — اللوجستيات: الشريحة الثالثة (30 أغسطس) ====================
+// TemperatureLog/TransportTrip/Claim (3 من الـ8 كيان المتبقي، راجع docs/ERD.md §9 وdocs/SCOPE-P6.md).
+// بلا Trigger جديد — مفيش قيد عمل حرج مذكور بيتعلق بيهم (نفس فلسفة الشريحة الثانية).
+// مؤجَّل: ShipmentLot (محتاج Lot من وحدة 7)، Route/FreightQuote/ServiceProvider (تسعير الشحن).
+
+/// containerId اختياري (شحنات LCL بلا حاوية مخصَّصة). source نص حر — الـERD مش بيحدد enum له.
+model TemperatureLog {
+  id           String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId        String   @db.Uuid
+  shipmentId   String   @db.Uuid
+  containerId  String?  @db.Uuid
+  recordedAt   DateTime
+  temperatureC Decimal  @db.Decimal(5, 2)
+  humidityPct  Decimal? @db.Decimal(5, 2)
+  source       String?
+  deviceId     String?
+  isExcursion  Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  shipment     Shipment     @relation(fields: [shipmentId], references: [id])
+  container    Container?   @relation(fields: [containerId], references: [id])
+
+  @@index([orgId])
+  @@index([shipmentId])
+}
+
+enum TransportTripStatus {
+  Scheduled
+  InProgress
+  Completed
+  Delayed
+  Cancelled
+}
+
+/// status enum قرار تفسيري (الـERD ما حدّدش قيم صراحةً، زي OriginProofStatus قبل كده).
+/// driverPhone 🔒 معلَّم بيانات شخصية في الـERD — مشفّر عبر Supabase Vault (src/lib/vault.ts)،
+/// نفس نمط Company.bankAccountName/bankIBAN/bankSWIFT بالظبط. بلا واجهة إدخال لسه.
+model TransportTrip {
+  id                  String              @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId               String              @db.Uuid
+  shipmentId          String              @db.Uuid
+  carrier             String?
+  vehicleNumber       String?
+  driverName          String?
+  driverPhoneSecretId String?             @db.Uuid
+  pickupLocation      String?
+  appointmentAt       DateTime?
+  loadingStart        DateTime?
+  loadingFinish       DateTime?
+  gateInAt            DateTime?
+  emptyReturnAt       DateTime?
+  cost                Decimal?            @db.Decimal(14, 2)
+  currency            String?
+  status              TransportTripStatus @default(Scheduled)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  shipment     Shipment     @relation(fields: [shipmentId], references: [id])
+
+  @@index([orgId])
+  @@index([shipmentId])
+}
+
+enum ClaimType {
+  CargoDamage
+  TemperatureDamage
+  WetDamage
+  Shortage
+  Loss
+  Delay
+  ContainerDamage
+  Overcharge
+  InvoiceDispute
+  DemurrageDispute
+  ServiceFailure
+}
+
+enum ClaimStatus {
+  Draft
+  EvidenceCollection
+  Submitted
+  UnderReview
+  AdditionalInfoRequired
+  Accepted
+  PartiallyAccepted
+  Rejected
+  Settled
+  Closed
+}
+
+model Claim {
+  id               String      @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId            String      @db.Uuid
+  shipmentId       String      @db.Uuid
+  claimType        ClaimType
+  claimedAgainst   String?
+  incidentDate     DateTime?
+  notificationDate DateTime?
+  claimDeadline    DateTime?
+  claimedAmount    Decimal?    @db.Decimal(14, 2)
+  currency         String?
+  settlementAmount Decimal?    @db.Decimal(14, 2)
+  status           ClaimStatus @default(Draft)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  shipment     Shipment     @relation(fields: [shipmentId], references: [id])
+
+  @@index([orgId])
+  @@index([shipmentId])
+}
+
+// ==================== الوحدة 6 — اللوجستيات: الشريحة الرابعة والأخيرة (تسعير الشحن، 30 أغسطس) ====================
+// ServiceProvider/Route/FreightQuote/FreightQuoteLine — كيانات بيانات أساسية (Master Data) مستقلة،
+// مش تابعة لشحنة بعينها (عكس كل كيانات الشرايح التلاتة السابقة). بلا Trigger — مفيش قيد عمل حرج
+// بيتعلق بيهم. بعد الشريحة دي وحدة 6 بتبقى 16/17 — ShipmentLot الاستثناء الوحيد المتبقي (محتاج Lot
+// من وحدة 7). راجع docs/SCOPE-P6.md.
+
+enum ServiceProviderType {
+  ShippingLine
+  FreightForwarder
+  TruckingCompany
+  CustomsBroker
+  PortAgent
+  Warehouse
+  Surveyor
+  InsuranceCompany
+  Courier
+  ColdStorage
+  ContainerDepot
+}
+
+enum ServiceProviderStatus {
+  Preferred
+  Approved
+  Conditional
+  UnderReview
+  Suspended
+  Blacklisted
+}
+
+/// performanceScore (⚙️) اتشال — نفس قرار Shipment.readinessScore/riskScore ("لا تُعطِ درجة موزونة
+/// بلا تبرير"، docs/SCOPE-P5.md §3). onTimePerformance/invoiceAccuracy بيتسجّلوا يدويًا لحد ما محرك
+/// تجميع حقيقي (ScoreSnapshot) يتبني.
+model ServiceProvider {
+  id                String                @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId             String                @db.Uuid
+  providerType      ServiceProviderType
+  name              String
+  country           String?
+  onTimePerformance Decimal?              @db.Decimal(5, 2)
+  invoiceAccuracy   Decimal?              @db.Decimal(5, 2)
+  status            ServiceProviderStatus @default(UnderReview)
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+
+  organization  Organization   @relation(fields: [orgId], references: [id])
+  freightQuotes FreightQuote[]
+  bookings      Booking[]
+
+  @@index([orgId])
+}
+
+enum RouteClassification {
+  Preferred
+  Approved
+  Conditional
+  HighRisk
+  Avoid
+  UnderReview
+}
+
+/// reliabilityScore/riskScore اتشالوا — نفس سبب ServiceProvider.performanceScore.
+model Route {
+  id                 String              @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId              String              @db.Uuid
+  originPort         String
+  destinationPort    String
+  transportModes     String[]
+  transitPorts       String[]
+  transshipmentCount Int?
+  typicalTransitDays Int?
+  worstTransitDays   Int?
+  weeklySailings     Int?
+  classification     RouteClassification @default(UnderReview)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  organization  Organization   @relation(fields: [orgId], references: [id])
+  freightQuotes FreightQuote[]
+
+  @@index([orgId])
+}
+
+enum FreightQuoteStatus {
+  Draft
+  Approved
+  Expired
+}
+
+/// originCharges/mainFreight/destinationCharges/insurance — البنود الإجمالية الأربعة للعرض السريع
+/// فقط (زي ما ERD §9 بيوضّح)، التفصيل الفعلي في FreightQuoteLine. totalLogisticsCost/logisticsScore
+/// (⚙️) بيتحسبوا وقت العرض من مجموع FreightQuoteLine.amount — مش أعمدة مخزَّنة، نفس نمط
+/// Container.weightUtilization. logisticsScore اتشال زي باقي الـscores في الشريحة دي.
+model FreightQuote {
+  id                 String             @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId              String             @db.Uuid
+  routeId            String             @db.Uuid
+  providerId         String             @db.Uuid
+  containerType      ContainerType?
+  originCharges      Decimal?           @db.Decimal(14, 2)
+  mainFreight        Decimal?           @db.Decimal(14, 2)
+  destinationCharges Decimal?           @db.Decimal(14, 2)
+  insurance          Decimal?           @db.Decimal(14, 2)
+  currency           String?
+  fxRateId           String?            @db.Uuid
+  transitDays        Int?
+  freeTimeDays       Int?
+  validFrom          DateTime?
+  validUntil         DateTime?
+  status             FreightQuoteStatus @default(Draft)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  organization Organization       @relation(fields: [orgId], references: [id])
+  route        Route              @relation(fields: [routeId], references: [id])
+  provider     ServiceProvider    @relation(fields: [providerId], references: [id])
+  fxRate       ExchangeRate?      @relation(fields: [fxRateId], references: [id])
+  lines        FreightQuoteLine[]
+  bookings     Booking[]
+
+  @@index([orgId])
+  @@index([routeId])
+  @@index([providerId])
+}
+
+enum FreightQuoteLineCategory {
+  Origin
+  Freight
+  Destination
+  Insurance
+  Other
+}
+
+/// chargeCode نص حر — الـERD بيدّي أمثلة (THC, BunkerSurcharge, VGM, ReeferSurcharge, WarRisk,
+/// DocumentationFee) بلا enum مغلق. بدونه Hidden Cost Detector (فحص بند فردي مفقود) غير قابل
+/// للتنفيذ لاحقًا — نفس تبرير الـERD.
+model FreightQuoteLine {
+  id             String                   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId          String                   @db.Uuid
+  freightQuoteId String                   @db.Uuid
+  chargeCode     String
+  category       FreightQuoteLineCategory
+  amount         Decimal                  @db.Decimal(14, 2)
+  currency       String?
+  createdAt      DateTime                 @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  freightQuote FreightQuote @relation(fields: [freightQuoteId], references: [id])
+
+  @@index([orgId])
+  @@index([freightQuoteId])
+}
+
+// ==================== الوحدة 7 — التوريد والإنتاج والجودة (ESPPQC): الشريحة الأولى (30 أغسطس) ====================
+// Supplier/Facility/SourcingRequest/SupplierQuote/PurchaseOrder (5 من 23 كيان، راجع docs/ERD.md §10
+// وdocs/SCOPE-P7.md). Trigger أول لوحدة 7 (enforce_purchase_order_max_price) — نفس نمط
+// enforce_quote_walk_away_price بالظبط بس عكسي (سقف مش أرضية). مؤجَّل: Farm/SupplierAudit/
+// SupplyContract/SupplierRFQ (بقية شريحة التوريد)، و18 كيان إنتاج/جودة/مخزون (ProductionPlan/
+// Inventory/Batch/Inspection/LabTest/QualityRelease/NCR/Lot/إلخ) — شرايح تالية.
+
+enum SupplierStatus {
+  Identified
+  Contacted
+  UnderReview
+  DocumentsPending
+  AuditRequired
+  SampleRequired
+  Conditional
+  Approved
+  Preferred
+  Suspended
+  Rejected
+  Blacklisted
+  Archived
+}
+
+/// qualificationScore/riskScore اتشالوا — نفس قرار كل الـscores الموزونة في المشروع ("لا تُعطِ درجة
+/// بلا تبرير"). bankAccountName/bankIBAN 🔒 مشفّرين عبر Supabase Vault (src/lib/vault.ts) —
+/// نفس نمط Company.bankAccountName/TransportTrip.driverPhone بالظبط.
+model Supplier {
+  id                      String         @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId                   String         @db.Uuid
+  legalName               String
+  tradeName               String?
+  country                 String?
+  governorate             String?
+  city                    String?
+  taxId                   String?
+  commercialRegNo         String?
+  supplierType            String[]
+  status                  SupplierStatus @default(Identified)
+  bankAccountNameSecretId String?        @db.Uuid
+  bankIBANSecretId        String?        @db.Uuid
+  bankVerifiedAt          DateTime?
+  /// نفس فلسفة إبقاء البيانات القديمة NULL بدل تلفيق منشئ وهمي — السجلات اللي اتعملت قبل إضافة العمود ده بتفضل NULL، وقاعدة فصل المهام مبتتفعّلش عليها.
+  createdBy               String?        @db.Uuid
+  createdAt               DateTime       @default(now())
+  updatedAt               DateTime       @updatedAt
+  deletedAt               DateTime?
+
+  organization       Organization          @relation(fields: [orgId], references: [id])
+  createdByUser      User?                 @relation("SupplierCreatedBy", fields: [createdBy], references: [id])
+  facilities         Facility[]
+  sourcingQuotes     SupplierQuote[]
+  purchaseOrders     PurchaseOrder[]
+  batches            Batch[]
+  ncrs               NCR[]
+  farms              Farm[]
+  supplierRFQs       SupplierRFQ[]
+  audits             SupplierAudit[]
+  contracts          SupplyContract[]
+  packagingMaterials PackagingMaterial[]
+  samples            SupplierSample[]
+  performances       SupplierPerformance[]
+  complianceCases    ComplianceCase[]
+  certificates       Certificate[]
+  registrations      Registration[]
+  journalLines       JournalLine[]
+  invoices           Invoice[]
+  payments           Payment[]
+
+  @@index([orgId])
+}
+
+enum FacilityType {
+  Farm
+  Field
+  CollectionCenter
+  PackingHouse
+  Factory
+  FreezingFacility
+  DryingFacility
+  ProcessingFacility
+  Warehouse
+  ColdStore
+  Laboratory
+}
+
+enum FacilityStatus {
+  Active
+  UnderReview
+  Suspended
+  Closed
+}
+
+/// status enum قرار تفسيري (الـERD مش بيحدد قيم صراحةً)، نفس روح TransportTripStatus.
+model Facility {
+  id                    String         @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId                 String         @db.Uuid
+  supplierId            String         @db.Uuid
+  facilityType          FacilityType
+  name                  String
+  address               String?
+  capacityDaily         Decimal?       @db.Decimal(12, 2)
+  productionLines       Int?
+  shifts                Int?
+  hasTraceabilitySystem Boolean        @default(false)
+  lastAuditAt           DateTime?
+  status                FacilityStatus @default(UnderReview)
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  organization    Organization     @relation(fields: [orgId], references: [id])
+  supplier        Supplier         @relation(fields: [supplierId], references: [id])
+  purchaseOrders  PurchaseOrder[]
+  batches         Batch[]
+  inspections     Inspection[]
+  productionPlans ProductionPlan[]
+  ncrs            NCR[]
+  audits          SupplierAudit[]
+  certificates    Certificate[]
+  registrations   Registration[]
+
+  @@index([orgId])
+  @@index([supplierId])
+}
+
+enum SourcingRequestStatus {
+  Draft
+  Approved
+  RFQPreparation
+  RFQSent
+  QuotesReceived
+  UnderEvaluation
+  Negotiation
+  SupplierSelected
+  POIssued
+  Cancelled
+  Closed
+}
+
+/// ⚠️ maximumPurchasePrice: قيد عمل حرج — أمر شراء بسعر أعلى منه لازم يتمنع على مستوى القاعدة
+/// (enforce_purchase_order_max_price تحت)، مش تحقق واجهة بس. راجع docs/ERD.md §10 سطر 350-352.
+model SourcingRequest {
+  id                       String                @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId                    String                @db.Uuid
+  dealId                   String                @db.Uuid
+  productId                String                @db.Uuid
+  marketId                 String                @db.Uuid
+  specificationId          String?               @db.Uuid
+  rawQuantityRequired      Decimal?              @db.Decimal(14, 3)
+  saleableQuantityRequired Decimal?              @db.Decimal(14, 3)
+  maximumPurchasePrice     Decimal               @db.Decimal(14, 4)
+  targetPurchasePrice      Decimal?              @db.Decimal(14, 4)
+  currency                 String
+  requiredCargoReadyDate   DateTime?
+  status                   SourcingRequestStatus @default(Draft)
+  createdAt                DateTime              @default(now())
+  updatedAt                DateTime              @updatedAt
+
+  organization   Organization          @relation(fields: [orgId], references: [id])
+  deal           Deal                  @relation(fields: [dealId], references: [id])
+  product        Product               @relation(fields: [productId], references: [id])
+  market         Market                @relation(fields: [marketId], references: [id])
+  specification  ProductSpecification? @relation(fields: [specificationId], references: [id])
+  quotes         SupplierQuote[]
+  purchaseOrders PurchaseOrder[]
+  supplierRFQs   SupplierRFQ[]
+
+  @@index([orgId])
+  @@index([dealId])
+  @@index([specificationId])
+}
+
+/// effectiveCostPerSaleableKg (⚙️) بيتحسب وقت العرض (totalEffectiveCost / (availableQuantity *
+/// expectedYield))، مش عمود مخزَّن — نفس نمط Container.weightUtilization. selectionScore اتشال
+/// (score موزون).
+model SupplierQuote {
+  id                 String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId              String    @db.Uuid
+  sourcingRequestId  String    @db.Uuid
+  supplierId         String    @db.Uuid
+  unitPrice          Decimal   @db.Decimal(14, 4)
+  priceUnit          String?
+  currency           String
+  fxRateId           String?   @db.Uuid
+  packagingIncluded  Boolean   @default(false)
+  transportIncluded  Boolean   @default(false)
+  paymentTerms       String?
+  leadTimeDays       Int?
+  availableQuantity  Decimal?  @db.Decimal(14, 3)
+  minimumOrder       Decimal?  @db.Decimal(14, 3)
+  expectedYield      Decimal?  @db.Decimal(5, 4)
+  totalEffectiveCost Decimal?  @db.Decimal(14, 2)
+  validUntil         DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  organization    Organization    @relation(fields: [orgId], references: [id])
+  sourcingRequest SourcingRequest @relation(fields: [sourcingRequestId], references: [id])
+  supplier        Supplier        @relation(fields: [supplierId], references: [id])
+  fxRate          ExchangeRate?   @relation(fields: [fxRateId], references: [id])
+
+  @@index([orgId])
+  @@index([sourcingRequestId])
+}
+
+enum PurchaseOrderStatus {
+  Draft
+  PendingApproval
+  Approved
+  Sent
+  Acknowledged
+  PartiallyConfirmed
+  Confirmed
+  InProduction
+  PartiallyDelivered
+  Delivered
+  Closed
+  Cancelled
+  Disputed
+}
+
+/// Trigger enforce_purchase_order_max_price (migration الـRLS بتاعة الشريحة دي) بيمنع
+/// unitPrice > SourcingRequest.maximumPurchasePrice بلا Approval معتمد
+/// (subjectType='PurchaseOrder.unitPrice_override') — نفس نمط enforce_quote_walk_away_price
+/// بالظبط، عكسي (سقف مش أرضية).
+model PurchaseOrder {
+  id                String              @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId             String              @db.Uuid
+  sourcingRequestId String              @db.Uuid
+  supplierId        String              @db.Uuid
+  facilityId        String?             @db.Uuid
+  specificationId   String?             @db.Uuid
+  poNumber          String              @unique
+  version           Int                 @default(1)
+  quantity          Decimal             @db.Decimal(14, 3)
+  unitPrice         Decimal             @db.Decimal(14, 4)
+  currency          String
+  fxRateId          String?             @db.Uuid
+  deliverySchedule  Json?
+  paymentTerms      String?
+  penalties         String?
+  status            PurchaseOrderStatus @default(Draft)
+  approvalId        String?             @db.Uuid
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  organization    Organization          @relation(fields: [orgId], references: [id])
+  sourcingRequest SourcingRequest       @relation(fields: [sourcingRequestId], references: [id])
+  supplier        Supplier              @relation(fields: [supplierId], references: [id])
+  facility        Facility?             @relation(fields: [facilityId], references: [id])
+  specification   ProductSpecification? @relation(fields: [specificationId], references: [id])
+  fxRate          ExchangeRate?         @relation(fields: [fxRateId], references: [id])
+  approval        Approval?             @relation(fields: [approvalId], references: [id])
+  batches         Batch[]
+  productionPlans ProductionPlan[]
+  cargoReadiness  CargoReadiness[]
+  invoices        Invoice[]
+
+  @@index([orgId])
+  @@index([specificationId])
+  @@index([sourcingRequestId])
+}
+
+enum BatchQualityStatus {
+  Pending
+  Released
+  Held
+  Rejected
+}
+
+enum BatchStatus {
+  Planned
+  InProduction
+  Completed
+  OnHold
+  Cancelled
+}
+
+/// yieldRate/wasteQuantity (⚙️) بيتحسبوا وقت العرض (quantityOutput/quantityInput,
+/// quantityInput-quantityOutput) — مش أعمدة مخزَّنة، نفس نمط Container.weightUtilization.
+model Batch {
+  id              String             @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId           String             @db.Uuid
+  purchaseOrderId String             @db.Uuid
+  facilityId      String             @db.Uuid
+  supplierId      String             @db.Uuid
+  batchCode       String             @unique
+  productionDate  DateTime?
+  expiryDate      DateTime?
+  quantityInput   Decimal            @db.Decimal(14, 3)
+  quantityOutput  Decimal?           @db.Decimal(14, 3)
+  qualityStatus   BatchQualityStatus @default(Pending)
+  status          BatchStatus        @default(Planned)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  organization             Organization             @relation(fields: [orgId], references: [id])
+  purchaseOrder            PurchaseOrder            @relation(fields: [purchaseOrderId], references: [id])
+  facility                 Facility                 @relation(fields: [facilityId], references: [id])
+  supplier                 Supplier                 @relation(fields: [supplierId], references: [id])
+  inspections              Inspection[]
+  qualityReleases          QualityRelease[]
+  lots                     Lot[]
+  inventories              Inventory[]
+  ncrs                     NCR[]
+  labTests                 LabTest[]
+  batchRawMaterialLines    BatchRawMaterialLine[]
+  batchMarketEligibilities BatchMarketEligibility[]
+  supplierSamples          SupplierSample[]
+  customerSamples          CustomerSample[]
+
+  @@index([orgId])
+  @@index([purchaseOrderId])
+}
+
+enum InspectionStage {
+  PreQualification
+  IncomingRawMaterial
+  DuringProduction
+  PrePackaging
+  PackagingInspection
+  FinalProduct
+  PreLoading
+  ContainerInspection
+}
+
+enum InspectionResult {
+  Pass
+  ConditionalPass
+  Fail
+}
+
+model Inspection {
+  id             String           @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId          String           @db.Uuid
+  stage          InspectionStage
+  batchId        String           @db.Uuid
+  facilityId     String           @db.Uuid
+  inspectorId    String           @db.Uuid
+  inspectionDate DateTime         @default(now())
+  samplingMethod String?
+  sampleSize     Decimal?         @db.Decimal(10, 2)
+  result         InspectionResult
+  createdAt      DateTime         @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  batch        Batch        @relation(fields: [batchId], references: [id])
+  facility     Facility     @relation(fields: [facilityId], references: [id])
+  inspector    User         @relation(fields: [inspectorId], references: [id])
+  labTests     LabTest[]
+
+  @@index([orgId])
+  @@index([batchId])
+}
+
+enum QualityReleaseStatus {
+  Released
+  PartialRelease
+  ConditionalRelease
+  Held
+  Rejected
+}
+
+model QualityRelease {
+  id                String               @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId             String               @db.Uuid
+  batchId           String               @db.Uuid
+  lotId             String?              @db.Uuid
+  inspectionResults Json?
+  releasedQuantity  Decimal?             @db.Decimal(14, 3)
+  rejectedQuantity  Decimal?             @db.Decimal(14, 3)
+  releaseDate       DateTime             @default(now())
+  releasedBy        String               @db.Uuid
+  status            QualityReleaseStatus @default(Held)
+  createdAt         DateTime             @default(now())
+
+  organization   Organization @relation(fields: [orgId], references: [id])
+  batch          Batch        @relation(fields: [batchId], references: [id])
+  lot            Lot?         @relation(fields: [lotId], references: [id])
+  releasedByUser User         @relation("QualityReleaseReleasedBy", fields: [releasedBy], references: [id])
+
+  @@index([orgId])
+  @@index([batchId])
+  @@index([lotId])
+}
+
+enum LotStatus {
+  Draft
+  Ready
+  Allocated
+  Shipped
+  Consumed
+  Cancelled
+}
+
+/// Trigger enforce_lot_quality_release (migration الـRLS بتاعة الشريحة دي) بيمنع
+/// qualityStatus='Released' بلا QualityRelease معتمد (lotId=NEW.id أو batchId مطابق) —
+/// نفس فلسفة enforce_gate_origin_proof_verified (فحص وجود صف مرتبط بحالة معيّنة).
+model Lot {
+  id               String             @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId            String             @db.Uuid
+  batchId          String             @db.Uuid
+  lotCode          String             @unique
+  packingDate      DateTime?
+  packagingVersion String?
+  labelVersion     String?
+  quantity         Decimal?           @db.Decimal(14, 3)
+  cartons          Int?
+  pallets          Int?
+  netWeight        Decimal?           @db.Decimal(12, 3)
+  grossWeight      Decimal?           @db.Decimal(12, 3)
+  qualityStatus    BatchQualityStatus @default(Pending)
+  status           LotStatus          @default(Draft)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  organization    Organization     @relation(fields: [orgId], references: [id])
+  batch           Batch            @relation(fields: [batchId], references: [id])
+  qualityReleases QualityRelease[]
+  shipmentLots    ShipmentLot[]
+  inventories     Inventory[]
+  ncrs            NCR[]
+
+  @@index([orgId])
+  @@index([batchId])
+}
+
+/// جدول وسيط N:N بين Shipment (وحدة 6) وLot (وحدة 7) — بيسمح بالشحن الجزئي وSplit Container
+/// (docs/ERD.md §9 سطر 302). بلا Trigger — توثيق بيانات بس، نفس فلسفة ShipmentEvent/ActualLogisticsCost.
+model ShipmentLot {
+  id          String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId       String   @db.Uuid
+  shipmentId  String   @db.Uuid
+  lotId       String   @db.Uuid
+  quantity    Decimal? @db.Decimal(14, 3)
+  cartons     Int?
+  netWeight   Decimal? @db.Decimal(12, 3)
+  grossWeight Decimal? @db.Decimal(12, 3)
+  createdAt   DateTime @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  shipment     Shipment     @relation(fields: [shipmentId], references: [id])
+  lot          Lot          @relation(fields: [lotId], references: [id])
+
+  @@index([orgId])
+  @@index([shipmentId])
+  @@index([lotId])
+}
+
+enum ProductionProcess {
+  Sorting
+  Grading
+  Washing
+  Cutting
+  Peeling
+  Freezing
+  Drying
+  Milling
+  Sterilization
+  Fumigation
+  Extraction
+  Mixing
+  Packing
+  Labeling
+  Palletizing
+}
+
+enum ProductionPlanStatus {
+  Draft
+  Scheduled
+  MaterialsPending
+  Ready
+  InProduction
+  QualityHold
+  Rework
+  Completed
+  Delayed
+  Cancelled
+}
+
+model ProductionPlan {
+  id              String               @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId           String               @db.Uuid
+  purchaseOrderId String               @db.Uuid
+  facilityId      String               @db.Uuid
+  process         ProductionProcess
+  rawQuantity     Decimal?             @db.Decimal(14, 3)
+  targetYield     Decimal?             @db.Decimal(5, 4)
+  startDate       DateTime?
+  endDate         DateTime?
+  packagingDate   DateTime?
+  cargoReadyDate  DateTime?
+  status          ProductionPlanStatus @default(Draft)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  organization  Organization  @relation(fields: [orgId], references: [id])
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+  facility      Facility      @relation(fields: [facilityId], references: [id])
+
+  @@index([orgId])
+  @@index([purchaseOrderId])
+}
+
+enum InventoryType {
+  RawMaterial
+  WIP
+  FinishedGoods
+  PackagingMaterial
+}
+
+enum InventoryStatus {
+  Expected
+  Received
+  Quarantine
+  Accepted
+  Conditional
+  Rejected
+  Reserved
+  InProduction
+  Consumed
+  Expired
+}
+
+model Inventory {
+  id                String          @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId             String          @db.Uuid
+  productId         String          @db.Uuid
+  batchId           String?         @db.Uuid
+  lotId             String?         @db.Uuid
+  inventoryType     InventoryType
+  quantity          Decimal         @db.Decimal(14, 3)
+  unit              String?
+  location          String?
+  status            InventoryStatus @default(Expected)
+  reservedForDealId String?         @db.Uuid
+  expiryDate        DateTime?
+  unitCost          Decimal?        @db.Decimal(14, 4)
+  currency          String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  organization          Organization           @relation(fields: [orgId], references: [id])
+  product               Product                @relation(fields: [productId], references: [id])
+  batch                 Batch?                 @relation(fields: [batchId], references: [id])
+  lot                   Lot?                   @relation(fields: [lotId], references: [id])
+  reservedForDeal       Deal?                  @relation(fields: [reservedForDealId], references: [id])
+  batchRawMaterialLines BatchRawMaterialLine[]
+
+  @@index([orgId])
+  @@index([productId])
+  @@index([batchId])
+}
+
+enum NCRType {
+  RawMaterialDefect
+  SpecificationFailure
+  PackagingFailure
+  LabelError
+  WeightDeviation
+  MoistureFailure
+  PurityFailure
+  MicrobiologicalFailure
+  PesticideFailure
+  TemperatureFailure
+  ForeignMatter
+  TraceabilityFailure
+  DocumentationFailure
+  SupplierDelay
+  QuantityShortage
+  MixedBatch
+}
+
+enum NCRSeverity {
+  Observation
+  Minor
+  Major
+  Critical
+}
+
+enum NCRStatus {
+  Open
+  Investigation
+  ActionInProgress
+  Closed
+}
+
+model NCR {
+  id                   String      @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId                String      @db.Uuid
+  supplierId           String      @db.Uuid
+  facilityId           String      @db.Uuid
+  batchId              String?     @db.Uuid
+  lotId                String?     @db.Uuid
+  capaId               String?     @db.Uuid
+  ncrType              NCRType
+  severity             NCRSeverity
+  quantityAffected     Decimal?    @db.Decimal(14, 3)
+  financialExposure    Decimal?    @db.Decimal(14, 2)
+  currency             String?
+  immediateContainment String?
+  status               NCRStatus   @default(Open)
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  supplier     Supplier     @relation(fields: [supplierId], references: [id])
+  facility     Facility     @relation(fields: [facilityId], references: [id])
+  batch        Batch?       @relation(fields: [batchId], references: [id])
+  lot          Lot?         @relation(fields: [lotId], references: [id])
+  capa         CAPA?        @relation(fields: [capaId], references: [id])
+
+  @@index([orgId])
+  @@index([supplierId])
+  @@index([capaId])
+}
+
+enum LabTestType {
+  Physical
+  Chemical
+  Microbiological
+  PesticideResidues
+  HeavyMetals
+  Moisture
+  Purity
+  Aflatoxins
+  Mycotoxins
+  Allergens
+  GMO
+}
+
+enum LabTestPassFail {
+  Pass
+  Fail
+}
+
+/// supplierSampleId اتشال — SupplierSample لسه مش مبني.
+model LabTest {
+  id                String          @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId             String          @db.Uuid
+  inspectionId      String?         @db.Uuid
+  batchId           String          @db.Uuid
+  supplierSampleId  String?         @db.Uuid
+  testType          LabTestType
+  parameter         String?
+  unit              String?
+  minLimit          Decimal?        @db.Decimal(14, 4)
+  maxLimit          Decimal?        @db.Decimal(14, 4)
+  actualResult      Decimal?        @db.Decimal(14, 4)
+  method            String?
+  laboratory        String?
+  isAccredited      Boolean         @default(false)
+  testDate          DateTime?
+  resultDate        DateTime?
+  passFail          LabTestPassFail
+  certificateNumber String?
+  verifiedBy        String?         @db.Uuid
+  createdAt         DateTime        @default(now())
+
+  organization   Organization    @relation(fields: [orgId], references: [id])
+  inspection     Inspection?     @relation(fields: [inspectionId], references: [id])
+  batch          Batch           @relation(fields: [batchId], references: [id])
+  supplierSample SupplierSample? @relation(fields: [supplierSampleId], references: [id])
+  verifiedByUser User?           @relation("LabTestVerifiedBy", fields: [verifiedBy], references: [id])
+
+  @@index([orgId])
+  @@index([batchId])
+}
+
+enum FarmRiskLevel {
+  Low
+  Medium
+  High
+}
+
+model Farm {
+  id                   String        @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId                String        @db.Uuid
+  supplierId           String        @db.Uuid
+  farmerName           String?
+  location             String?
+  areaFeddan           Decimal?      @db.Decimal(10, 2)
+  crop                 String?
+  variety              String?
+  plantingDate         DateTime?
+  expectedHarvestStart DateTime?
+  expectedHarvestEnd   DateTime?
+  actualHarvestDate    DateTime?
+  expectedQuantity     Decimal?      @db.Decimal(14, 3)
+  actualQuantity       Decimal?      @db.Decimal(14, 3)
+  pesticideProgram     Json?
+  plotCodes            String[]      @default([])
+  riskLevel            FarmRiskLevel @default(Medium)
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  organization          Organization           @relation(fields: [orgId], references: [id])
+  supplier              Supplier               @relation(fields: [supplierId], references: [id])
+  batchRawMaterialLines BatchRawMaterialLine[]
+
+  @@index([orgId])
+  @@index([supplierId])
+}
+
+enum BatchRawMaterialSourceType {
+  Farm
+  IncomingInventory
+}
+
+/// جدول وسيط تتبّع — "من أي مزرعة جاءت هذه الكرتونة؟" استعلام SQL حقيقي بدل مصفوفة،
+/// الأساس اللي ميزة Mock Recall (اختبار الاستدعاء) هتعتمد عليه (docs/ERD.md §10).
+model BatchRawMaterialLine {
+  id          String                     @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId       String                     @db.Uuid
+  batchId     String                     @db.Uuid
+  sourceType  BatchRawMaterialSourceType
+  farmId      String?                    @db.Uuid
+  inventoryId String?                    @db.Uuid
+  quantity    Decimal?                   @db.Decimal(14, 3)
+  createdAt   DateTime                   @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  batch        Batch        @relation(fields: [batchId], references: [id])
+  farm         Farm?        @relation(fields: [farmId], references: [id])
+  inventory    Inventory?   @relation(fields: [inventoryId], references: [id])
+
+  @@index([orgId])
+  @@index([batchId])
+}
+
+enum SupplierRFQStatus {
+  Draft
+  Sent
+  Responded
+  Expired
+  Cancelled
+}
+
+model SupplierRFQ {
+  id                String            @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId             String            @db.Uuid
+  sourcingRequestId String            @db.Uuid
+  supplierId        String            @db.Uuid
+  rfqNumber         String?
+  sentAt            DateTime?
+  responseDeadline  DateTime?
+  respondedAt       DateTime?
+  status            SupplierRFQStatus @default(Draft)
+  createdAt         DateTime          @default(now())
+
+  organization    Organization    @relation(fields: [orgId], references: [id])
+  sourcingRequest SourcingRequest @relation(fields: [sourcingRequestId], references: [id])
+  supplier        Supplier        @relation(fields: [supplierId], references: [id])
+
+  @@index([orgId])
+  @@index([sourcingRequestId])
+}
+
+enum BatchMarketEligibilityStatus {
+  Eligible
+  Conditional
+  NotEligible
+  NotAssessed
+}
+
+/// بديل marketEligibility jsonb — بيخلي "Batch Market Router" استعلام حقيقي (docs/ERD.md §10).
+model BatchMarketEligibility {
+  id         String                       @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId      String                       @db.Uuid
+  batchId    String                       @db.Uuid
+  marketId   String                       @db.Uuid
+  status     BatchMarketEligibilityStatus @default(NotAssessed)
+  reason     String?
+  assessedAt DateTime                     @default(now())
+  assessedBy String                       @db.Uuid
+  createdAt  DateTime                     @default(now())
+
+  organization   Organization @relation(fields: [orgId], references: [id])
+  batch          Batch        @relation(fields: [batchId], references: [id])
+  market         Market       @relation(fields: [marketId], references: [id])
+  assessedByUser User         @relation("BatchMarketEligibilityAssessedBy", fields: [assessedBy], references: [id])
+
+  @@index([orgId])
+  @@index([batchId])
+}
+
+// ============ الشريحة الخامسة والأخيرة (23/23) — بلا Trigger جديد، مفيش قيد عمل حرج صريح (⚠️) في الـERD ============
+
+enum SupplierAuditDecision {
+  Approved
+  ConditionalApproval
+  Rejected
+}
+
+model SupplierAudit {
+  id               String                @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId            String                @db.Uuid
+  supplierId       String                @db.Uuid
+  facilityId       String?               @db.Uuid
+  auditDate        DateTime?
+  auditor          String?
+  totalScore       Decimal?              @db.Decimal(5, 2)
+  criticalFindings Int?
+  majorFindings    Int?
+  minorFindings    Int?
+  decision         SupplierAuditDecision
+  followUpDate     DateTime?
+  createdAt        DateTime              @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  supplier     Supplier     @relation(fields: [supplierId], references: [id])
+  facility     Facility?    @relation(fields: [facilityId], references: [id])
+
+  @@index([orgId])
+  @@index([supplierId])
+}
+
+enum SupplyContractType {
+  Framework
+  TollProcessing
+  FarmingContract
+  ExclusiveSupply
+  SeasonalContract
+  SpotAgreement
+}
+
+enum SupplyContractStatus {
+  Draft
+  UnderNegotiation
+  Active
+  Expired
+  Terminated
+}
+
+model SupplyContract {
+  id                       String               @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId                    String               @db.Uuid
+  supplierId               String               @db.Uuid
+  documentId               String?              @db.Uuid
+  contractType             SupplyContractType
+  startDate                DateTime?
+  endDate                  DateTime?
+  priceAdjustmentMechanism String?
+  forceMajeureClause       String?
+  penaltyTerms             String?
+  status                   SupplyContractStatus @default(Draft)
+  createdAt                DateTime             @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  supplier     Supplier     @relation(fields: [supplierId], references: [id])
+  document     Document?    @relation(fields: [documentId], references: [id])
+
+  @@index([orgId])
+  @@index([supplierId])
+  @@index([documentId])
+}
+
+enum PackagingMaterialType {
+  Carton
+  Bag
+  Label
+  Jar
+  Bottle
+  Pallet
+  StretchFilm
+  Strap
+  InnerLiner
+  Divider
+}
+
+/// status enum قرار تفسيري (الـERD مش بيحدد قيم صراحةً)، نفس روح FacilityStatus.
+enum PackagingMaterialStatus {
+  Requested
+  Ordered
+  PartiallyReceived
+  Received
+  Accepted
+  Rejected
+}
+
+model PackagingMaterial {
+  id               String                  @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId            String                  @db.Uuid
+  supplierId       String                  @db.Uuid
+  materialType     PackagingMaterialType
+  specification    String?
+  dimensions       String?
+  artworkVersion   String?
+  artworkApproved  Boolean                 @default(false)
+  minimumOrder     Decimal?                @db.Decimal(14, 3)
+  leadTimeDays     Int?
+  quantityOrdered  Decimal?                @db.Decimal(14, 3)
+  quantityReceived Decimal?                @db.Decimal(14, 3)
+  quantityAccepted Decimal?                @db.Decimal(14, 3)
+  unitCost         Decimal?                @db.Decimal(14, 4)
+  currency         String?
+  status           PackagingMaterialStatus @default(Requested)
+  createdAt        DateTime                @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  supplier     Supplier     @relation(fields: [supplierId], references: [id])
+
+  @@index([orgId])
+  @@index([supplierId])
+}
+
+enum SupplierSamplePurpose {
+  Qualification
+  PrePurchase
+  Production
+  Retention
+  Customer
+  Laboratory
+  Shipment
+}
+
+enum SupplierSampleResult {
+  Pending
+  Approved
+  Conditional
+  Rejected
+}
+
+/// status enum قرار تفسيري (الـERD مش بيحدد قيم صراحةً، بمعزل عن result).
+enum SupplierSampleStatus {
+  Requested
+  Sent
+  Received
+  Evaluated
+  Closed
+}
+
+model SupplierSample {
+  id         String                @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId      String                @db.Uuid
+  supplierId String                @db.Uuid
+  productId  String                @db.Uuid
+  batchId    String?               @db.Uuid
+  purpose    SupplierSamplePurpose
+  quantity   Decimal?              @db.Decimal(14, 3)
+  cost       Decimal?              @db.Decimal(14, 2)
+  currency   String?
+  result     SupplierSampleResult  @default(Pending)
+  status     SupplierSampleStatus  @default(Requested)
+  createdAt  DateTime              @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  supplier     Supplier     @relation(fields: [supplierId], references: [id])
+  product      Product      @relation(fields: [productId], references: [id])
+  batch        Batch?       @relation(fields: [batchId], references: [id])
+  labTests     LabTest[]
+
+  @@index([orgId])
+  @@index([supplierId])
+}
+
+enum CargoReadinessStatus {
+  NotStarted
+  MaterialsPending
+  InProduction
+  QualityHold
+  PartialReady
+  ReadyWithConditions
+  CargoReady
+  LoadingReleased
+  Blocked
+  Cancelled
+}
+
+/// blockingIssues/handoverPayload اتسابوا كأعمدة nullable بلا واجهة إدخال — مفيش فورم بسيط
+/// مناسب لـtext[]/jsonb حرة، نفس معاملة Farm.pesticideProgram. Shipment معندوش علاقة مباشرة
+/// بـSupplier/PurchaseOrder (بيتربط بـDeal/Product بس)، فـselect الشحنة في الفورم على مستوى المنظمة كلها.
+model CargoReadiness {
+  id              String               @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId           String               @db.Uuid
+  shipmentId      String               @db.Uuid
+  purchaseOrderId String               @db.Uuid
+  readinessScore  Decimal?             @db.Decimal(5, 2)
+  status          CargoReadinessStatus @default(NotStarted)
+  blockingIssues  String[]             @default([])
+  readyDate       DateTime?
+  pickupLocation  String?
+  handoverPayload Json?
+  createdAt       DateTime             @default(now())
+
+  organization  Organization  @relation(fields: [orgId], references: [id])
+  shipment      Shipment      @relation(fields: [shipmentId], references: [id])
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+
+  @@index([orgId])
+  @@index([shipmentId])
+  @@index([purchaseOrderId])
+}
+
+enum SupplierPerformanceClassification {
+  Strategic
+  Preferred
+  Approved
+  Conditional
+  ImprovementRequired
+  Suspended
+  ExitRecommended
+}
+
+model SupplierPerformance {
+  id                 String                             @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId              String                             @db.Uuid
+  supplierId         String                             @db.Uuid
+  periodStart        DateTime
+  periodEnd          DateTime
+  qualityPassRate    Decimal?                           @db.Decimal(5, 2)
+  rejectionRate      Decimal?                           @db.Decimal(5, 2)
+  onTimeDeliveryRate Decimal?                           @db.Decimal(5, 2)
+  yieldAccuracy      Decimal?                           @db.Decimal(5, 2)
+  priceAccuracy      Decimal?                           @db.Decimal(5, 2)
+  overallScore       Decimal?                           @db.Decimal(5, 2)
+  classification     SupplierPerformanceClassification?
+  createdAt          DateTime                           @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  supplier     Supplier     @relation(fields: [supplierId], references: [id])
+
+  @@index([orgId])
+  @@index([supplierId])
+}
+
+// ============ وحدة 4 — المستندات والمواصفات: الشريحة الأولى ============
+
+enum ProductSpecificationStatus {
+  Draft
+  InternalReview
+  CustomerReview
+  CustomerApproved
+  QualityApproved
+  Superseded
+  Expired
+}
+
+/// physicalParams/chemicalParams/microbiologicalParams/packagingSpec/labelSpec (jsonb) و
+/// approvedBy بلا واجهة إدخال — نفس معاملة Farm.pesticideProgram/CargoReadiness.handoverPayload
+/// (مفيش فورم بسيط مناسب لبيانات jsonb حرة، هيتضافوا لو ظهر احتياج فعلي).
+model ProductSpecification {
+  id                    String                     @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId                 String                     @db.Uuid
+  productId             String                     @db.Uuid
+  version               Int                        @default(1)
+  status                ProductSpecificationStatus @default(Draft)
+  physicalParams        Json?
+  chemicalParams        Json?
+  microbiologicalParams Json?
+  packagingSpec         Json?
+  labelSpec             Json?
+  storageConditions     String?
+  shelfLifeDays         Int?
+  approvedBy            String?                    @db.Uuid
+  reviewDate            DateTime?
+  createdAt             DateTime                   @default(now())
+
+  organization     Organization      @relation(fields: [orgId], references: [id])
+  product          Product           @relation(fields: [productId], references: [id])
+  approvedByUser   User?             @relation("ProductSpecificationApprovedBy", fields: [approvedBy], references: [id])
+  sourcingRequests SourcingRequest[]
+  purchaseOrders   PurchaseOrder[]
+  documents        Document[]
+
+  @@index([orgId])
+  @@index([productId])
+}
+
+// ============ وحدة 4 — المستندات والمواصفات: الشريحة الثانية ============
+
+enum DocumentType {
+  Quotation
+  ProformaInvoice
+  CommercialInvoice
+  PackingList
+  SalesContract
+  SalesConfirmation
+  TechnicalDataSheet
+  COA
+  Declaration
+  PriceList
+  EmailDraft
+}
+
+enum DocumentLanguage {
+  Arabic
+  English
+  Bilingual
+}
+
+enum DocumentStatus {
+  Draft
+  Incomplete
+  UnderReview
+  RevisionRequired
+  Approved
+  Issued
+  Sent
+  Acknowledged
+  Superseded
+  Expired
+  Cancelled
+}
+
+enum DocumentEtaStatus {
+  NotApplicable
+  Pending
+  Submitted
+  Validated
+  Rejected
+}
+
+/// packageId→DocumentPackage وtemplateId→Template اتشالوا وقت البناء (الكيانين كانوا غير مبنيين)؛
+/// اتقفلوا فعليًا كـ`DocumentPackage`/`Template` مستقلين (1 سبتمبر) بلا ربط مباشر بـDocument نفسه
+/// (DocumentPackage مرتبطة بـDeal، Template كيان مشترك مستقل — راجع STATUS.md).
+/// companyId/shipmentId/specificationId/approvalId اتحطوا كأعمدة nullable بلا واجهة اختيار في
+/// الفورم (الكيانات موجودة فعليًا، بس مفيش داعي فورم اختيار لكل واحد دلوقتي — نفس نمط
+/// NCR.batchId/lotId). content/fileUrl بلا واجهة إدخال (Supabase Storage/Signed URL لسه مش
+/// مبنية في المشروع خالص). Trigger enforce_document_eta_validated (migration الـRLS بتاعة
+/// الشريحة دي) بيمنع status→Issued/Sent لـdocumentType=CommercialInvoice بلا etaStatus=Validated
+/// — نفس فلسفة enforce_gate_aci_deadline_met بالحرف (حقل يدوي، بلا تكامل حقيقي مع بوابة ETA).
+model Document {
+  id                String            @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId             String            @db.Uuid
+  dealId            String            @db.Uuid
+  companyId         String?           @db.Uuid
+  shipmentId        String?           @db.Uuid
+  specificationId   String?           @db.Uuid
+  documentType      DocumentType
+  documentNumber    String            @unique
+  version           Int               @default(1)
+  language          DocumentLanguage  @default(Arabic)
+  status            DocumentStatus    @default(Draft)
+  content           Json?
+  fileUrl           String?
+  confidentiality   String?
+  completenessScore Decimal?          @db.Decimal(5, 2)
+  approvalId        String?           @db.Uuid
+  etaUuid           String?
+  etaStatus         DocumentEtaStatus @default(NotApplicable)
+  etaSubmittedAt    DateTime?
+  expiryDate        DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  organization    Organization          @relation(fields: [orgId], references: [id])
+  deal            Deal                  @relation(fields: [dealId], references: [id])
+  company         Company?              @relation(fields: [companyId], references: [id])
+  shipment        Shipment?             @relation(fields: [shipmentId], references: [id])
+  specification   ProductSpecification? @relation(fields: [specificationId], references: [id])
+  approval        Approval?             @relation(fields: [approvalId], references: [id])
+  supplyContracts SupplyContract[]
+  versions        DocumentVersion[]
+  invoices        Invoice[]
+
+  @@index([orgId])
+  @@index([dealId])
+}
+
+// ============ وحدة 4 (تابع) — إقفال أخير: DocumentVersion, Template, DocumentPackage, Clause ============
+// راجع docs/SCOPE-P4.md § الشريحة الأخيرة و docs/ERD.md §7 للتفاصيل الكاملة.
+
+/// سجل تاريخي لتعديلات Document. changedFields/previousValues/newValues/contentSnapshot (jsonb)
+/// وapprovalId/supersededById اتشالوا من الفورم (nullable، بلا واجهة إدخال — نفس نمط
+/// Document.content/approvalId). createdBy بيتحدَّد تلقائيًا بالمستخدم الحالي وقت الإنشاء
+/// (نفس نمط CAPA.ownerId).
+model DocumentVersion {
+  id              String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId           String   @db.Uuid
+  documentId      String   @db.Uuid
+  versionNumber   Int
+  changeReason    String?
+  changedFields   Json?
+  previousValues  Json?
+  newValues       Json?
+  contentSnapshot Json?
+  createdBy       String   @db.Uuid
+  approvalId      String?  @db.Uuid
+  supersededById  String?  @db.Uuid
+  createdAt       DateTime @default(now())
+
+  organization Organization      @relation(fields: [orgId], references: [id])
+  document     Document          @relation(fields: [documentId], references: [id])
+  creator      User              @relation(fields: [createdBy], references: [id])
+  approval     Approval?         @relation(fields: [approvalId], references: [id])
+  supersededBy DocumentVersion?  @relation("DocumentVersionSupersedes", fields: [supersededById], references: [id])
+  supersedes   DocumentVersion[] @relation("DocumentVersionSupersedes")
+
+  @@index([orgId])
+  @@index([documentId])
+}
+
+enum TemplateStatus {
+  Draft
+  Approved
+  Archived
+}
+
+/// كيان مشترك مستقل (زي CAPA) — بلا مالك طبيعي واحد. bodySchema (jsonb) اتشال من الفورم
+/// (نفس نمط Document.content). usageCount بلا آلية تتبّع فعلية (مفيش تدفّق "توليد مستند من قالب"
+/// لسه) — بيفضل 0 افتراضيًا.
+model Template {
+  id           String           @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId        String           @db.Uuid
+  documentType DocumentType
+  language     DocumentLanguage @default(Arabic)
+  marketId     String?          @db.Uuid
+  customerId   String?          @db.Uuid
+  bodySchema   Json?
+  version      Int              @default(1)
+  status       TemplateStatus   @default(Draft)
+  usageCount   Int              @default(0)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  market       Market?      @relation(fields: [marketId], references: [id])
+  customer     Company?     @relation(fields: [customerId], references: [id])
+
+  @@index([orgId])
+}
+
+enum DocumentPackageType {
+  QuotationPack
+  FirstOrderPack
+  ShipmentPack
+  SamplePack
+  TenderPack
+}
+
+/// status enum قرار تفسيري (الـERD مش بيحدد قيم صراحةً)، نفس روح FacilityStatus.
+enum DocumentPackageStatus {
+  NotStarted
+  InProgress
+  MissingData
+  UnderReview
+  Complete
+  Issued
+  Sent
+}
+
+/// shipmentId اختياري بلا واجهة اختيار دلوقتي — نفس نمط Document.shipmentId بالحرف.
+/// completenessScore بلا واجهة إدخال (عمود لمحرك حساب مستقبلي، نفس Document.completenessScore).
+model DocumentPackage {
+  id                String                @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId             String                @db.Uuid
+  dealId            String                @db.Uuid
+  shipmentId        String?               @db.Uuid
+  packageType       DocumentPackageType
+  status            DocumentPackageStatus @default(NotStarted)
+  completenessScore Decimal?              @db.Decimal(5, 2)
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  deal         Deal         @relation(fields: [dealId], references: [id])
+  shipment     Shipment?    @relation(fields: [shipmentId], references: [id])
+
+  @@index([orgId])
+  @@index([dealId])
+}
+
+enum ClauseCategory {
+  Payment
+  Delivery
+  Quality
+  Claims
+  ForceMajeure
+  GoverningLaw
+  Confidentiality
+  Cancellation
+}
+
+/// قرار تفسيري (الـERD ما حددش قيم صراحةً)، نفس روح RejectionSeverity.
+enum ClauseRiskLevel {
+  Low
+  Medium
+  High
+}
+
+/// كيان مشترك مستقل (زي CAPA) — مكتبة بنود قانونية بلا مالك طبيعي واحد.
+model Clause {
+  id               String          @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId            String          @db.Uuid
+  title            String
+  category         ClauseCategory
+  textAr           String?
+  textEn           String?
+  riskLevel        ClauseRiskLevel @default(Low)
+  approvalRequired Boolean         @default(false)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id])
+
+  @@index([orgId])
+}
+
+// ============ كيان مشترك (Shared Layer) — Corrective and Preventive Action ============
+
+enum CAPARootCauseMethod {
+  FiveWhys
+  Fishbone
+  Other
+}
+
+enum CAPAStatus {
+  Open
+  InProgress
+  VerificationPending
+  Effective
+  Ineffective
+  Closed
+  Overdue
+}
+
+/// كيان مشترك (Shared Layer، مش تابع لوحدة واحدة) — docs/ERD.md §1.5 سطر 65. بيقفل دَين
+/// NCR.capaId (وحدة 7) وRejectionCase.capaId (وحدة 5)، الاتنين كانوا متشالين لعدم وجود الكيان ده.
+/// ownerId بيتحدَّد تلقائيًا بالمستخدم الحالي وقت الإنشاء (نفس نمط BatchMarketEligibility.assessedBy).
+/// verifiedBy بلا واجهة إدخال (نفس معاملة ProductSpecification.approvedBy) — بلا تدفّق Verify/Close
+/// في الشريحة دي (النطاق متسق مع إن NCR/RejectionCase نفسهم بلا أي UI تعديل بعد الإنشاء).
+model CAPA {
+  id               String               @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId            String               @db.Uuid
+  rootCause        String?
+  rootCauseMethod  CAPARootCauseMethod?
+  correctiveAction String?
+  preventiveAction String?
+  ownerId          String               @db.Uuid
+  dueDate          DateTime?
+  verifiedBy       String?              @db.Uuid
+  status           CAPAStatus           @default(Open)
+  createdAt        DateTime             @default(now())
+
+  organization         Organization          @relation(fields: [orgId], references: [id])
+  ownerUser            User                  @relation("CAPAOwner", fields: [ownerId], references: [id])
+  verifiedByUser       User?                 @relation("CAPAVerifiedBy", fields: [verifiedBy], references: [id])
+  ncrs                 NCR[]
+  rejectionCases       RejectionCase[]
+  customerServiceCases CustomerServiceCase[]
+
+  @@index([orgId])
+}
+
+// ==================== وحدة 8 — الحسابات والخزينة (🆕v4) — الشريحة الأولى: دفتر الأستاذ الأساسي ====================
+// راجع docs/ERD.md §11.1 للتفاصيل الكاملة. أول شريحة من 4 — الأساس اللي كل كيان تاني في الوحدة
+// (فواتير، خزينة، أصول) هيُبنى فوقه. بلا الشريحة دي مفيش نظام محاسبي حقيقي، بس تقديرات تسعير.
+//
+// ⚠️ Triggers إلزامية (docs/ERD.md §11.1):
+// 1. enforce_journal_entry_balanced — SUM(JournalLine.debit) = SUM(JournalLine.credit) لكل
+//    JournalEntry وقت ما status يتحول لـPosted، على مستوى القاعدة مش تحقق واجهة.
+// 2. enforce_accounting_period_not_hard_closed — أي JournalLine جديد لفترة HardClosed يترفض.
+
+enum AccountType {
+  Asset
+  Liability
+  Equity
+  Revenue
+  COGS
+  Expense
+}
+
+enum NormalBalance {
+  Debit
+  Credit
+}
+
+/// شجرة حسابات (parentAccountId self-relation). accountCode بترقيم قياسي احترافي
+/// (1000s أصول، 2000s خصوم، 3000s حقوق ملكية، 4000s إيرادات، 5000s تكلفة مبيعات، 6000s مصروفات)
+/// — بيانات أساسية جاهزة في prisma/seed.ts، نفس فلسفة الأدوار التسعة الافتراضية.
+model ChartOfAccount {
+  id              String        @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId           String        @db.Uuid
+  accountCode     String
+  nameAr          String
+  nameEn          String
+  accountType     AccountType
+  parentAccountId String?       @db.Uuid
+  normalBalance   NormalBalance
+  currency        String?       @db.Char(3)
+  isActive        Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  organization  Organization     @relation(fields: [orgId], references: [id])
+  parentAccount ChartOfAccount?  @relation("ChartOfAccountParent", fields: [parentAccountId], references: [id])
+  childAccounts ChartOfAccount[] @relation("ChartOfAccountParent")
+  journalLines  JournalLine[]
+
+  @@unique([orgId, accountCode])
+  @@index([orgId])
+}
+
+enum AccountingPeriodStatus {
+  Open
+  SoftClosed
+  HardClosed
+}
+
+model AccountingPeriod {
+  id         String                 @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId      String                 @db.Uuid
+  periodName String
+  startDate  DateTime
+  endDate    DateTime
+  status     AccountingPeriodStatus @default(Open)
+  closedBy   String?                @db.Uuid
+  closedAt   DateTime?
+  createdAt  DateTime               @default(now())
+
+  organization   Organization   @relation(fields: [orgId], references: [id])
+  closedByUser   User?          @relation("AccountingPeriodClosedBy", fields: [closedBy], references: [id])
+  journalEntries JournalEntry[]
+  budgets        Budget[]
+  taxRecords     TaxRecord[]
+  kpis           KPI[]
+
+  @@unique([orgId, periodName])
+  @@index([orgId])
+}
+
+enum JournalEntrySourceType {
+  Manual
+  Automatic
+  Recurring
+  Reversal
+  Accrual
+  Adjustment
+}
+
+enum JournalEntryStatus {
+  Draft
+  Posted
+  Reversed
+}
+
+/// entryNumber بصيغة JE-{year}-{seq}، نفس نمط PurchaseOrder.poNumber (src/app/sourcing/actions.ts).
+/// الترحيل (Draft→Posted) هو اللي بيفعّل Trigger enforce_journal_entry_balanced.
+model JournalEntry {
+  id           String                 @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId        String                 @db.Uuid
+  entryNumber  String
+  entryDate    DateTime
+  periodId     String                 @db.Uuid
+  sourceType   JournalEntrySourceType @default(Manual)
+  sourceModule String?
+  description  String?
+  status       JournalEntryStatus     @default(Draft)
+  preparedBy   String                 @db.Uuid
+  reviewedBy   String?                @db.Uuid
+  approvedBy   String?                @db.Uuid
+  reversalOfId String?                @db.Uuid
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+
+  organization        Organization        @relation(fields: [orgId], references: [id])
+  period              AccountingPeriod    @relation(fields: [periodId], references: [id])
+  preparedByUser      User                @relation("JournalEntryPreparedBy", fields: [preparedBy], references: [id])
+  reviewedByUser      User?               @relation("JournalEntryReviewedBy", fields: [reviewedBy], references: [id])
+  approvedByUser      User?               @relation("JournalEntryApprovedBy", fields: [approvedBy], references: [id])
+  reversalOf          JournalEntry?       @relation("JournalEntryReversal", fields: [reversalOfId], references: [id])
+  reversals           JournalEntry[]      @relation("JournalEntryReversal")
+  lines               JournalLine[]
+  invoices            Invoice[]
+  payments            Payment[]
+  bankTransactions    BankTransaction[]
+  loans               Loan[]
+  loanInstallments    LoanInstallment[]
+  depreciationEntries DepreciationEntry[]
+  fixedAssetDisposals FixedAsset[]        @relation("FixedAssetDisposal")
+  commissionEntries   CommissionEntry[]
+
+  @@unique([orgId, entryNumber])
+  @@index([orgId])
+  @@index([periodId])
+}
+
+/// وسم الأبعاد (Dimension Tagging) — dealId/shipmentId/supplierId nullable، بلا واجهة اختيار في
+/// الشريحة دي (هتُستخدم لما وحدات لاحقة تترحّل تلقائيًا عبر src/lib/accounting.ts). ده اللي بيخلي
+/// "ربح الصفقة الحقيقي" محسوب من دفتر الأستاذ فعليًا مش تقدير DealScenario — docs/ERD.md §11 مقدمة.
+model JournalLine {
+  id             String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId          String   @db.Uuid
+  journalEntryId String   @db.Uuid
+  accountId      String   @db.Uuid
+  debit          Decimal  @default(0) @db.Decimal(14, 2)
+  credit         Decimal  @default(0) @db.Decimal(14, 2)
+  currency       String   @db.Char(3)
+  fxRateId       String?  @db.Uuid
+  costCenterId   String?  @db.Uuid
+  profitCenterId String?  @db.Uuid
+  dealId         String?  @db.Uuid
+  shipmentId     String?  @db.Uuid
+  supplierId     String?  @db.Uuid
+  description    String?
+  createdAt      DateTime @default(now())
+
+  organization Organization   @relation(fields: [orgId], references: [id])
+  journalEntry JournalEntry   @relation(fields: [journalEntryId], references: [id])
+  account      ChartOfAccount @relation(fields: [accountId], references: [id])
+  fxRate       ExchangeRate?  @relation(fields: [fxRateId], references: [id])
+  costCenter   CostCenter?    @relation(fields: [costCenterId], references: [id])
+  profitCenter ProfitCenter?  @relation(fields: [profitCenterId], references: [id])
+  deal         Deal?          @relation(fields: [dealId], references: [id])
+  shipment     Shipment?      @relation(fields: [shipmentId], references: [id])
+  supplier     Supplier?      @relation(fields: [supplierId], references: [id])
+
+  @@index([orgId])
+  @@index([journalEntryId])
+  @@index([accountId])
+}
+
+enum CostCenterType {
+  Department
+  Product
+  Customer
+  Deal
+  Market
+}
+
+model CostCenter {
+  id        String         @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId     String         @db.Uuid
+  code      String
+  name      String
+  type      CostCenterType
+  createdAt DateTime       @default(now())
+
+  organization Organization  @relation(fields: [orgId], references: [id])
+  journalLines JournalLine[]
+  budgets      Budget[]
+  fixedAssets  FixedAsset[]
+
+  @@unique([orgId, code])
+  @@index([orgId])
+}
+
+enum ProfitCenterScope {
+  Company
+  Division
+  Product
+  Market
+}
+
+model ProfitCenter {
+  id        String            @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId     String            @db.Uuid
+  code      String
+  name      String
+  scope     ProfitCenterScope
+  createdAt DateTime          @default(now())
+
+  organization Organization  @relation(fields: [orgId], references: [id])
+  journalLines JournalLine[]
+
+  @@unique([orgId, code])
+  @@index([orgId])
+}
+
+// ==================== وحدة 8 — الشريحة التانية: AR/AP (الفواتير والتحصيل والسداد) ====================
+// راجع docs/ERD.md §11.2. الشريحة دي بتحوّل SalesOrder/PurchaseOrder الموجودين لقيود محاسبية حقيقية
+// عبر محرك الترحيل (src/lib/accounting.ts) — أول استهلاك فعلي له من خارج الإدخال اليدوي.
+//
+// ⚠️ انحرافات واعية عن المواصفة (اتوثّقت في STATUS.md بعد مراجعة نقدية):
+// 1. BankAccount اتسحب من الشريحة 3 — Payment.bankAccountId بلا الكيان ده مالوش معنى.
+// 2. Payment.counterpartyType/counterpartyId (FK متعدد الأشكال بلا تكامل مرجعي) اتبدلوا بـ
+//    companyId/supplierId nullable — نفس نمط Invoice في المواصفة نفسها (تناقض داخلي فيها).
+// 3. Invoice.amountPaid عمود جديد بيتصان بـTrigger بس — المواصفة بتخزّن status مشتقّة يدويًا،
+//    وده انحراف مضمون بين الحالة والواقع.
+// 4. Invoice.status.Overdue مش بتتخزّن أبدًا — حالة زمنية بتتحسب وقت العرض من dueDate.
+// 5. Payment.createdBy/approvedBy اتضافوا استباقًا لقاعدة فصل المهام (ERD سطر 418، وحدة 9).
+
+/// 🔒 accountNumber/iban/swift مشفّرين عبر Supabase Vault (src/lib/vault.ts) — نفس نمط
+/// Supplier.bankIBAN وTransportTrip.driverPhone. بلا واجهة إدخال لسه.
+model BankAccount {
+  id                    String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId                 String   @db.Uuid
+  accountName           String
+  bankName              String
+  currency              String   @db.Char(3)
+  accountNumberSecretId String?  @db.Uuid
+  ibanSecretId          String?  @db.Uuid
+  swiftSecretId         String?  @db.Uuid
+  openingBalance        Decimal  @default(0) @db.Decimal(14, 2)
+  isActive              Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  organization    Organization         @relation(fields: [orgId], references: [id])
+  payments        Payment[]
+  transactions    BankTransaction[]
+  reconciliations BankReconciliation[]
+  loans           Loan[]
+
+  @@index([orgId])
+}
+
+enum InvoiceType {
+  SalesInvoice
+  PurchaseInvoice
+  CreditNote
+  DebitNote
+  ProformaInvoice
+}
+
+/// Overdue موجودة لالتزام المواصفة بس — مبتتخزّنش أبدًا (حالة زمنية، بتتحسب وقت العرض من dueDate،
+/// لأن أي حالة زمنية مخزَّنة بتبقى قديمة لحظة ما بتتكتب بلا حدث يحدّثها).
+enum InvoiceStatus {
+  Draft
+  Issued
+  PartiallyPaid
+  Paid
+  Overdue
+  Disputed
+  Cancelled
+}
+
+/// amountPaid بيتصان بـTrigger sync_invoice_payment_status بس — ممنوع أي كود يكتبه بإيد.
+/// journalEntryId بيتملّى تلقائيًا وقت الإصدار (postInvoiceIssued في src/lib/accounting.ts).
+/// documentId nullable: الفاتورة المسودة أو فاتورة المورّد ممكن تكون بلا مستند قانوني، لكن
+/// ⚠️ Trigger enforce_invoice_eta_validated بيمنع إصدار فاتورة مبيعات بلا مستند ETA معتمد.
+model Invoice {
+  id              String        @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId           String        @db.Uuid
+  invoiceNumber   String
+  invoiceType     InvoiceType
+  dealId          String?       @db.Uuid
+  salesOrderId    String?       @db.Uuid
+  purchaseOrderId String?       @db.Uuid
+  companyId       String?       @db.Uuid
+  supplierId      String?       @db.Uuid
+  documentId      String?       @db.Uuid
+  currency        String        @db.Char(3)
+  subtotal        Decimal       @db.Decimal(14, 2)
+  taxAmount       Decimal       @default(0) @db.Decimal(14, 2)
+  totalAmount     Decimal       @db.Decimal(14, 2)
+  amountPaid      Decimal       @default(0) @db.Decimal(14, 2)
+  issueDate       DateTime
+  dueDate         DateTime
+  status          InvoiceStatus @default(Draft)
+  journalEntryId  String?       @db.Uuid
+  notes           String?
+  idempotencyKey  String?       @db.Uuid
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  organization  Organization        @relation(fields: [orgId], references: [id])
+  deal          Deal?               @relation(fields: [dealId], references: [id])
+  salesOrder    SalesOrder?         @relation(fields: [salesOrderId], references: [id])
+  purchaseOrder PurchaseOrder?      @relation(fields: [purchaseOrderId], references: [id])
+  company       Company?            @relation(fields: [companyId], references: [id])
+  supplier      Supplier?           @relation(fields: [supplierId], references: [id])
+  document      Document?           @relation(fields: [documentId], references: [id])
+  journalEntry  JournalEntry?       @relation(fields: [journalEntryId], references: [id])
+  allocations   PaymentAllocation[]
+
+  @@unique([orgId, invoiceNumber])
+  @@unique([orgId, idempotencyKey])
+  @@index([orgId])
+  @@index([companyId])
+  @@index([supplierId])
+  @@index([status])
+}
+
+enum PaymentDirection {
+  Inbound
+  Outbound
+}
+
+enum PaymentMethod {
+  BankTransfer
+  Check
+  Cash
+  LC
+  Card
+}
+
+enum PaymentStatus {
+  Pending
+  Cleared
+  Bounced
+  Reversed
+}
+
+/// counterpartyType/counterpartyId من المواصفة اتبدلوا بـcompanyId/supplierId — FK حقيقي بدل
+/// معرّف متعدد الأشكال بلا تكامل مرجعي. createdBy/approvedBy استباقًا لفصل المهام (وحدة 9).
+model Payment {
+  id             String           @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId          String           @db.Uuid
+  paymentNumber  String
+  direction      PaymentDirection
+  companyId      String?          @db.Uuid
+  supplierId     String?          @db.Uuid
+  bankAccountId  String           @db.Uuid
+  amount         Decimal          @db.Decimal(14, 2)
+  currency       String           @db.Char(3)
+  fxRateId       String?          @db.Uuid
+  paymentMethod  PaymentMethod    @default(BankTransfer)
+  paymentDate    DateTime
+  reference      String?
+  status         PaymentStatus    @default(Pending)
+  journalEntryId String?          @db.Uuid
+  createdBy      String           @db.Uuid
+  approvedBy     String?          @db.Uuid
+  idempotencyKey String?          @db.Uuid
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  organization     Organization        @relation(fields: [orgId], references: [id])
+  company          Company?            @relation(fields: [companyId], references: [id])
+  supplier         Supplier?           @relation(fields: [supplierId], references: [id])
+  bankAccount      BankAccount         @relation(fields: [bankAccountId], references: [id])
+  fxRate           ExchangeRate?       @relation(fields: [fxRateId], references: [id])
+  journalEntry     JournalEntry?       @relation(fields: [journalEntryId], references: [id])
+  createdByUser    User                @relation("PaymentCreatedBy", fields: [createdBy], references: [id])
+  approvedByUser   User?               @relation("PaymentApprovedBy", fields: [approvedBy], references: [id])
+  allocations      PaymentAllocation[]
+  bankTransactions BankTransaction[]
+  loanInstallments LoanInstallment[]
+  taxRecords       TaxRecord[]
+
+  @@unique([orgId, paymentNumber])
+  @@unique([orgId, idempotencyKey])
+  @@index([orgId])
+  @@index([status])
+}
+
+/// جدول وسيط (نفس نمط ShipmentLot/BatchRawMaterialLine) — دفعة واحدة على عدة فواتير أو العكس.
+/// ⚠️ Triggers بتمنع: التخصيص الزائد (فوق مبلغ الفاتورة أو الدفعة)، والتخصيص عابر العملات.
+model PaymentAllocation {
+  id              String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId           String   @db.Uuid
+  paymentId       String   @db.Uuid
+  invoiceId       String   @db.Uuid
+  allocatedAmount Decimal  @db.Decimal(14, 2)
+  createdAt       DateTime @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  payment      Payment      @relation(fields: [paymentId], references: [id])
+  invoice      Invoice      @relation(fields: [invoiceId], references: [id])
+
+  @@unique([paymentId, invoiceId])
+  @@index([orgId])
+  @@index([invoiceId])
+}
+
+// ==================== وحدة 8 — الشريحة التالتة: الخزينة والبنوك ====================
+
+enum BankTransactionType {
+  Deposit
+  Withdrawal
+  TransferIn
+  TransferOut
+  Charge
+  Interest
+}
+
+enum ReconciliationStatus {
+  InProgress
+  Reconciled
+  Discrepancy
+}
+
+enum LoanStatus {
+  Active
+  Settled
+  Defaulted
+}
+
+enum LoanInstallmentStatus {
+  Pending
+  Paid
+}
+
+enum CashFlowCategory {
+  OpeningCash
+  CustomerCollections
+  SupplierPayments
+  Payroll
+  Freight
+  Customs
+  Taxes
+  LoanService
+  Capex
+  ClosingCash
+}
+
+/// حركة بنكية من كشف الحساب. `paymentId` هو العمود اللي بيخلّي المطابقة البنكية ممكنة أصلًا
+/// (مش موجود في docs/ERD.md §11.3 — أهم علاج في الشريحة دي).
+/// `amount` موجب دايمًا؛ الاتجاه بيتشتق من `transactionType` في مكان واحد (src/lib/treasuryLabels.ts).
+model BankTransaction {
+  id               String              @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId            String              @db.Uuid
+  bankAccountId    String              @db.Uuid
+  transactionDate  DateTime
+  amount           Decimal             @db.Decimal(14, 2)
+  currency         String              @db.Char(3)
+  transactionType  BankTransactionType
+  reference        String?
+  description      String?
+  paymentId        String?             @db.Uuid
+  reconciliationId String?             @db.Uuid
+  journalEntryId   String?             @db.Uuid
+  idempotencyKey   String?             @db.Uuid
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  organization   Organization        @relation(fields: [orgId], references: [id])
+  bankAccount    BankAccount         @relation(fields: [bankAccountId], references: [id])
+  payment        Payment?            @relation(fields: [paymentId], references: [id])
+  reconciliation BankReconciliation? @relation(fields: [reconciliationId], references: [id])
+  journalEntry   JournalEntry?       @relation(fields: [journalEntryId], references: [id])
+
+  @@unique([orgId, idempotencyKey])
+  @@index([orgId])
+  @@index([bankAccountId])
+  @@index([reconciliationId])
+  @@index([paymentId])
+}
+
+/// مطابقة بنكية. `bookBalance` عمود مصان بـTrigger بالكامل — ممنوع يتكتب من التطبيق
+/// (انحراف واعٍ عن الـERD اللي بيحطه كحقل يدوي، نفس علاج Invoice.amountPaid).
+model BankReconciliation {
+  id               String               @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId            String               @db.Uuid
+  bankAccountId    String               @db.Uuid
+  statementDate    DateTime
+  statementBalance Decimal              @db.Decimal(14, 2)
+  bookBalance      Decimal              @default(0) @db.Decimal(14, 2)
+  status           ReconciliationStatus @default(InProgress)
+  notes            String?
+  reconciledBy     String?              @db.Uuid
+  reconciledAt     DateTime?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  organization     Organization      @relation(fields: [orgId], references: [id])
+  bankAccount      BankAccount       @relation(fields: [bankAccountId], references: [id])
+  reconciledByUser User?             @relation("ReconciliationReconciledBy", fields: [reconciledBy], references: [id])
+  transactions     BankTransaction[]
+
+  @@index([orgId])
+  @@index([bankAccountId])
+}
+
+/// قرض. `bankAccountId` (القرض نزل فين) و`outstandingPrincipal` (أهم رقم في القرض) مش
+/// موجودين في الـERD — اتضافوا هنا. `outstandingPrincipal` مصان بـTrigger.
+model Loan {
+  id                   String     @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId                String     @db.Uuid
+  lenderName           String
+  bankAccountId        String     @db.Uuid
+  principal            Decimal    @db.Decimal(14, 2)
+  outstandingPrincipal Decimal    @default(0) @db.Decimal(14, 2)
+  currency             String     @db.Char(3)
+  interestRatePct      Decimal?   @db.Decimal(6, 3)
+  startDate            DateTime
+  maturityDate         DateTime
+  collateral           String?
+  status               LoanStatus @default(Active)
+  disbursedAt          DateTime?
+  journalEntryId       String?    @db.Uuid
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+
+  organization Organization      @relation(fields: [orgId], references: [id])
+  bankAccount  BankAccount       @relation(fields: [bankAccountId], references: [id])
+  journalEntry JournalEntry?     @relation(fields: [journalEntryId], references: [id])
+  installments LoanInstallment[]
+
+  @@index([orgId])
+  @@index([status])
+}
+
+/// قسط قرض. `Overdue` **مش قيمة مخزَّنة** — بتتحسب وقت العرض من `dueDate` (نفس علاج
+/// Invoice.Overdue في الشريحة اللي فاتت). السداد بيحصل بـ`Payment` حقيقي، مش بتغيير حالة.
+model LoanInstallment {
+  id               String                @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId            String                @db.Uuid
+  loanId           String                @db.Uuid
+  dueDate          DateTime
+  principalPortion Decimal               @db.Decimal(14, 2)
+  interestPortion  Decimal               @default(0) @db.Decimal(14, 2)
+  status           LoanInstallmentStatus @default(Pending)
+  paymentId        String?               @db.Uuid
+  journalEntryId   String?               @db.Uuid
+  paidAt           DateTime?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  organization Organization  @relation(fields: [orgId], references: [id])
+  loan         Loan          @relation(fields: [loanId], references: [id])
+  payment      Payment?      @relation(fields: [paymentId], references: [id])
+  journalEntry JournalEntry? @relation(fields: [journalEntryId], references: [id])
+
+  @@index([orgId])
+  @@index([loanId])
+}
+
+/// سطر توقّع تدفّق نقدي (توقّع بس — مفيش `isActual`). الفعلي بيتحسب من الدفعات المحصّلة
+/// وقت العرض؛ رقم "فعلي" مكتوب بإيد رقم مخترع. OpeningCash/ClosingCash ممنوعين كإدخال
+/// يدوي بـTrigger — دول أرصدة محسوبة مش تدفّقات.
+model CashFlowForecastLine {
+  id            String           @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId         String           @db.Uuid
+  weekStartDate DateTime         @db.Date
+  category      CashFlowCategory
+  amount        Decimal          @db.Decimal(14, 2)
+  currency      String           @db.Char(3)
+  notes         String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id])
+
+  @@unique([orgId, weekStartDate, category, currency])
+  @@index([orgId])
+}
+
+// ==================== وحدة 8 — الشريحة الرابعة والأخيرة: الموازنات والأصول والضرائب ====================
+
+enum BudgetType {
+  Sales
+  Purchase
+  OPEX
+  CAPEX
+  Cash
+}
+
+enum FixedAssetCategory {
+  Equipment
+  Vehicle
+  Furniture
+  Building
+  ComputerHardware
+  Other
+}
+
+enum DepreciationMethod {
+  StraightLine
+  DecliningBalance
+}
+
+enum FixedAssetStatus {
+  Active
+  Disposed
+  Impaired
+}
+
+enum TaxType {
+  VATOutput
+  VATInput
+  WithholdingTax
+  PayrollTax
+}
+
+enum TaxFilingStatus {
+  NotFiled
+  Filed
+  Paid
+}
+
+/// بند موازنة. `periodId` FK حقيقي لـ`AccountingPeriod` (مش نص حر زي الـERD) — ده اللي بيخلّي
+/// مقارنة "موازنة مقابل فعلي" ممكنة أصلًا عبر JOIN حقيقي مع JournalLine.
+model Budget {
+  id           String     @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId        String     @db.Uuid
+  periodId     String     @db.Uuid
+  budgetType   BudgetType
+  costCenterId String?    @db.Uuid
+  amount       Decimal    @db.Decimal(14, 2)
+  currency     String     @db.Char(3)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  organization Organization     @relation(fields: [orgId], references: [id])
+  period       AccountingPeriod @relation(fields: [periodId], references: [id])
+  costCenter   CostCenter?      @relation(fields: [costCenterId], references: [id])
+
+  @@unique([orgId, periodId, budgetType, costCenterId, currency])
+  @@index([orgId])
+  @@index([periodId])
+}
+
+/// أصل ثابت. `accumulatedDepreciation`/`netBookValue` مصانين بـTrigger بالكامل — مش موجودين
+/// في الـERD رغم إنهم أهم رقمين في الأصل. `costCenterId` جديد كمان (كل كيان تاني في الوحدة
+/// بيتوسم بمركز تكلفة إلا الأصل الثابت).
+model FixedAsset {
+  id                      String             @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId                   String             @db.Uuid
+  assetCode               String
+  nameAr                  String
+  nameEn                  String
+  category                FixedAssetCategory
+  costCenterId            String?            @db.Uuid
+  purchaseDate            DateTime
+  purchaseValue           Decimal            @db.Decimal(14, 2)
+  currency                String             @db.Char(3)
+  usefulLifeMonths        Int
+  depreciationMethod      DepreciationMethod @default(StraightLine)
+  accumulatedDepreciation Decimal            @default(0) @db.Decimal(14, 2)
+  netBookValue            Decimal            @default(0) @db.Decimal(14, 2)
+  disposalDate            DateTime?
+  disposalValue           Decimal?           @db.Decimal(14, 2)
+  disposalJournalEntryId  String?            @db.Uuid
+  status                  FixedAssetStatus   @default(Active)
+  createdAt               DateTime           @default(now())
+  updatedAt               DateTime           @updatedAt
+
+  organization         Organization        @relation(fields: [orgId], references: [id])
+  costCenter           CostCenter?         @relation(fields: [costCenterId], references: [id])
+  disposalJournalEntry JournalEntry?       @relation("FixedAssetDisposal", fields: [disposalJournalEntryId], references: [id])
+  depreciationEntries  DepreciationEntry[]
+
+  @@unique([orgId, assetCode])
+  @@index([orgId])
+  @@index([costCenterId])
+}
+
+/// سطر إهلاك — `amount` بيتحسب بمعادلة القسط الثابت في src/lib/depreciation.ts، مش إدخال حر.
+/// `journalEntryId` إلزامي (عكس الـERD اللي بيحطه nullable) — إهلاك بلا قيد يعني مصروف حقيقي
+/// مبيوصلش للدفتر. period نص "YYYY-MM" بسيط، متّسق مع @@unique(assetId, period).
+model DepreciationEntry {
+  id             String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId          String   @db.Uuid
+  assetId        String   @db.Uuid
+  period         String
+  amount         Decimal  @db.Decimal(14, 2)
+  journalEntryId String   @db.Uuid
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  asset        FixedAsset   @relation(fields: [assetId], references: [id])
+  journalEntry JournalEntry @relation(fields: [journalEntryId], references: [id])
+
+  @@unique([assetId, period])
+  @@index([orgId])
+}
+
+/// سجل ضريبي. لضريبة القيمة المضافة، `amount` بيتحسب من رصيد حسابي 1040/2030 وقت الاعتماد
+/// (src/app/accounting/finance-actions.ts) — مش يتكتب. `paymentId` (جديد) هو اللي بيخلّي
+/// filingStatus=Paid حدث نقدي حقيقي مش مجرد تغيير حالة، نفس نمط LoanInstallment.paymentId.
+model TaxRecord {
+  id           String          @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId        String          @db.Uuid
+  taxType      TaxType
+  periodId     String          @db.Uuid
+  amount       Decimal         @db.Decimal(14, 2)
+  currency     String          @db.Char(3)
+  filingStatus TaxFilingStatus @default(NotFiled)
+  filingDate   DateTime?
+  etaReference String?
+  paymentId    String?         @db.Uuid
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  organization Organization     @relation(fields: [orgId], references: [id])
+  period       AccountingPeriod @relation(fields: [periodId], references: [id])
+  payment      Payment?         @relation(fields: [paymentId], references: [id])
+
+  @@unique([orgId, taxType, periodId])
+  @@index([orgId])
+  @@index([periodId])
+}
+
+// ==================== وحدة 9 — الشريحة التانية: الحوكمة والإدارة ====================
+
+/// قاعدة فصل مهام. action1/action2 نص حر بصيغة "Resource.Action" (زي "Payment.Create"/
+/// "Payment.Approve") — جدول قواعد قابل للتفعيل من الواجهة، مش قيد مكتوب في الكود.
+/// ⚠️ مطبَّقة فعليًا على Payment.createdBy/approvedBy بس دلوقتي (Trigger
+/// enforce_segregation_of_duty_payment) — المثال الحرفي في docs/ERD.md §12 (Supplier→Payment
+/// عابر الكيانات) محتاج Supplier.createdBy غير موجود؛ مسجَّل في BACKLOG.md.
+model SegregationOfDutyRule {
+  id                  String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId               String   @db.Uuid
+  action1             String
+  action2             String
+  mustBeDifferentUser Boolean  @default(true)
+  isActive            Boolean  @default(true)
+  createdAt           DateTime @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id])
+
+  @@index([orgId])
+}
+
+/// سجل قرارات. decidedBy مش بالضرورة المستخدم الحالي — ممكن تسجيل قرار حد تاني.
+model DecisionLogEntry {
+  id                String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId             String   @db.Uuid
+  title             String
+  decisionDate      DateTime
+  decidedBy         String   @db.Uuid
+  context           String?
+  outcome           String?
+  relatedEntityType String?
+  relatedEntityId   String?
+  createdAt         DateTime @default(now())
+
+  organization  Organization @relation(fields: [orgId], references: [id])
+  decidedByUser User         @relation("DecisionLogDecidedBy", fields: [decidedBy], references: [id])
+
+  @@index([orgId])
+}
+
+enum RiskStatus {
+  Open
+  Mitigated
+  Closed
+}
+
+model RiskRegisterItem {
+  id              String     @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId           String     @db.Uuid
+  title           String
+  category        String
+  probability     Int // 0-100، نفس نمط Opportunity.probabilityOfClose
+  financialImpact Decimal    @db.Decimal(14, 2)
+  currency        String     @db.Char(3)
+  ownerId         String     @db.Uuid
+  mitigation      String?
+  status          RiskStatus @default(Open)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  owner        User         @relation("RiskRegisterItemOwner", fields: [ownerId], references: [id])
+
+  @@index([orgId])
+}
+
+/// actualValue إدخال يدوي عمدًا — مفيش محرك BI عام يحسبه تلقائيًا لكل نوع KPI ممكن.
+/// periodId FK حقيقي لـAccountingPeriod (بدل نص حر) — نفس إصلاح Budget.period في وحدة 8.
+model KPI {
+  id          String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId       String   @db.Uuid
+  name        String
+  category    String
+  ownerId     String   @db.Uuid
+  targetValue Decimal  @db.Decimal(14, 2)
+  actualValue Decimal? @db.Decimal(14, 2)
+  periodId    String   @db.Uuid
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  organization Organization     @relation(fields: [orgId], references: [id])
+  owner        User             @relation("KPIOwner", fields: [ownerId], references: [id])
+  period       AccountingPeriod @relation(fields: [periodId], references: [id])
+
+  @@index([orgId])
+  @@index([periodId])
+}
+
+/// إشعار شخصي. إنشاء يدوي بس في الشريحة دي — الربط التلقائي بأحداث تانية (رفض SoD، تجاوز
+/// موازنة) بند مستقبلي موثّق في BACKLOG.md.
+model Notification {
+  id                String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId             String    @db.Uuid
+  userId            String    @db.Uuid
+  notificationType  String
+  title             String
+  body              String?
+  relatedEntityType String?
+  relatedEntityId   String?
+  readAt            DateTime?
+  createdAt         DateTime  @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  user         User         @relation("NotificationUser", fields: [userId], references: [id])
+
+  @@index([orgId])
+  @@index([userId])
+}
+
+enum MasterDataChangeStatus {
+  Pending
+  Approved
+  Rejected
+}
+
+/// كيان تسجيل بس في الشريحة دي — مش بوابة فعلية قدام إنشاء Company/Supplier/BankAccount
+/// (تغيير سلوك كبير في 3 وحدات موجودة، محتاج قرار نطاق منفصل). مسجَّل في BACKLOG.md.
+model MasterDataChangeRequest {
+  id              String                 @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId           String                 @db.Uuid
+  entityType      String
+  entityId        String
+  proposedChanges Json
+  requestedBy     String                 @db.Uuid
+  status          MasterDataChangeStatus @default(Pending)
+  approvedBy      String?                @db.Uuid
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  organization    Organization @relation(fields: [orgId], references: [id])
+  requestedByUser User         @relation("MasterDataChangeRequestedBy", fields: [requestedBy], references: [id])
+  approvedByUser  User?        @relation("MasterDataChangeApprovedBy", fields: [approvedBy], references: [id])
+
+  @@index([orgId])
+}

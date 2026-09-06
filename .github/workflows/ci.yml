@@ -1,0 +1,47 @@
+name: CI
+
+# ⚠️ محتاج Secrets تتحط يدويًا في إعدادات المستودع على GitHub (Settings → Secrets and
+# variables → Actions) قبل ما الـworkflow ده يشتغل فعليًا: DATABASE_URL، DIRECT_URL
+# (نفس اللي في .env المحلي — Supabase Connection Pooling URL)، NEXT_PUBLIC_SUPABASE_URL،
+# NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY. راجع .env.example.
+#
+# ⚠️ test:rls و test:smoke بيكتبوا وبيمسحوا بيانات تجريبية فعليًا على القاعدة اللي في
+# DATABASE_URL (بمنظمات/مستخدمين مؤقتين بـid عشوائي، بيتنضفوا في finally/نهاية كل سكريبت) —
+# آمن يشتغل على نفس قاعدة التطوير، لكن الأفضل مشروع Supabase منفصل للـCI لو حبينا نعزل تمامًا.
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx prisma generate
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Smoke test (P1 chain على قاعدة حقيقية)
+        run: npm run test:smoke
+
+      - name: RLS + Trigger tests (عزل المنظمات + walkAwayPrice + قيود CHECK)
+        run: npm run test:rls

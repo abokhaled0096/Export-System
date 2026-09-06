@@ -1,0 +1,407 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { z } from "zod";
+import { withScopedTransaction } from "@/lib/scoped-prisma";
+import { requireCurrentUser } from "@/lib/session";
+import { requirePermission } from "@/lib/permissions";
+import { logAudit } from "@/lib/audit";
+import { createJournalEntryDraft, postJournalEntryById, reverseJournalEntry } from "@/lib/accounting";
+import { logError, isNextControlFlowError } from "@/lib/errorLog";
+
+const ACCOUNT_TYPES = ["Asset", "Liability", "Equity", "Revenue", "COGS", "Expense"] as const;
+const NORMAL_BALANCES = ["Debit", "Credit"] as const;
+
+const ChartOfAccountSchema = z.object({
+  accountCode: z.string().trim().min(1, "كود الحساب مطلوب"),
+  nameAr: z.string().trim().min(1, "الاسم بالعربي مطلوب"),
+  nameEn: z.string().trim().min(1, "الاسم بالإنجليزي مطلوب"),
+  accountType: z.enum(ACCOUNT_TYPES),
+  normalBalance: z.enum(NORMAL_BALANCES),
+  parentAccountId: z.string().uuid().optional().or(z.literal("")),
+  currency: z.string().trim().length(3).toUpperCase().optional().or(z.literal("")),
+});
+
+export type ChartOfAccountFormState = { errors?: Record<string, string[]>; formError?: string };
+
+export async function createChartOfAccount(_prevState: ChartOfAccountFormState, formData: FormData): Promise<ChartOfAccountFormState> {
+  const parsed = ChartOfAccountSchema.safeParse({
+    accountCode: formData.get("accountCode"),
+    nameAr: formData.get("nameAr"),
+    nameEn: formData.get("nameEn"),
+    accountType: formData.get("accountType"),
+    normalBalance: formData.get("normalBalance"),
+    parentAccountId: formData.get("parentAccountId") || undefined,
+    currency: formData.get("currency") || undefined,
+  });
+  if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
+
+  const user = await requireCurrentUser();
+  const { parentAccountId, currency, ...rest } = parsed.data;
+  try {
+    await requirePermission(user.roleId, "ChartOfAccount", "Create");
+    await withScopedTransaction(async (tx) => {
+      const account = await tx.chartOfAccount.create({
+        data: { orgId: user.orgId, parentAccountId: parentAccountId || undefined, currency: currency || undefined, ...rest },
+      });
+      await logAudit(tx, {
+        orgId: user.orgId,
+        userId: user.id,
+        action: "chartOfAccount.created",
+        entityType: "ChartOfAccount",
+        entityId: account.id,
+        afterValue: { parentAccountId: parentAccountId || null, ...rest },
+      });
+    });
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "createChartOfAccount", error: e });
+    return { formError: "حصل خطأ أثناء إضافة الحساب — حاول تاني (لو الكود مكرّر، جرّب كود مختلف)." };
+  }
+
+  revalidatePath("/accounting/chart-of-accounts");
+  return {};
+}
+
+const AccountingPeriodSchema = z.object({
+  periodName: z.string().trim().min(1, "اسم الفترة مطلوب"),
+  startDate: z.string().trim().min(1, "تاريخ البداية مطلوب"),
+  endDate: z.string().trim().min(1, "تاريخ النهاية مطلوب"),
+});
+
+export type AccountingPeriodFormState = { errors?: Record<string, string[]>; formError?: string };
+
+export async function createAccountingPeriod(_prevState: AccountingPeriodFormState, formData: FormData): Promise<AccountingPeriodFormState> {
+  const parsed = AccountingPeriodSchema.safeParse({
+    periodName: formData.get("periodName"),
+    startDate: formData.get("startDate"),
+    endDate: formData.get("endDate"),
+  });
+  if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
+
+  const user = await requireCurrentUser();
+  try {
+    await requirePermission(user.roleId, "AccountingPeriod", "Create");
+    await withScopedTransaction(async (tx) => {
+      const period = await tx.accountingPeriod.create({
+        data: {
+          orgId: user.orgId,
+          periodName: parsed.data.periodName,
+          startDate: new Date(parsed.data.startDate),
+          endDate: new Date(parsed.data.endDate),
+        },
+      });
+      await logAudit(tx, {
+        orgId: user.orgId,
+        userId: user.id,
+        action: "accountingPeriod.created",
+        entityType: "AccountingPeriod",
+        entityId: period.id,
+        afterValue: { ...parsed.data },
+      });
+    });
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "createAccountingPeriod", error: e });
+    return { formError: "حصل خطأ أثناء إضافة الفترة — حاول تاني (لو الاسم مكرّر، جرّب اسم مختلف)." };
+  }
+
+  revalidatePath("/accounting/periods");
+  return {};
+}
+
+const PERIOD_STATUSES = ["Open", "SoftClosed", "HardClosed"] as const;
+
+/** ترقية حالة الفترة بس (Open→SoftClosed→HardClosed) — closedBy/closedAt بيتحدّدوا تلقائيًا لما
+ * الحالة توصل HardClosed. بلا مسار تراجع (نفس فلسفة إقفال الفترات المحاسبية الحقيقي). */
+export async function advanceAccountingPeriodStatus(periodId: string, nextStatus: (typeof PERIOD_STATUSES)[number]) {
+  const parsed = z.enum(PERIOD_STATUSES).safeParse(nextStatus);
+  if (!parsed.success) throw new Error("حالة فترة غير صالحة.");
+
+  const user = await requireCurrentUser();
+  await requirePermission(user.roleId, "AccountingPeriod", "Edit");
+
+  try {
+    await withScopedTransaction(async (tx) => {
+      await tx.accountingPeriod.update({
+        where: { id: periodId },
+        data: {
+          status: parsed.data,
+          closedBy: parsed.data === "HardClosed" ? user.id : undefined,
+          closedAt: parsed.data === "HardClosed" ? new Date() : undefined,
+        },
+      });
+      await logAudit(tx, {
+        orgId: user.orgId,
+        userId: user.id,
+        action: "accountingPeriod.statusChanged",
+        entityType: "AccountingPeriod",
+        entityId: periodId,
+        afterValue: { status: parsed.data },
+      });
+    });
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "advanceAccountingPeriodStatus", error: e });
+    throw new Error("حصل خطأ أثناء تحديث حالة الفترة — حاول تاني.");
+  }
+
+  revalidatePath("/accounting/periods");
+}
+
+const COST_CENTER_TYPES = ["Department", "Product", "Customer", "Deal", "Market"] as const;
+
+const CostCenterSchema = z.object({
+  code: z.string().trim().min(1, "الكود مطلوب"),
+  name: z.string().trim().min(1, "الاسم مطلوب"),
+  type: z.enum(COST_CENTER_TYPES),
+});
+
+export type CostCenterFormState = { errors?: Record<string, string[]>; formError?: string };
+
+export async function createCostCenter(_prevState: CostCenterFormState, formData: FormData): Promise<CostCenterFormState> {
+  const parsed = CostCenterSchema.safeParse({
+    code: formData.get("code"),
+    name: formData.get("name"),
+    type: formData.get("type"),
+  });
+  if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
+
+  const user = await requireCurrentUser();
+  try {
+    await requirePermission(user.roleId, "CostCenter", "Create");
+    await withScopedTransaction(async (tx) => {
+      const cc = await tx.costCenter.create({ data: { orgId: user.orgId, ...parsed.data } });
+      await logAudit(tx, {
+        orgId: user.orgId,
+        userId: user.id,
+        action: "costCenter.created",
+        entityType: "CostCenter",
+        entityId: cc.id,
+        afterValue: { ...parsed.data },
+      });
+    });
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "createCostCenter", error: e });
+    return { formError: "حصل خطأ أثناء إضافة مركز التكلفة — حاول تاني (لو الكود مكرّر، جرّب كود مختلف)." };
+  }
+
+  revalidatePath("/accounting/cost-centers");
+  return {};
+}
+
+const PROFIT_CENTER_SCOPES = ["Company", "Division", "Product", "Market"] as const;
+
+const ProfitCenterSchema = z.object({
+  code: z.string().trim().min(1, "الكود مطلوب"),
+  name: z.string().trim().min(1, "الاسم مطلوب"),
+  scope: z.enum(PROFIT_CENTER_SCOPES),
+});
+
+export type ProfitCenterFormState = { errors?: Record<string, string[]>; formError?: string };
+
+export async function createProfitCenter(_prevState: ProfitCenterFormState, formData: FormData): Promise<ProfitCenterFormState> {
+  const parsed = ProfitCenterSchema.safeParse({
+    code: formData.get("code"),
+    name: formData.get("name"),
+    scope: formData.get("scope"),
+  });
+  if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
+
+  const user = await requireCurrentUser();
+  try {
+    await requirePermission(user.roleId, "ProfitCenter", "Create");
+    await withScopedTransaction(async (tx) => {
+      const pc = await tx.profitCenter.create({ data: { orgId: user.orgId, ...parsed.data } });
+      await logAudit(tx, {
+        orgId: user.orgId,
+        userId: user.id,
+        action: "profitCenter.created",
+        entityType: "ProfitCenter",
+        entityId: pc.id,
+        afterValue: { ...parsed.data },
+      });
+    });
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "createProfitCenter", error: e });
+    return { formError: "حصل خطأ أثناء إضافة مركز الربحية — حاول تاني (لو الكود مكرّر، جرّب كود مختلف)." };
+  }
+
+  revalidatePath("/accounting/profit-centers");
+  return {};
+}
+
+const JOURNAL_ENTRY_SOURCE_TYPES = ["Manual", "Automatic", "Recurring", "Reversal", "Accrual", "Adjustment"] as const;
+
+const JournalLineInputSchema = z.object({
+  accountId: z.string().uuid("اختر حساب"),
+  debit: z.coerce.number().min(0),
+  credit: z.coerce.number().min(0),
+  currency: z.string().trim().length(3).toUpperCase(),
+  costCenterId: z.string().uuid().optional().or(z.literal("")),
+  profitCenterId: z.string().uuid().optional().or(z.literal("")),
+  description: z.string().trim().optional().or(z.literal("")),
+});
+
+export type JournalEntryFormState = { errors?: Record<string, string[]>; formError?: string; entryId?: string };
+
+/** فورم ديناميكي متعدد البنود — كل عمود بيتقرا بـformData.getAll() بالترتيب اللي ظهر بيه في الصفحة
+ * (نفس ترتيب الصفوف). القيد بيتسجّل Draft بس — المراجعة والترحيل الفعلي (Draft→Posted، اللي بيفعّل
+ * Trigger enforce_journal_entry_balanced) خطوة منفصلة من صفحة تفاصيل القيد (postJournalEntryAction). */
+export async function createJournalEntry(_prevState: JournalEntryFormState, formData: FormData): Promise<JournalEntryFormState> {
+  const periodId = formData.get("periodId");
+  const entryDate = formData.get("entryDate");
+  const description = formData.get("description");
+  const sourceType = formData.get("sourceType");
+
+  if (typeof periodId !== "string" || !periodId) return { formError: "اختر فترة محاسبية." };
+  if (typeof entryDate !== "string" || !entryDate) return { formError: "تاريخ القيد مطلوب." };
+
+  const accountIds = formData.getAll("lineAccountId");
+  const debits = formData.getAll("lineDebit");
+  const credits = formData.getAll("lineCredit");
+  const currencies = formData.getAll("lineCurrency");
+  const costCenterIds = formData.getAll("lineCostCenterId");
+  const profitCenterIds = formData.getAll("lineProfitCenterId");
+  const lineDescriptions = formData.getAll("lineDescription");
+
+  const rawLines = accountIds.map((_, i) => ({
+    accountId: accountIds[i],
+    debit: debits[i] || 0,
+    credit: credits[i] || 0,
+    currency: currencies[i],
+    costCenterId: costCenterIds[i] || undefined,
+    profitCenterId: profitCenterIds[i] || undefined,
+    description: lineDescriptions[i] || undefined,
+  }));
+
+  const parsedLines = z.array(JournalLineInputSchema).min(2, "لازم بندين على الأقل (مدين ودائن)").safeParse(rawLines);
+  if (!parsedLines.success) return { formError: "بيانات بنود القيد غير صالحة — راجع الحسابات والمبالغ والعملة." };
+
+  const user = await requireCurrentUser();
+  try {
+    await requirePermission(user.roleId, "JournalEntry", "Create");
+    const entryId = await withScopedTransaction(async (tx) => {
+      const id = await createJournalEntryDraft(tx, {
+        orgId: user.orgId,
+        entryDate: new Date(entryDate),
+        periodId,
+        sourceType: (sourceType as string) as (typeof JOURNAL_ENTRY_SOURCE_TYPES)[number],
+        sourceModule: "Manual",
+        description: typeof description === "string" && description ? description : undefined,
+        preparedBy: user.id,
+        lines: parsedLines.data,
+      });
+      await logAudit(tx, {
+        orgId: user.orgId,
+        userId: user.id,
+        action: "journalEntry.created",
+        entityType: "JournalEntry",
+        entityId: id,
+        afterValue: { periodId, lineCount: parsedLines.data.length },
+      });
+      return id;
+    });
+
+    revalidatePath("/accounting/journal-entries");
+    return { entryId };
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "createJournalEntry", error: e });
+    const message = e instanceof Error ? e.message : "حصل خطأ أثناء حفظ القيد — حاول تاني.";
+    return { formError: message };
+  }
+}
+
+/** بيرحّل قيد Draft موجود — Draft→Posted، بيفعّل Trigger enforce_journal_entry_balanced على مستوى
+ * القاعدة. لو القيد مش متوازن فعليًا، الترحيل بيترفض بـException حقيقي من القاعدة. */
+export async function postJournalEntryAction(journalEntryId: string) {
+  const user = await requireCurrentUser();
+  await requirePermission(user.roleId, "JournalEntry", "Edit");
+
+  try {
+    await withScopedTransaction(async (tx) => {
+      await postJournalEntryById(tx, journalEntryId);
+      await logAudit(tx, {
+        orgId: user.orgId,
+        userId: user.id,
+        action: "journalEntry.posted",
+        entityType: "JournalEntry",
+        entityId: journalEntryId,
+      });
+    });
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "postJournalEntryAction", error: e });
+    throw new Error("القيد غير متوازن أو حصل خطأ أثناء الترحيل — راجع البنود وحاول تاني.");
+  }
+
+  revalidatePath(`/accounting/journal-entries/${journalEntryId}`);
+  revalidatePath("/accounting/journal-entries");
+}
+
+/** حذف مسودة قيد — Draft بس (حارس تطبيقي + Trigger enforce_journal_entry_no_delete_posted
+ * على مستوى القاعدة). القيود المرحّلة لا تُحذف أبدًا — تُعكس. */
+export async function deleteDraftJournalEntryAction(journalEntryId: string) {
+  const user = await requireCurrentUser();
+  await requirePermission(user.roleId, "JournalEntry", "Edit");
+
+  try {
+    await withScopedTransaction(async (tx) => {
+      const entry = await tx.journalEntry.findUniqueOrThrow({ where: { id: journalEntryId }, select: { status: true, entryNumber: true } });
+      if (entry.status !== "Draft") throw new Error(`القيد ${entry.entryNumber} مش مسودة — القيود المرحّلة تُعكس، مش تُحذف.`);
+      await tx.journalLine.deleteMany({ where: { journalEntryId } });
+      await tx.journalEntry.delete({ where: { id: journalEntryId } });
+      await logAudit(tx, {
+        orgId: user.orgId,
+        userId: user.id,
+        action: "journalEntry.draftDeleted",
+        entityType: "JournalEntry",
+        entityId: journalEntryId,
+        beforeValue: { entryNumber: entry.entryNumber },
+      });
+    });
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "deleteDraftJournalEntryAction", error: e });
+    throw new Error("حصل خطأ أثناء حذف المسودة — حاول تاني.");
+  }
+
+  revalidatePath("/accounting/journal-entries");
+  redirect("/accounting/journal-entries");
+}
+
+/** عكس قيد مرحّل — مسار التصحيح الشرعي الوحيد. بينشئ قيد Reversal معكوس البنود ويعلّم الأصل
+ * Reversed، ويرجّع id القيد العكسي الجديد. */
+export async function reverseJournalEntryAction(journalEntryId: string): Promise<string> {
+  const user = await requireCurrentUser();
+  await requirePermission(user.roleId, "JournalEntry", "Edit");
+
+  let reversalId: string;
+  try {
+    reversalId = await withScopedTransaction(async (tx) => {
+      const id = await reverseJournalEntry(tx, { journalEntryId, preparedBy: user.id });
+      await logAudit(tx, {
+        orgId: user.orgId,
+        userId: user.id,
+        action: "journalEntry.reversed",
+        entityType: "JournalEntry",
+        entityId: journalEntryId,
+        afterValue: { reversalEntryId: id },
+      });
+      return id;
+    });
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "reverseJournalEntryAction", error: e });
+    const message = e instanceof Error ? e.message : "حصل خطأ أثناء عكس القيد — حاول تاني.";
+    throw new Error(message);
+  }
+
+  revalidatePath("/accounting/journal-entries");
+  revalidatePath(`/accounting/journal-entries/${journalEntryId}`);
+  return reversalId;
+}
