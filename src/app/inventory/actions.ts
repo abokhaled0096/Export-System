@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { withScopedTransaction } from "@/lib/scoped-prisma";
+import { getScopedPrisma, withScopedTransaction } from "@/lib/scoped-prisma";
 import { requireCurrentUser } from "@/lib/session";
 import { requirePermission } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
@@ -49,6 +49,11 @@ export async function createInventory(_prevState: InventoryFormState, formData: 
   const { batchId, lotId, unit, location, expiryDate, currency, ...rest } = parsed.data;
   try {
     await requirePermission(user.roleId, "Inventory", "Create");
+    // productId إلزامي وبيتعرض بلا `?.` في `/inventory` (`r.product.nameAr`) — لازم يتحقق قبل
+    // الإنشاء (اتكشف في مراجعة وحدة 7، 6 سبتمبر).
+    const scopedPrisma = await getScopedPrisma();
+    const product = await scopedPrisma.product.findFirst({ where: { id: rest.productId, deletedAt: null } });
+    if (!product) return { formError: "المنتج غير موجود." };
     await withScopedTransaction(async (tx) => {
       const inventory = await tx.inventory.create({
         data: {

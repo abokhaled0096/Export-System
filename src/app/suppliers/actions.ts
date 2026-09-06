@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { withScopedTransaction } from "@/lib/scoped-prisma";
+import { getScopedPrisma, withScopedTransaction } from "@/lib/scoped-prisma";
 import { requireCurrentUser } from "@/lib/session";
 import { requirePermission, getPermissionScope } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
@@ -181,6 +181,11 @@ export async function createNCR(supplierId: string, _prevState: NCRFormState, fo
   const { capaId, currency, immediateContainment, ...rest } = parsed.data;
   try {
     await requirePermission(user.roleId, "NCR", "Create");
+    // facilityId إلزامي وبيتعرض بلا `?.` في `/suppliers/[id]` (`n.facility.name`) — لازم يتحقق
+    // قبل الإنشاء (اتكشف في مراجعة وحدة 7، 6 سبتمبر).
+    const scopedPrisma = await getScopedPrisma();
+    const facility = await scopedPrisma.facility.findFirst({ where: { id: rest.facilityId } });
+    if (!facility) return { formError: "المنشأة غير موجودة." };
     await withScopedTransaction(async (tx) => {
       const ncr = await tx.nCR.create({
         data: {
@@ -450,6 +455,11 @@ export async function createSupplierSample(supplierId: string, _prevState: Suppl
   const { batchId, currency, ...rest } = parsed.data;
   try {
     await requirePermission(user.roleId, "SupplierSample", "Create");
+    // productId إلزامي وبيتعرض بلا `?.` في `/suppliers/[id]` (`s.product.nameAr`) — لازم يتحقق
+    // قبل الإنشاء (اتكشف في مراجعة وحدة 7، 6 سبتمبر).
+    const scopedPrisma = await getScopedPrisma();
+    const product = await scopedPrisma.product.findFirst({ where: { id: rest.productId, deletedAt: null } });
+    if (!product) return { formError: "المنتج غير موجود." };
     await withScopedTransaction(async (tx) => {
       const sample = await tx.supplierSample.create({
         data: {

@@ -46,6 +46,11 @@ export async function createBatch(purchaseOrderId: string, _prevState: BatchForm
     const scopedPrisma = await getScopedPrisma();
     const purchaseOrder = await scopedPrisma.purchaseOrder.findUniqueOrThrow({ where: { id: purchaseOrderId } });
 
+    // facilityId بيتعرض بلا `?.` في `/batches/[id]` (`batch.facility.name`) — لازم يتحقق قبل
+    // الإنشاء (اتكشف في مراجعة وحدة 7، 6 سبتمبر).
+    const facility = await scopedPrisma.facility.findFirst({ where: { id: rest.facilityId } });
+    if (!facility) return { formError: "المنشأة غير موجودة." };
+
     await withScopedTransaction(async (tx) => {
       const batch = await tx.batch.create({
         data: {
@@ -112,6 +117,10 @@ export async function createProductionPlan(
   const { startDate, endDate, cargoReadyDate, ...rest } = parsed.data;
   try {
     await requirePermission(user.roleId, "ProductionPlan", "Create");
+    // facilityId بيتعرض بلا `?.` في `/purchase-orders/[id]` (`p.facility.name`) — نفس فحص createBatch فوق.
+    const scopedPrisma = await getScopedPrisma();
+    const facility = await scopedPrisma.facility.findFirst({ where: { id: rest.facilityId } });
+    if (!facility) return { formError: "المنشأة غير موجودة." };
     await withScopedTransaction(async (tx) => {
       const plan = await tx.productionPlan.create({
         data: {

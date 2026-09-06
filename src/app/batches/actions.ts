@@ -359,6 +359,11 @@ export async function createBatchMarketEligibility(
   const { reason, ...rest } = parsed.data;
   try {
     await requirePermission(user.roleId, "BatchMarketEligibility", "Create");
+    // marketId إلزامي وبيتعرض بلا `?.` في `/batches/[id]` (`e.market.countryNameAr`) — لازم
+    // يتحقق قبل الإنشاء (اتكشف في مراجعة وحدة 7، 6 سبتمبر).
+    const scopedPrisma = await getScopedPrisma();
+    const market = await scopedPrisma.market.findFirst({ where: { id: rest.marketId, deletedAt: null } });
+    if (!market) return { formError: "السوق غير موجود." };
     await withScopedTransaction(async (tx) => {
       const eligibility = await tx.batchMarketEligibility.create({
         data: { orgId: user.orgId, batchId, assessedBy: user.id, reason: reason || undefined, ...rest },

@@ -104,6 +104,12 @@ export async function createSupplierRFQ(sourcingRequestId: string, _prevState: S
   const { rfqNumber, responseDeadline, ...rest } = parsed.data;
   try {
     await requirePermission(user.roleId, "SupplierRFQ", "Create");
+    // لازم نتأكد إن supplierId فعلًا بتاع نفس المنظمة قبل الإنشاء — `r.supplier.legalName` بيتعرض
+    // بلا `?.` في `/sourcing/[id]`، فأي supplierId عابر للمنظمة كان هيكسر الصفحة بالكامل
+    // (اتكشف في مراجعة وحدة 7، 6 سبتمبر).
+    const scopedPrisma = await getScopedPrisma();
+    const supplier = await scopedPrisma.supplier.findFirst({ where: { id: rest.supplierId, deletedAt: null } });
+    if (!supplier) return { formError: "المورّد غير موجود." };
     await withScopedTransaction(async (tx) => {
       const rfq = await tx.supplierRFQ.create({
         data: {
@@ -178,6 +184,9 @@ export async function createSupplierQuote(
   const { priceUnit, paymentTerms, validUntil, ...rest } = parsed.data;
   try {
     await requirePermission(user.roleId, "SupplierQuote", "Create");
+    const scopedPrisma = await getScopedPrisma();
+    const supplier = await scopedPrisma.supplier.findFirst({ where: { id: rest.supplierId, deletedAt: null } });
+    if (!supplier) return { formError: "المورّد غير موجود." };
     await withScopedTransaction(async (tx) => {
       const quote = await tx.supplierQuote.create({
         data: {
@@ -246,6 +255,16 @@ export async function createPurchaseOrder(
 
   const scopedPrisma = await getScopedPrisma();
   const sourcingRequest = await scopedPrisma.sourcingRequest.findUniqueOrThrow({ where: { id: sourcingRequestId } });
+
+  // supplierId إلزامي وبيتعرض بلا `?.` في `/purchase-orders/[id]`/`/sourcing/[id]` (وبيتوارث
+  // لـBatch.supplierId كمان)، وfacilityId بيتعرض بلا `?.` في `/batches/[id]` — لازم يتحقق
+  // الاتنين قبل الإنشاء (اتكشف في مراجعة وحدة 7، 6 سبتمبر). ⚠️ مش Promise.all — راجع P2028.
+  const supplier = await scopedPrisma.supplier.findFirst({ where: { id: rest.supplierId, deletedAt: null } });
+  if (!supplier) return { formError: "المورّد غير موجود." };
+  if (facilityId) {
+    const facility = await scopedPrisma.facility.findFirst({ where: { id: facilityId } });
+    if (!facility) return { formError: "المنشأة غير موجودة." };
+  }
 
   const abovePriceCeiling = new Prisma.Decimal(rest.unitPrice).greaterThan(sourcingRequest.maximumPurchasePrice);
 
