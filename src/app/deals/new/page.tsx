@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
-import { getCurrentOrgId } from "@/lib/org";
+import { requireCurrentUser } from "@/lib/session";
+import { getPermissionScope, ownerScopeWhere } from "@/lib/permissions";
 import DealForm from "./DealForm";
 import { Button } from "@/components/ui/button";
 
@@ -12,10 +13,16 @@ export default async function NewDealPage({
   searchParams: Promise<{ opportunityId?: string }>;
 }) {
   const { opportunityId } = await searchParams;
-  const orgId = await getCurrentOrgId();
+  const user = await requireCurrentUser();
+  const orgId = user.orgId;
   const prisma = await getScopedPrisma();
+  // ⚠️ الفورم كان بيسرّب اسم شركة/منتج كل فرص المنظمة في القائمة المنسدلة بغض النظر عن ملكية
+  // المستخدم — createDeal نفسها بترفض إنشاء الصفقة لو الفرصة مش بتاعته (assertOwnScope)، لكن
+  // القائمة كانت بتعرض بيانات فرص تانية قبل الإرسال أصلًا (اتكشف في إعادة مراجعة وحدة 2، 7 سبتمبر).
+  const scope = await getPermissionScope(user.roleId, "Opportunity", "View");
+  const ownerFilter = await ownerScopeWhere(scope, user);
   const opportunities = await prisma.opportunity.findMany({
-    where: { orgId, deletedAt: null },
+    where: { orgId, deletedAt: null, ...ownerFilter },
     include: { company: true, product: true },
     orderBy: { createdAt: "desc" },
   });

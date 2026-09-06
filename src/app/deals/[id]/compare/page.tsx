@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
 import { requireCurrentUser } from "@/lib/session";
-import { getPermissionScope } from "@/lib/permissions";
+import { getPermissionScope, scopedOwnerIdFilter } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -25,6 +25,9 @@ export default async function CompareScenariosPage({ params }: { params: Promise
   // Allowlist صريح (Team/Org بس) عمدًا — fail closed لو الدور مالوش صلاحية Deal.View خالص.
   const dealViewScope = await getPermissionScope(user.roleId, "Deal", "View");
   const canSeeInternalPricing = dealViewScope === "Team" || dealViewScope === "Org";
+  // ⚠️ نفس فجوة IDOR في /deals/[id] — اتكشف هنا كمان في إعادة مراجعة وحدة 2 (7 سبتمبر).
+  const scopedOwnerId = await scopedOwnerIdFilter(dealViewScope, user);
+  const ownerWhere = scopedOwnerId !== undefined ? { opportunity: { ownerId: scopedOwnerId } } : {};
   const restrictedRowLabels = new Set([
     "نقطة التعادل",
     "الحد الأدنى (walkAwayPrice)",
@@ -36,7 +39,7 @@ export default async function CompareScenariosPage({ params }: { params: Promise
   ]);
 
   const deal = await prisma.deal.findFirst({
-    where: { id, orgId },
+    where: { id, orgId, ...ownerWhere },
     include: {
       customer: true,
       product: true,

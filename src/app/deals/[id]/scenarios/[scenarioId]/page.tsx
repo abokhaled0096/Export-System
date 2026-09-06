@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
 import { requireCurrentUser } from "@/lib/session";
-import { getPermissionScope } from "@/lib/permissions";
+import { getPermissionScope, scopedOwnerIdFilter } from "@/lib/permissions";
 import CostItemForm from "./CostItemForm";
 import RiskItemForm from "./RiskItemForm";
 import FinalPriceForm from "./FinalPriceForm";
@@ -57,9 +57,14 @@ export default async function ScenarioDetailPage({
   // (SalesRep نفسه بيدخّلها) ومجاميع مشتقة من أرقام ظاهرة أصلًا، مش قرار حساس مستقل.
   const dealViewScope = await getPermissionScope(user.roleId, "Deal", "View");
   const canSeeInternalPricing = dealViewScope === "Team" || dealViewScope === "Org";
+  // ⚠️ نفس فجوة IDOR في /deals/[id] و/deals/[id]/compare — اتكشف هنا كمان في إعادة مراجعة
+  // وحدة 2 (7 سبتمبر). لازم يتفحص عبر deal.opportunity.ownerId لأن DealScenario ملهوش
+  // ownerId مباشر.
+  const scopedOwnerId = await scopedOwnerIdFilter(dealViewScope, user);
+  const ownerWhere = scopedOwnerId !== undefined ? { deal: { opportunity: { ownerId: scopedOwnerId } } } : {};
 
   const scenario = await prisma.dealScenario.findFirst({
-    where: { id: scenarioId, orgId, dealId: id },
+    where: { id: scenarioId, orgId, dealId: id, ...ownerWhere },
     include: {
       costItems: { orderBy: { createdAt: "asc" }, include: { fxRate: true } },
       riskItems: { orderBy: { createdAt: "asc" } },

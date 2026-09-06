@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
 import { requireCurrentUser } from "@/lib/session";
-import { getPermissionScope } from "@/lib/permissions";
+import { getPermissionScope, scopedOwnerIdFilter } from "@/lib/permissions";
 import AcceptQuoteButton from "./AcceptQuoteButton";
 import SendQuoteEmailButton from "./SendQuoteEmailButton";
 import ConfirmSalesOrderForm from "./ConfirmSalesOrderForm";
@@ -66,9 +66,13 @@ export default async function DealDetailPage({ params }: { params: Promise<{ id:
   // بالغلط لمجرد إنه مش "Own" بالحرف (fail open).
   const dealViewScope = await getPermissionScope(user.roleId, "Deal", "View");
   const canSeeInternalPricing = dealViewScope === "Team" || dealViewScope === "Org";
+  // ⚠️ IDOR — نفس الفحص المطبَّق في /deals (القائمة) كان ناقص هنا، يعني SalesRep (Own scope)
+  // كان يقدر يفتح أي صفقة في المنظمة برابط مباشر (اتكشف في إعادة مراجعة وحدة 2، 7 سبتمبر).
+  const scopedOwnerId = await scopedOwnerIdFilter(dealViewScope, user);
+  const ownerWhere = scopedOwnerId !== undefined ? { opportunity: { ownerId: scopedOwnerId } } : {};
 
   const deal = await prisma.deal.findFirst({
-    where: { id, orgId },
+    where: { id, orgId, ...ownerWhere },
     include: {
       customer: true,
       product: true,
