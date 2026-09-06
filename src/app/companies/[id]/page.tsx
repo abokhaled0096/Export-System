@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
 import { requireCurrentUser } from "@/lib/session";
-import { getPermissionScope } from "@/lib/permissions";
+import { getPermissionScope, ownerScopeWhere } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -24,8 +24,16 @@ export default async function CompanyDetailPage({
   const orgId = user.orgId;
   const canManagePdpl = Boolean(await getPermissionScope(user.roleId, "Contact", "Delete"));
   const prisma = await getScopedPrisma();
+
+  // Own/Team scope كان بيتفلتر في /companies (القائمة) بس، مش هنا — يعني SalesRep (Own) كان يقدر
+  // يوصل لتفاصيل شركة مندوب تاني كاملة (جهات اتصال/فرص/أعلام تحذيرية) لو عرف/خمّن الـid بتاعها
+  // مباشرة (IDOR حقيقي، اتكشف في مراجعة وحدة 3، 6 سبتمبر) — مختلف عن قرار "scope=null بلا فلترة"
+  // الموثّق والمقصود في /companies (ده هنا بيحترم نفس الـscope، مش بيتخطّاه).
+  const scope = await getPermissionScope(user.roleId, "Company", "View");
+  const ownerFilter = await ownerScopeWhere(scope, user);
+
   const company = await prisma.company.findFirst({
-    where: { id, orgId, deletedAt: null },
+    where: { id, orgId, deletedAt: null, ...ownerFilter },
     include: {
       contacts: { where: { deletedAt: null }, orderBy: { createdAt: "desc" } },
       opportunities: {

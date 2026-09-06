@@ -1239,6 +1239,19 @@ export async function createCommissionEntry(dealId: string, _prevState: Commissi
     });
     await assertOwnScope(scope, deal.opportunity.ownerId, user);
 
+    // planId/userId إلزاميين وغير nullable في الـschema، وبيتعرضوا بلا أي `?.` في `/deals/[id]`
+    // (`c.plan.name`, `c.user.fullName`) — لازم يتحقق إنهم فعلًا بتوع نفس المنظمة قبل الإنشاء،
+    // وإلا كسر الصفحة كلها لأي حد يفتحها (اتكشف في مراجعة وحدة 3، 6 سبتمبر، نفس نمط Competitor).
+    // ⚠️ مش Promise.all — راجع BACKLOG.md (P2028).
+    const plan = await scopedPrisma.commissionPlan.findFirst({ where: { id: rest.planId } });
+    if (!plan) return { formError: "خطة العمولة غير موجودة." };
+    const targetUser = await scopedPrisma.user.findFirst({ where: { id: rest.userId } });
+    if (!targetUser) return { formError: "المستخدم غير موجود." };
+    if (salesOrderId) {
+      const salesOrder = await scopedPrisma.salesOrder.findFirst({ where: { id: salesOrderId } });
+      if (!salesOrder) return { formError: "أمر البيع غير موجود." };
+    }
+
     await withScopedTransaction(async (tx) => {
       const entry = await tx.commissionEntry.create({
         data: {

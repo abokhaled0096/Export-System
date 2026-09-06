@@ -489,6 +489,10 @@ export async function createCustomerServiceCase(companyId: string, _prevState: C
     const scopedPrisma = await getScopedPrisma();
     const company = await scopedPrisma.company.findUniqueOrThrow({ where: { id: companyId }, select: { ownerId: true } });
     await assertOwnScope(scope, company.ownerId, user);
+    if (capaId) {
+      const capa = await scopedPrisma.cAPA.findFirst({ where: { id: capaId } });
+      if (!capa) return { formError: "الـCAPA غير موجود." };
+    }
 
     await withScopedTransaction(async (tx) => {
       const kase = await tx.customerServiceCase.create({

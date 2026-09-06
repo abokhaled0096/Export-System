@@ -54,6 +54,18 @@ export async function createOpportunity(
     });
     await assertOwnScope(scope, company.ownerId, user);
 
+    // لازم نتأكد إن productId/marketId (وcontactId لو موجود) فعلًا بتوع نفس المنظمة قبل الإنشاء —
+    // الـFK بيتحقق بس من وجود الصف (أي منظمة)، RLS مش بيتفحّص وقت تنفيذ FK constraint. نفس الثغرة
+    // بالظبط اتكشفت واتصلحت في Competitor/Analysis (وحدة 1) — هنا كانت موجودة من الأساس.
+    // ⚠️ مش Promise.all — راجع BACKLOG.md (P2028).
+    const product = await scopedPrisma.product.findFirst({ where: { id: parsed.data.productId, deletedAt: null } });
+    const market = await scopedPrisma.market.findFirst({ where: { id: parsed.data.marketId, deletedAt: null } });
+    if (!product || !market) return { formError: "المنتج أو السوق غير موجودين." };
+    if (parsed.data.contactId) {
+      const contact = await scopedPrisma.contact.findFirst({ where: { id: parsed.data.contactId, companyId: parsed.data.companyId, erasedAt: null } });
+      if (!contact) return { formError: "جهة الاتصال غير موجودة لهذه الشركة." };
+    }
+
     const { contactId, currency, ...rest } = parsed.data;
     await withScopedTransaction(async (tx) => {
       // الفرصة الجديدة بتبقى ملك المستخدم اللي أنشأها — أساس فحص Own scope على Deal التابعة ليها.

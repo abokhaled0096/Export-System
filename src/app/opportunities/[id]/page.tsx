@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
-import { getCurrentOrgId } from "@/lib/org";
+import { requireCurrentUser } from "@/lib/session";
+import { getPermissionScope, ownerScopeWhere } from "@/lib/permissions";
 import CommunicationForm from "./CommunicationForm";
 import RFQAnalysisForm from "./RFQAnalysisForm";
 import CustomerSampleForm from "./CustomerSampleForm";
@@ -22,11 +23,17 @@ export const dynamic = "force-dynamic";
 
 export default async function OpportunityDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const orgId = await getCurrentOrgId();
+  const user = await requireCurrentUser();
+  const orgId = user.orgId;
   const prisma = await getScopedPrisma();
 
+  // نفس فحص IDOR اللي اتصلح في /companies/[id] (مراجعة وحدة 3، 6 سبتمبر) — Own/Team scope كان
+  // بيتفلتر في /opportunities (القائمة) بس، مش هنا.
+  const scope = await getPermissionScope(user.roleId, "Opportunity", "View");
+  const ownerFilter = await ownerScopeWhere(scope, user);
+
   const opportunity = await prisma.opportunity.findFirst({
-    where: { id, orgId },
+    where: { id, orgId, ...ownerFilter },
     include: {
       company: { include: { contacts: { where: { deletedAt: null } } } },
       contact: true,

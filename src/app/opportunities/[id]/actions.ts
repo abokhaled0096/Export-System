@@ -8,13 +8,16 @@ import { requirePermission, assertOwnScope } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 import { logError, isNextControlFlowError } from "@/lib/errorLog";
 
+/** بيرجّع الفرصة نفسها (مش بس تفحص scope) — لازم نستخدم بياناتها (companyId مثلًا) للتحقق من
+ * إن أي FK تاني بيتبعت من الفورم (contactId/negotiationId..) فعلًا بتاعها هي، مش فرصة/كيان
+ * تاني بالغلط أو بقصد (راجع مراجعة وحدة 3، 6 سبتمبر). */
 async function assertOpportunityOwnScope(scope: Awaited<ReturnType<typeof requirePermission>>, opportunityId: string, user: Awaited<ReturnType<typeof requireCurrentUser>>) {
   const scopedPrisma = await getScopedPrisma();
   const opportunity = await scopedPrisma.opportunity.findUniqueOrThrow({
     where: { id: opportunityId },
-    select: { ownerId: true },
   });
   await assertOwnScope(scope, opportunity.ownerId, user);
+  return opportunity;
 }
 
 const COMMUNICATION_CHANNELS = ["Email", "WhatsApp", "Phone", "VideoMeeting", "PhysicalMeeting", "LinkedIn", "WebsiteInquiry", "Exhibition"] as const;
@@ -55,7 +58,18 @@ export async function createCommunication(opportunityId: string, _prevState: Com
   const { contactId, subject, summary, occurredAt, respondedAt, ...rest } = parsed.data;
 
   try {
-    await assertOpportunityOwnScope(scope, opportunityId, user);
+    const opportunity = await assertOpportunityOwnScope(scope, opportunityId, user);
+    // companyId جاي من الفورم (hidden field) — لازم يطابق فعلًا شركة الفرصة دي، وإلا كان ينفع
+    // يتسجّل تواصل بشركة تانية خالص (اتكشف في مراجعة وحدة 3، 6 سبتمبر). contactId (لو موجود)
+    // لازم يبقى تابع لنفس الشركة كمان.
+    if (parsed.data.companyId !== opportunity.companyId) {
+      return { formError: "الشركة دي مش شركة الفرصة." };
+    }
+    if (contactId) {
+      const scopedPrisma = await getScopedPrisma();
+      const contact = await scopedPrisma.contact.findFirst({ where: { id: contactId, companyId: opportunity.companyId, erasedAt: null } });
+      if (!contact) return { formError: "جهة الاتصال غير موجودة لهذه الشركة." };
+    }
 
     const occurredAtDate = new Date(occurredAt);
     const respondedAtDate = respondedAt ? new Date(respondedAt) : undefined;
@@ -124,6 +138,11 @@ export async function createRFQAnalysis(opportunityId: string, _prevState: RFQAn
 
   try {
     await assertOpportunityOwnScope(scope, opportunityId, user);
+    if (communicationId) {
+      const scopedPrisma = await getScopedPrisma();
+      const communication = await scopedPrisma.communication.findFirst({ where: { id: communicationId, opportunityId } });
+      if (!communication) return { formError: "سجل التواصل غير موجود لهذه الفرصة." };
+    }
     await withScopedTransaction(async (tx) => {
       const rfq = await tx.rFQAnalysis.create({
         data: {
@@ -190,6 +209,14 @@ export async function createCustomerSample(opportunityId: string, _prevState: Cu
 
   try {
     await assertOpportunityOwnScope(scope, opportunityId, user);
+    const scopedPrisma = await getScopedPrisma();
+    // ⚠️ مش Promise.all — راجع BACKLOG.md (P2028).
+    const product = await scopedPrisma.product.findFirst({ where: { id: rest.productId, deletedAt: null } });
+    if (!product) return { formError: "المنتج غير موجود." };
+    if (batchId) {
+      const batch = await scopedPrisma.batch.findFirst({ where: { id: batchId } });
+      if (!batch) return { formError: "الدفعة غير موجودة." };
+    }
     await withScopedTransaction(async (tx) => {
       const sample = await tx.customerSample.create({
         data: {
@@ -309,6 +336,13 @@ export async function createNegotiationRound(
 
   try {
     await assertOpportunityOwnScope(scope, opportunityId, user);
+    // negotiationId جاي من الفورم — لازم يتأكد إنه فعلًا تفاوض تابع لنفس الفرصة اللي المستخدم
+    // اتأكدت ملكيته فوق، وإلا كان ينفع يتضاف جولة تفاوض لتفاوض فرصة تانية خالص (اتكشف في
+    // مراجعة وحدة 3، 6 سبتمبر) — فحص scope فوق كان بيتحقق من opportunityId المُرسَل، مش من
+    // الـnegotiation الفعلي اللي بيتكتب عليه.
+    const scopedPrisma = await getScopedPrisma();
+    const negotiation = await scopedPrisma.negotiation.findFirst({ where: { id: negotiationId, opportunityId } });
+    if (!negotiation) return { formError: "التفاوض غير موجود لهذه الفرصة." };
     await withScopedTransaction(async (tx) => {
       const round = await tx.negotiationRound.create({
         data: {
