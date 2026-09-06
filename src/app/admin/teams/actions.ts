@@ -82,6 +82,11 @@ export async function createTeam(
   const { name, departmentId, managerId } = parsed.data;
 
   try {
+    // departmentId إلزامي وبيتعرض بلا `?.` في `/admin/teams` (`t.department.name`) — لازم
+    // يتحقق قبل الإنشاء (اتكشف في مراجعة وحدة 9، 6 سبتمبر).
+    const scopedPrisma = await getScopedPrisma();
+    const department = await scopedPrisma.department.findFirst({ where: { id: departmentId } });
+    if (!department) return { formError: "القسم غير موجود." };
     await withScopedTransaction(async (tx) => {
       const team = await tx.team.create({
         data: { orgId: user.orgId, name, departmentId, managerId: managerId || undefined },

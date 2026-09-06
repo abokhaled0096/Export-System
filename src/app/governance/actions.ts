@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { ScopedTx } from "@/lib/scoped-prisma";
-import { withScopedTransaction } from "@/lib/scoped-prisma";
+import { getScopedPrisma, withScopedTransaction } from "@/lib/scoped-prisma";
 import { requireCurrentUser } from "@/lib/session";
 import { requirePermission, getPermissionScope } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
@@ -165,6 +165,11 @@ export async function createDecisionLogEntry(_prevState: DecisionFormState, form
 
   try {
     await requirePermission(user.roleId, "DecisionLogEntry", "Create");
+    // decidedBy إلزامي وبيتعرض بلا `?.` في `/governance/decisions` (`d.decidedByUser.fullName`)
+    // — لازم يتحقق قبل الإنشاء (اتكشف في مراجعة وحدة 9، 6 سبتمبر).
+    const scopedPrisma = await getScopedPrisma();
+    const decisionMaker = await scopedPrisma.user.findFirst({ where: { id: decidedBy } });
+    if (!decisionMaker) return { formError: "المستخدم غير موجود." };
     await withScopedTransaction(async (tx) => {
       const entry = await tx.decisionLogEntry.create({
         data: { orgId: user.orgId, title, decisionDate: new Date(decisionDate), decidedBy, context: context || undefined, outcome: outcome || undefined },
@@ -217,6 +222,11 @@ export async function createRiskRegisterItem(_prevState: RiskFormState, formData
   const user = await requireCurrentUser();
   try {
     await requirePermission(user.roleId, "RiskRegisterItem", "Create");
+    // ownerId إلزامي وبيتعرض بلا `?.` في `/governance/risks` (`r.owner.fullName`) — لازم يتحقق
+    // قبل الإنشاء (اتكشف في مراجعة وحدة 9، 6 سبتمبر).
+    const scopedPrisma = await getScopedPrisma();
+    const owner = await scopedPrisma.user.findFirst({ where: { id: parsed.data.ownerId } });
+    if (!owner) return { formError: "المستخدم غير موجود." };
     await withScopedTransaction(async (tx) => {
       const item = await tx.riskRegisterItem.create({ data: { orgId: user.orgId, ...parsed.data, mitigation: parsed.data.mitigation || undefined } });
       await logAudit(tx, {
@@ -284,6 +294,13 @@ export async function createKPI(_prevState: KpiFormState, formData: FormData): P
   const user = await requireCurrentUser();
   try {
     await requirePermission(user.roleId, "KPI", "Create");
+    // ownerId/periodId إلزاميين وبيتعرضوا بلا `?.` في `/governance/kpis` (`k.owner.fullName`،
+    // `k.period.periodName`) — لازم يتحققوا قبل الإنشاء (اتكشف في مراجعة وحدة 9، 6 سبتمبر).
+    const scopedPrisma = await getScopedPrisma();
+    const owner = await scopedPrisma.user.findFirst({ where: { id: parsed.data.ownerId } });
+    if (!owner) return { formError: "المستخدم غير موجود." };
+    const period = await scopedPrisma.accountingPeriod.findFirst({ where: { id: parsed.data.periodId } });
+    if (!period) return { formError: "الفترة المحاسبية غير موجودة." };
     await withScopedTransaction(async (tx) => {
       const kpi = await tx.kPI.create({ data: { orgId: user.orgId, ...parsed.data } });
       await logAudit(tx, { orgId: user.orgId, userId: user.id, action: "kpi.created", entityType: "KPI", entityId: kpi.id, afterValue: { name: parsed.data.name } });
