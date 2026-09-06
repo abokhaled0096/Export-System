@@ -48,6 +48,16 @@ export async function createSourcingRequest(
     const scopedPrisma = await getScopedPrisma();
     const deal = await scopedPrisma.deal.findUniqueOrThrow({ where: { id: dealId } });
 
+    // specificationId اختياري جاي من الفورم — لازم يتأكد إنه فعلًا بتاع نفس المنظمة قبل الإنشاء،
+    // نفس فئة الفحص اللي اتعمل لـsupplierId/facilityId في createPurchaseOrder (مراجعة وحدة 7،
+    // 6 سبتمبر) — كان فاتها هنا وفي createPurchaseOrder نفسها، اتكشف في إعادة مراجعة وحدة 4
+    // (7 سبتمبر). مفيش خطر كسر صفحة حاليًا (specificationId مش بيتعرض بعلاقة .specification في
+    // أي صفحة)، لكن بلا الفحص بيسمح بربط طلب التوريد بمواصفة منتج منظمة تانية بصمت.
+    if (specificationId) {
+      const specification = await scopedPrisma.productSpecification.findFirst({ where: { id: specificationId } });
+      if (!specification) return { formError: "المواصفة غير موجودة." };
+    }
+
     sourcingRequestId = await withScopedTransaction(async (tx) => {
       const sourcingRequest = await tx.sourcingRequest.create({
         data: {
@@ -264,6 +274,12 @@ export async function createPurchaseOrder(
   if (facilityId) {
     const facility = await scopedPrisma.facility.findFirst({ where: { id: facilityId } });
     if (!facility) return { formError: "المنشأة غير موجودة." };
+  }
+  // specificationId كان فات وقت فحص supplierId/facilityId (مراجعة وحدة 7، 6 سبتمبر) — اتكشف
+  // في إعادة مراجعة وحدة 4 (7 سبتمبر). راجع نفس الملحوظة في createSourcingRequest فوق.
+  if (specificationId) {
+    const specification = await scopedPrisma.productSpecification.findFirst({ where: { id: specificationId } });
+    if (!specification) return { formError: "المواصفة غير موجودة." };
   }
 
   const abovePriceCeiling = new Prisma.Decimal(rest.unitPrice).greaterThan(sourcingRequest.maximumPurchasePrice);

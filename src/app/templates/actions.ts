@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { withScopedTransaction } from "@/lib/scoped-prisma";
+import { getScopedPrisma, withScopedTransaction } from "@/lib/scoped-prisma";
 import { requireCurrentUser } from "@/lib/session";
 import { requirePermission } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
@@ -40,6 +40,19 @@ export async function createTemplate(_prevState: TemplateFormState, formData: Fo
   const { marketId, customerId, ...rest } = parsed.data;
   try {
     await requirePermission(user.roleId, "Template", "Create");
+    // marketId/customerId اختياريين وبيتعرضوا بـ`?.` في /templates (t.market?.countryNameAr,
+    // t.customer?.legalName) فمفيش خطر كسر صفحة هنا — لكن بلا الفحص ده، أي id عابر للمنظمة كان
+    // ينفع يتسجّل ويربط قالب المنظمة بعميل/سوق منظمة تانية بصمت (تلوّث بيانات، اتكشف في إعادة
+    // مراجعة وحدة 4، 7 سبتمبر). ⚠️ مش Promise.all — راجع BACKLOG.md (P2028).
+    const scopedPrisma = await getScopedPrisma();
+    if (marketId) {
+      const market = await scopedPrisma.market.findFirst({ where: { id: marketId } });
+      if (!market) return { formError: "السوق غير موجود." };
+    }
+    if (customerId) {
+      const customer = await scopedPrisma.company.findFirst({ where: { id: customerId } });
+      if (!customer) return { formError: "العميل غير موجود." };
+    }
     await withScopedTransaction(async (tx) => {
       const template = await tx.template.create({
         data: {
