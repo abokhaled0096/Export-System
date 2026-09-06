@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
-import { getCurrentOrgId } from "@/lib/org";
+import { requireCurrentUser } from "@/lib/session";
+import { requirePermission } from "@/lib/permissions";
 import ShipmentAciForm from "./ShipmentAciForm";
 import ShipmentPartyForm from "./ShipmentPartyForm";
 import BookingForm from "./BookingForm";
@@ -54,7 +55,25 @@ export const dynamic = "force-dynamic";
 
 export default async function ShipmentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const orgId = await getCurrentOrgId();
+  const user = await requireCurrentUser();
+
+  // ⚠️ الصفحة دي كانت بلا أي فحص صلاحية خالص (اتكشف في مراجعة وحدة 6، 6 سبتمبر) — نفس فئة
+  // /compliance/[id] قبل الإصلاح في وحدة 5. Shipment.View مُمنوحة LogisticsOfficer/Admin/
+  // CompanyOwner بس (Org scope)، فأي دور تاني (Finance/SalesRep/QualityManager..) كان يقدر
+  // يفتح تفاصيل أي شحنة (بيانات عميل/تكاليف/رحلات نقل) لو عرف/خمّن الـid بتاعها.
+  try {
+    await requirePermission(user.roleId, "Shipment", "View");
+  } catch {
+    return (
+      <main className="mx-auto max-w-3xl px-6 py-10">
+        <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-6 text-center text-sm text-destructive">
+          معندكش صلاحية الوصول للصفحة دي.
+        </div>
+      </main>
+    );
+  }
+
+  const orgId = user.orgId;
   const prisma = await getScopedPrisma();
 
   const shipment = await prisma.shipment.findFirst({

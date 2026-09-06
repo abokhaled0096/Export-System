@@ -1058,6 +1058,13 @@ export async function addShipmentLot(shipmentId: string, _prevState: ShipmentLot
   const user = await requireCurrentUser();
   try {
     await requirePermission(user.roleId, "ShipmentLot", "Create");
+    // لازم نتأكد إن lotId فعلًا بتاع نفس المنظمة قبل الربط — الـFK بيتحقق بس من وجود الصف
+    // (أي منظمة)، وRLS مش بيتفحّص وقت تنفيذ FK constraint. `sl.lot.lotCode` بيتعرض بلا `?.`
+    // في `/logistics/[id]` (نفس فئة باگ Competitor/Opportunity)، فأي lotId عابر للمنظمة كان
+    // هيكسر صفحة الشحنة بالكامل (اتكشف في مراجعة وحدة 6، 6 سبتمبر).
+    const scopedPrisma = await getScopedPrisma();
+    const lot = await scopedPrisma.lot.findFirst({ where: { id: parsed.data.lotId } });
+    if (!lot) return { formError: "الدفعة (Lot) غير موجودة." };
     await withScopedTransaction(async (tx) => {
       const shipmentLot = await tx.shipmentLot.create({
         data: { orgId: user.orgId, shipmentId, ...parsed.data },

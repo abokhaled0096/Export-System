@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { withScopedTransaction } from "@/lib/scoped-prisma";
+import { getScopedPrisma, withScopedTransaction } from "@/lib/scoped-prisma";
 import { requireCurrentUser } from "@/lib/session";
 import { requirePermission } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
@@ -53,6 +53,14 @@ export async function createFreightQuote(_prevState: FreightQuoteFormState, form
   let quoteId: string;
   try {
     await requirePermission(user.roleId, "FreightQuote", "Create");
+    // routeId/providerId إلزاميين وغير nullable، وبيتعرضوا بلا `?.` في قائمة/تفاصيل عروض
+    // الشحن (`quote.route.originPort`, `quote.provider.name`) — أي id عابر للمنظمة كان هيكسر
+    // الصفحتين بالكامل (اتكشف في مراجعة وحدة 6، 6 سبتمبر، نفس فئة addShipmentLot فوق).
+    const scopedPrisma = await getScopedPrisma();
+    const route = await scopedPrisma.route.findFirst({ where: { id: rest.routeId } });
+    if (!route) return { formError: "خط الشحن غير موجود." };
+    const provider = await scopedPrisma.serviceProvider.findFirst({ where: { id: rest.providerId } });
+    if (!provider) return { formError: "مزوّد الخدمة غير موجود." };
     quoteId = await withScopedTransaction(async (tx) => {
       const quote = await tx.freightQuote.create({
         data: {
