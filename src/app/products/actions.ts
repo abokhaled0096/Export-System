@@ -3,12 +3,18 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { withScopedTransaction } from "@/lib/scoped-prisma";
+import { getScopedPrisma, withScopedTransaction } from "@/lib/scoped-prisma";
 import { requireCurrentUser } from "@/lib/session";
 import { requirePermission } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 import { parseCsv } from "@/lib/csv";
 import { logError, isNextControlFlowError } from "@/lib/errorLog";
+
+const monthsField = z
+  .array(z.string())
+  .transform((arr) => arr.map(Number))
+  .pipe(z.array(z.number().int().min(1, "شهر غير صالح").max(12, "شهر غير صالح")))
+  .optional();
 
 const ProductSchema = z.object({
   nameAr: z.string().trim().min(2, "الاسم بالعربية لازم يكون حرفين على الأقل"),
@@ -17,13 +23,17 @@ const ProductSchema = z.object({
   category: z.string().trim().min(1, "الفئة مطلوبة"),
   originCountry: z.string().trim().min(1, "بلد المنشأ مطلوب"),
   harvestSeason: z.string().trim().optional(),
+  availableMonths: monthsField,
+  storageTempC: z.coerce.number().min(-30).max(50).optional(),
   shelfLifeDays: z.coerce.number().int().positive().optional(),
   requiresRefrigeration: z.coerce.boolean().optional(),
+  confirmDuplicate: z.coerce.boolean().optional(),
 });
 
 export type ProductFormState = {
   errors?: Partial<Record<keyof z.infer<typeof ProductSchema>, string[]>>;
   formError?: string;
+  duplicateWarning?: string;
 };
 
 export async function createProduct(
@@ -37,8 +47,11 @@ export async function createProduct(
     category: formData.get("category"),
     originCountry: formData.get("originCountry"),
     harvestSeason: formData.get("harvestSeason") || undefined,
+    availableMonths: formData.getAll("availableMonths"),
+    storageTempC: formData.get("storageTempC") || undefined,
     shelfLifeDays: formData.get("shelfLifeDays") || undefined,
     requiresRefrigeration: formData.get("requiresRefrigeration") === "on",
+    confirmDuplicate: formData.get("confirmDuplicate") === "on",
   });
 
   if (!parsed.success) {
@@ -48,11 +61,32 @@ export async function createProduct(
   // requireCurrentUser() بيعمل redirect() داخليًا لو الجلسة انتهت — لازم يكون برّه try/catch
   // (أو يتفحص digest بتاعه جوه catch) عشان الـredirect ميتبلعش. راجع src/lib/errorLog.ts.
   const user = await requireCurrentUser();
+  const { confirmDuplicate, ...data } = parsed.data;
   try {
     await requirePermission(user.roleId, "Product", "Create");
+    const scopedPrisma = await getScopedPrisma();
+
+    // تحذير ناعم (مش قيد صلب) لو منتج مشابه موجود فعلًا — نفس الـhsCode ممكن يتشارك فيه أكتر من
+    // منتج حقيقي بطبيعته (كود HS تصنيف عام، مش معرّف منتج فريد — اتحقق فعليًا: "فراولة مجمدة"
+    // و"منتج تجربة" بيانات حقيقية بنفس الـhsCode 0811.10)، فمينفعش يبقى @@unique في الـDB، لكن
+    // برضو يستاهل تنبيه المستخدم قبل ما يكرّر بيانات بغلط بدل قيد صارم يمنعه.
+    if (!confirmDuplicate) {
+      const similar = await scopedPrisma.product.findFirst({
+        where: {
+          deletedAt: null,
+          OR: [{ hsCode: data.hsCode }, { nameAr: data.nameAr }, { nameEn: { equals: data.nameEn, mode: "insensitive" } }],
+        },
+      });
+      if (similar) {
+        return {
+          duplicateWarning: `فيه منتج مشابه مسجّل بالفعل: "${similar.nameAr}" (${similar.hsCode}) — لو ده مقصود (منتج تاني بنفس التصنيف)، أكّد وكمّل الحفظ.`,
+        };
+      }
+    }
+
     await withScopedTransaction(async (tx) => {
       const product = await tx.product.create({
-        data: { orgId: user.orgId, ...parsed.data, status: "Draft" },
+        data: { orgId: user.orgId, ...data, availableMonths: data.availableMonths ?? [], status: "Draft" },
       });
       await logAudit(tx, {
         orgId: user.orgId,
@@ -60,7 +94,7 @@ export async function createProduct(
         action: "product.created",
         entityType: "Product",
         entityId: product.id,
-        afterValue: parsed.data,
+        afterValue: data,
       });
     });
   } catch (e) {
@@ -71,6 +105,61 @@ export async function createProduct(
 
   revalidatePath("/products");
   redirect("/products");
+}
+
+const PRODUCT_STATUSES = ["Draft", "Verified", "NeedsReview"] as const;
+
+const UpdateProductSchema = z.object({
+  status: z.enum(PRODUCT_STATUSES),
+  availableMonths: monthsField,
+  storageTempC: z.coerce.number().min(-30).max(50).optional(),
+});
+
+export type UpdateProductFormState = {
+  errors?: Partial<Record<keyof z.infer<typeof UpdateProductSchema>, string[]>>;
+  formError?: string;
+};
+
+/** تعديل حالة التوثيق (Draft→Verified/NeedsReview) ومواسم التوفّر/حرارة التخزين بعد الإنشاء —
+ * الحقول التلاتة دي كانت موجودة في الـschema بلا أي طريقة توصلها، اتكشف في مراجعة وحدة 1 (6 سبتمبر):
+ * availableMonths بالذات بيتغذّى بيه prompt الذكاء الاصطناعي بتاع Competitor فكان دايمًا فاضي. */
+export async function updateProduct(
+  productId: string,
+  _prevState: UpdateProductFormState,
+  formData: FormData
+): Promise<UpdateProductFormState> {
+  const parsed = UpdateProductSchema.safeParse({
+    status: formData.get("status"),
+    availableMonths: formData.getAll("availableMonths"),
+    storageTempC: formData.get("storageTempC") || undefined,
+  });
+  if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
+
+  const user = await requireCurrentUser();
+  try {
+    await requirePermission(user.roleId, "Product", "Edit");
+    await withScopedTransaction(async (tx) => {
+      await tx.product.update({
+        where: { id: productId },
+        data: { ...parsed.data, availableMonths: parsed.data.availableMonths ?? [] },
+      });
+      await logAudit(tx, {
+        orgId: user.orgId,
+        userId: user.id,
+        action: "product.updated",
+        entityType: "Product",
+        entityId: productId,
+        afterValue: parsed.data,
+      });
+    });
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "updateProduct", error: e });
+    return { formError: "حصل خطأ أثناء التحديث — حاول تاني." };
+  }
+
+  revalidatePath(`/products/${productId}`);
+  return {};
 }
 
 const ArchiveProductSchema = z.string().uuid();

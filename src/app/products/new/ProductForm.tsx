@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 
 const initialState: ProductFormState = {};
+const monthLabel = ["", "يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
 
 function Field({
   label,
@@ -78,6 +79,36 @@ export default function ProductForm() {
           يحتاج تبريد
         </Label>
       </div>
+
+      <Field
+        label="درجة حرارة التخزين (°C)"
+        name="storageTempC"
+        type="number"
+        error={state.errors?.storageTempC}
+      />
+
+      <div className="flex flex-col gap-1.5">
+        <Label className="text-xs">شهور توفّر المنتج عندنا (موسميًا)</Label>
+        <div className="grid grid-cols-4 gap-1.5">
+          {monthLabel.slice(1).map((label, i) => (
+            <label key={i} className="flex items-center gap-1 text-xs">
+              <input type="checkbox" name="availableMonths" value={i + 1} className="size-3.5" />
+              {label.slice(0, 3)}
+            </label>
+          ))}
+        </div>
+        {state.errors?.availableMonths && <span className="text-xs text-destructive">{state.errors.availableMonths[0]}</span>}
+      </div>
+
+      {state.duplicateWarning && (
+        <div className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-700">
+          <p>{state.duplicateWarning}</p>
+          <Label className="mt-2 flex items-center gap-2 font-normal">
+            <Checkbox name="confirmDuplicate" defaultChecked />
+            أيوه، ده منتج مختلف فعلًا — كمّل الحفظ
+          </Label>
+        </div>
+      )}
 
       {state.formError && (
         <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{state.formError}</p>

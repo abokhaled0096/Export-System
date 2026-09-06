@@ -29,6 +29,7 @@ const PERMISSIONS: { resource: string; action: "View" | "Create" | "Edit" | "Del
   { resource: "CAPA", action: "Edit" }, // تدفّق Verify/Close (2 سبتمبر)
   { resource: "Market", action: "Create" },
   { resource: "Market", action: "Edit" }, // أرشفة/استعادة سوق — راجع BACKLOG.md § خلصان (30 أغسطس)
+  { resource: "Market", action: "View" }, // صفحة تفاصيل /markets/[id] جديدة (6 سبتمبر) — مراجعة وحدة 1
   { resource: "Company", action: "Create" },
   { resource: "Company", action: "View" }, // فلترة Own scope على قائمة /companies — راجع BACKLOG.md
   { resource: "Company", action: "Edit" }, // أرشفة/استعادة شركة
@@ -37,6 +38,7 @@ const PERMISSIONS: { resource: string; action: "View" | "Create" | "Edit" | "Del
   { resource: "Opportunity", action: "View" }, // فلترة Own scope على قائمة /opportunities
   { resource: "Opportunity", action: "Edit" }, // أرشفة/استعادة فرصة
   { resource: "Analysis", action: "Create" },
+  { resource: "Analysis", action: "View" }, // مراجعة وحدة 1 (6 سبتمبر) — كان مفيش صلاحية عرض خالص لـ/analysis
   { resource: "Competitor", action: "Create" }, // بحث آلي أو إدخال يدوي لمنافسين حقيقيين (6 سبتمبر)
   { resource: "Competitor", action: "View" },
   { resource: "Deal", action: "Create" },
@@ -237,7 +239,10 @@ const SALES_PIPELINE_ORG_SCOPE = [
   "Opportunity.Create",
   "Opportunity.View",
   "Opportunity.Edit",
+  "Product.View", // مراجعة وحدة 1 (6 سبتمبر) — SalesManager كان عنده Product.Create/Edit بلا Product.View خالص، يعني /products/[id] كانت فعليًا معطّلة عليه
+  "Market.View",
   "Analysis.Create",
+  "Analysis.View", // مراجعة وحدة 1 (6 سبتمبر) — مفيش صلاحية عرض كانت موجودة لـ/analysis أصلًا
   "Competitor.Create",
   "Competitor.View",
   "Deal.Create",
@@ -286,7 +291,10 @@ const SALES_PIPELINE_OWN_SCOPE = [
   "Opportunity.Create",
   "Opportunity.View",
   "Opportunity.Edit",
+  "Product.View", // مراجعة وحدة 1 (6 سبتمبر) — SalesRep محتاج يشوف تفاصيل المنتج وقت التسعير/التحليل
+  "Market.View",
   "Analysis.Create",
+  "Analysis.View",
   "Competitor.Create",
   "Competitor.View",
   "Deal.Create",

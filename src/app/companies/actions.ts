@@ -11,14 +11,7 @@ import { parseCsv } from "@/lib/csv";
 import { logError, isNextControlFlowError } from "@/lib/errorLog";
 import { deleteSecret } from "@/lib/vault";
 import { requestEntityCreation } from "@/lib/masterDataChangeRequest";
-
-export const CompanySchema = z.object({
-  legalName: z.string().trim().min(2, "الاسم القانوني مطلوب"),
-  tradeName: z.string().trim().optional(),
-  country: z.string().trim().min(1, "الدولة مطلوبة"),
-  city: z.string().trim().optional(),
-  classification: z.string().trim().min(1, "اختر تصنيف واحد على الأقل"),
-});
+import { CompanySchema } from "@/lib/companySchema";
 
 export type CompanyFormState = {
   errors?: Partial<Record<keyof z.infer<typeof CompanySchema>, string[]>>;

@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
 import { getCurrentOrgId } from "@/lib/org";
+import { requireCurrentUser } from "@/lib/session";
+import { requirePermission } from "@/lib/permissions";
 import { archiveMarket } from "./actions";
 import { PAGE_SIZE, parsePage } from "@/lib/pagination";
 import Pagination from "@/components/Pagination";
@@ -21,6 +23,19 @@ export default async function MarketsPage({
 }: {
   searchParams: Promise<{ page?: string }>;
 }) {
+  const user = await requireCurrentUser();
+  try {
+    await requirePermission(user.roleId, "Market", "View");
+  } catch {
+    return (
+      <main className="mx-auto max-w-3xl px-6 py-10">
+        <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-6 text-center text-sm text-destructive">
+          معندكش صلاحية الوصول للصفحة دي.
+        </div>
+      </main>
+    );
+  }
+
   const orgId = await getCurrentOrgId();
   const prisma = await getScopedPrisma();
   const page = parsePage((await searchParams).page);
@@ -44,6 +59,7 @@ export default async function MarketsPage({
         <div className="flex gap-2">
           <Button nativeButton={false} variant="outline" render={<a href="/markets/export">تصدير CSV</a>} />
           <Button nativeButton={false} render={<Link href="/markets/new">+ سوق جديد</Link>} />
+          <Button nativeButton={false} variant="outline" render={<Link href="/markets/compare">قارن أسواق</Link>} />
           <Button nativeButton={false} variant="outline" render={<Link href="/markets/archived">الأرشيف</Link>} />
         </div>
       </div>
@@ -69,7 +85,7 @@ export default async function MarketsPage({
               {markets.map((m) => (
                 <TableRow key={m.id}>
                   <TableCell>
-                    <div className="font-medium text-foreground">{m.countryNameAr}</div>
+                    <Button nativeButton={false} variant="link" className="h-auto p-0 font-medium" render={<Link href={`/markets/${m.id}`}>{m.countryNameAr}</Link>} />
                     <div className="text-xs text-muted-foreground">
                       {m.countryNameEn} · {m.countryCode}
                     </div>

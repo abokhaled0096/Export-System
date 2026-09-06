@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
 import { getCurrentOrgId } from "@/lib/org";
+import { requireCurrentUser } from "@/lib/session";
+import { requirePermission } from "@/lib/permissions";
 import { PAGE_SIZE, parsePage } from "@/lib/pagination";
 import Pagination from "@/components/Pagination";
 import { Button } from "@/components/ui/button";
@@ -35,6 +37,19 @@ export default async function AnalysisPage({
 }: {
   searchParams: Promise<{ page?: string }>;
 }) {
+  const user = await requireCurrentUser();
+  try {
+    await requirePermission(user.roleId, "Analysis", "View");
+  } catch {
+    return (
+      <main className="mx-auto max-w-3xl px-6 py-10">
+        <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-6 text-center text-sm text-destructive">
+          معندكش صلاحية الوصول للصفحة دي.
+        </div>
+      </main>
+    );
+  }
+
   const orgId = await getCurrentOrgId();
   const prisma = await getScopedPrisma();
   const page = parsePage((await searchParams).page);

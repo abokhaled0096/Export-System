@@ -5,6 +5,7 @@ import { getCurrentOrgId } from "@/lib/org";
 import { requireCurrentUser } from "@/lib/session";
 import { requirePermission } from "@/lib/permissions";
 import ProductSpecificationForm from "./ProductSpecificationForm";
+import ProductEditForm from "./ProductEditForm";
 import { productSpecificationStatusLabel, productSpecificationStatusStyle } from "@/lib/specificationLabels";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -82,7 +83,31 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           <dt className="text-xs text-muted-foreground">يحتاج تبريد</dt>
           <dd className="text-foreground">{product.requiresRefrigeration ? "نعم" : "لا"}</dd>
         </div>
+        <div>
+          <dt className="text-xs text-muted-foreground">درجة حرارة التخزين</dt>
+          <dd className="text-foreground">{product.storageTempC ? `${product.storageTempC}°C` : "—"}</dd>
+        </div>
+        <div className="sm:col-span-2">
+          <dt className="text-xs text-muted-foreground">شهور توفّر المنتج عندنا</dt>
+          <dd className="text-foreground">
+            {product.availableMonths.length > 0
+              ? [...product.availableMonths].sort((a, b) => a - b).join("، ")
+              : "غير مسجّلة"}
+          </dd>
+        </div>
       </dl>
+
+      <section className="mt-8">
+        <h2 className="text-lg font-medium text-foreground">تعديل حالة التوثيق والمواسم</h2>
+        <div className="mt-3">
+          <ProductEditForm
+            productId={product.id}
+            status={product.status}
+            availableMonths={product.availableMonths}
+            storageTempC={product.storageTempC ? Number(product.storageTempC) : null}
+          />
+        </div>
+      </section>
 
       <section className="mt-8">
         <h2 className="text-lg font-medium text-foreground">المواصفات</h2>

@@ -11,25 +11,7 @@ import { logError, isNextControlFlowError, businessRuleMessage } from "@/lib/err
 import { requireAal2 } from "@/lib/mfa";
 import { encryptSecret, updateSecret } from "@/lib/vault";
 import { requestEntityCreation } from "@/lib/masterDataChangeRequest";
-
-const SUPPLIER_TYPES = [
-  "Farm", "Farmer", "Aggregator", "Trader", "Processor", "Manufacturer", "PackingHouse", "FreezingFacility", "DryingFacility", "PackagingSupplier", "Warehouse", "ColdStore", "Laboratory",
-] as const;
-const SUPPLIER_STATUSES = [
-  "Identified", "Contacted", "UnderReview", "DocumentsPending", "AuditRequired", "SampleRequired", "Conditional", "Approved", "Preferred", "Suspended", "Rejected", "Blacklisted", "Archived",
-] as const;
-
-export const SupplierSchema = z.object({
-  legalName: z.string().trim().min(1, "الاسم القانوني مطلوب"),
-  tradeName: z.string().trim().optional().or(z.literal("")),
-  country: z.string().trim().optional().or(z.literal("")),
-  governorate: z.string().trim().optional().or(z.literal("")),
-  city: z.string().trim().optional().or(z.literal("")),
-  taxId: z.string().trim().optional().or(z.literal("")),
-  commercialRegNo: z.string().trim().optional().or(z.literal("")),
-  supplierType: z.array(z.enum(SUPPLIER_TYPES)).optional(),
-  status: z.enum(SUPPLIER_STATUSES),
-});
+import { SupplierSchema } from "@/lib/supplierSchema";
 
 export type SupplierFormState = { errors?: Record<string, string[]>; formError?: string };
 

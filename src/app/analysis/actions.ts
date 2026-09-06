@@ -8,6 +8,7 @@ import { requireCurrentUser } from "@/lib/session";
 import { requirePermission } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 import { analyzeMarketWithAI } from "@/lib/ai/analyzeMarket";
+import { computeOpportunityRiskSuggestion, type ScoringResult } from "@/lib/opportunityScoring";
 import { logError, isNextControlFlowError } from "@/lib/errorLog";
 
 const AnalysisSchema = z.object({
@@ -16,6 +17,7 @@ const AnalysisSchema = z.object({
   year: z.coerce.number().int().min(2020).max(2100),
   opportunityScore: z.coerce.number().int().min(0).max(100),
   riskScore: z.coerce.number().int().min(0).max(100),
+  confidenceLevel: z.coerce.number().int().min(0).max(100).optional(),
   recommendation: z.enum(["Start", "Study", "Monitor", "Avoid"]),
 });
 
@@ -34,6 +36,7 @@ export async function createAnalysis(
     year: formData.get("year"),
     opportunityScore: formData.get("opportunityScore"),
     riskScore: formData.get("riskScore"),
+    confidenceLevel: formData.get("confidenceLevel") || undefined,
     recommendation: formData.get("recommendation"),
   });
 
@@ -77,6 +80,40 @@ export async function createAnalysis(
 
   revalidatePath("/analysis");
   redirect("/analysis");
+}
+
+export type AnalysisSuggestionState = { result?: ScoringResult; formError?: string };
+
+/** اقتراح آلي (Rule-Based، مش AI) لدرجتَي الفرصة والمخاطرة بناءً على بيانات حقيقية مسجّلة فعليًا —
+ * مخاطرة السوق + مواسم توفّر المنتج + بيانات المنافسين الموسمية. راجع src/lib/opportunityScoring.ts.
+ * قابل للتعديل بالكامل في الفورم — اقتراح بداية، مش قيد صلب. */
+export async function computeAnalysisSuggestionAction(productId: string, marketId: string): Promise<AnalysisSuggestionState> {
+  const user = await requireCurrentUser();
+  try {
+    await requirePermission(user.roleId, "Analysis", "Create");
+    const scopedPrisma = await getScopedPrisma();
+
+    // ⚠️ مش Promise.all — راجع BACKLOG.md (P2028).
+    const product = await scopedPrisma.product.findFirst({ where: { id: productId, deletedAt: null } });
+    const market = await scopedPrisma.market.findFirst({ where: { id: marketId, deletedAt: null } });
+    if (!product || !market) return { formError: "المنتج أو السوق غير موجودين." };
+    const competitors = await scopedPrisma.competitor.findMany({
+      where: { productId, marketId, deletedAt: null },
+      select: { strengthMonths: true, weaknessMonths: true },
+    });
+
+    const result = computeOpportunityRiskSuggestion({
+      politicalRiskScore: market.politicalRiskScore,
+      logisticsRiskScore: market.logisticsRiskScore,
+      productAvailableMonths: product.availableMonths,
+      competitors,
+    });
+    return { result };
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "computeAnalysisSuggestionAction", error: e });
+    return { formError: "حصل خطأ أثناء حساب الاقتراح." };
+  }
 }
 
 const AiAnalysisSchema = z.object({

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { withScopedTransaction } from "@/lib/scoped-prisma";
+import { getScopedPrisma, withScopedTransaction } from "@/lib/scoped-prisma";
 import { requireCurrentUser } from "@/lib/session";
 import { requirePermission } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
@@ -20,6 +20,9 @@ const MarketSchema = z.object({
   continent: z.string().trim().min(1, "القارة مطلوبة"),
   currency: z.string().trim().length(3, "العملة لازم تكون 3 أحرف (ISO 4217)").toUpperCase(),
   mainPorts: z.string().trim().optional(),
+  tradeAgreement: z.string().trim().optional(),
+  politicalRiskScore: z.coerce.number().int().min(0).max(100).optional(),
+  logisticsRiskScore: z.coerce.number().int().min(0).max(100).optional(),
 });
 
 export type MarketFormState = {
@@ -38,6 +41,9 @@ export async function createMarket(
     continent: formData.get("continent"),
     currency: formData.get("currency"),
     mainPorts: formData.get("mainPorts") || undefined,
+    tradeAgreement: formData.get("tradeAgreement") || undefined,
+    politicalRiskScore: formData.get("politicalRiskScore") || undefined,
+    logisticsRiskScore: formData.get("logisticsRiskScore") || undefined,
   });
 
   if (!parsed.success) {
@@ -48,6 +54,16 @@ export async function createMarket(
   const user = await requireCurrentUser();
   try {
     await requirePermission(user.roleId, "Market", "Create");
+    const scopedPrisma = await getScopedPrisma();
+
+    // كود الدولة (ISO 3166) معرّف فريد حقيقي (عكس HS Code بتاع المنتج) — دولة واحدة معندهاش كودين،
+    // فيصح يتمنع بصرامة. فيه فهرس جزئي فعلي على مستوى القاعدة (Market_orgId_countryCode_active_key)
+    // كخط دفاع أخير، لكن الفحص هنا بيدّي رسالة عربي واضحة بدل خطأ DB خام.
+    const existing = await scopedPrisma.market.findFirst({ where: { countryCode: parsed.data.countryCode, deletedAt: null } });
+    if (existing) {
+      return { errors: { countryCode: [`السوق ده متسجّل بالفعل: "${existing.countryNameAr}"`] } };
+    }
+
     const { mainPorts, ...rest } = parsed.data;
     await withScopedTransaction(async (tx) => {
       const market = await tx.market.create({
@@ -76,6 +92,59 @@ export async function createMarket(
 
   revalidatePath("/markets");
   redirect("/markets");
+}
+
+const UpdateMarketSchema = z.object({
+  tradeAgreement: z.string().trim().optional(),
+  politicalRiskScore: z.coerce.number().int().min(0).max(100).optional(),
+  logisticsRiskScore: z.coerce.number().int().min(0).max(100).optional(),
+});
+
+export type UpdateMarketFormState = {
+  errors?: Partial<Record<keyof z.infer<typeof UpdateMarketSchema>, string[]>>;
+  formError?: string;
+};
+
+/** تحديث درجات المخاطرة/الاتفاقية التجارية — الحقول التلاتة دي كانت موجودة في الـschema بلا أي
+ * فورم يوصلها أصلًا (اتكشف في مراجعة وحدة 1، 6 سبتمبر). `lastReviewedAt` بيتحدّث تلقائيًا هنا —
+ * هي بالظبط معنى "آخر مراجعة" فمفيش داعي لحقل يدوي منفصل. */
+export async function updateMarket(
+  marketId: string,
+  _prevState: UpdateMarketFormState,
+  formData: FormData
+): Promise<UpdateMarketFormState> {
+  const parsed = UpdateMarketSchema.safeParse({
+    tradeAgreement: formData.get("tradeAgreement") || undefined,
+    politicalRiskScore: formData.get("politicalRiskScore") || undefined,
+    logisticsRiskScore: formData.get("logisticsRiskScore") || undefined,
+  });
+  if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
+
+  const user = await requireCurrentUser();
+  try {
+    await requirePermission(user.roleId, "Market", "Edit");
+    await withScopedTransaction(async (tx) => {
+      await tx.market.update({
+        where: { id: marketId },
+        data: { ...parsed.data, lastReviewedAt: new Date() },
+      });
+      await logAudit(tx, {
+        orgId: user.orgId,
+        userId: user.id,
+        action: "market.updated",
+        entityType: "Market",
+        entityId: marketId,
+        afterValue: parsed.data,
+      });
+    });
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "updateMarket", error: e });
+    return { formError: "حصل خطأ أثناء التحديث — حاول تاني." };
+  }
+
+  revalidatePath(`/markets/${marketId}`);
+  return {};
 }
 
 const ArchiveMarketSchema = z.string().uuid();

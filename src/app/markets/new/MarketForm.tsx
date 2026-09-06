@@ -53,6 +53,24 @@ export default function MarketForm() {
         error={state.errors?.mainPorts}
         placeholder="Hamburg, Rotterdam"
       />
+      <Field
+        label="اتفاقية تجارية (لو موجودة)"
+        name="tradeAgreement"
+        error={state.errors?.tradeAgreement}
+        placeholder="COMESA, EU-Egypt Association Agreement..."
+      />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Field
+          label="درجة المخاطرة السياسية (0-100)"
+          name="politicalRiskScore"
+          error={state.errors?.politicalRiskScore}
+        />
+        <Field
+          label="درجة المخاطرة اللوجستية (0-100)"
+          name="logisticsRiskScore"
+          error={state.errors?.logisticsRiskScore}
+        />
+      </div>
 
       {state.formError && (
         <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{state.formError}</p>

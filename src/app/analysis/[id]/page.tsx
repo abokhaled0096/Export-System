@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
 import { getCurrentOrgId } from "@/lib/org";
+import { requireCurrentUser } from "@/lib/session";
+import { requirePermission } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +26,20 @@ const recStyle: Record<string, string> = {
 
 export default async function AnalysisDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const user = await requireCurrentUser();
+
+  try {
+    await requirePermission(user.roleId, "Analysis", "View");
+  } catch {
+    return (
+      <main className="mx-auto max-w-3xl px-6 py-10">
+        <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-6 text-center text-sm text-destructive">
+          معندكش صلاحية الوصول للصفحة دي.
+        </div>
+      </main>
+    );
+  }
+
   const orgId = await getCurrentOrgId();
   const prisma = await getScopedPrisma();
 

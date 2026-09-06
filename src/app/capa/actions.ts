@@ -7,7 +7,7 @@ import { requireCurrentUser } from "@/lib/session";
 import { requirePermission } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 import { logError, isNextControlFlowError, businessRuleMessage } from "@/lib/errorLog";
-import { CAPA_STATUS_TRANSITIONS } from "@/lib/capaLabels";
+import { CAPA_STATUS_TRANSITIONS, CAPA_ALL_STATUSES } from "@/lib/capaLabels";
 
 const CAPA_ROOT_CAUSE_METHODS = ["FiveWhys", "Fishbone", "Other"] as const;
 // ⚠️ الإنشاء مقصور على حالات البداية بس. Overdue محسوبة من dueDate وقت العرض (src/lib/capaLabels.ts
@@ -15,7 +15,6 @@ const CAPA_ROOT_CAUSE_METHODS = ["FiveWhys", "Fishbone", "Other"] as const;
 // يكتبها من خارج الفورم. Effective/Ineffective/Closed محتاجة verifiedBy (بلا واجهة إدخال وقت
 // الإنشاء)، فمتاحة بس من updateCAPAStatusAction عبر تدفّق الانتقال الحقيقي تحت.
 const CAPA_INITIAL_STATUSES = ["Open", "InProgress", "VerificationPending"] as const;
-export const CAPA_ALL_STATUSES = ["Open", "InProgress", "VerificationPending", "Effective", "Ineffective", "Closed"] as const;
 
 const CAPASchema = z.object({
   rootCause: z.string().trim().optional().or(z.literal("")),

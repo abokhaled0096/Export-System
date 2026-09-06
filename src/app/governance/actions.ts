@@ -9,9 +9,9 @@ import { requirePermission, getPermissionScope } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 import { logError, isNextControlFlowError, businessRuleMessage } from "@/lib/errorLog";
 import { NEW_ENTITY_SENTINEL } from "@/lib/masterDataChangeRequest";
-import { CompanySchema } from "@/app/companies/actions";
-import { SupplierSchema } from "@/app/suppliers/actions";
-import { BankAccountSchema } from "@/app/accounting/arap-actions";
+import { CompanySchema } from "@/lib/companySchema";
+import { SupplierSchema } from "@/lib/supplierSchema";
+import { BankAccountSchema } from "@/lib/bankAccountSchema";
 
 /**
  * بيحوّل طلب إنشاء (entityId === NEW_ENTITY_SENTINEL) لكيان حقيقي وقت الاعتماد — هنا بالظبط

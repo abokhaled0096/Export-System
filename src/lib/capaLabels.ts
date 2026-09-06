@@ -1,3 +1,7 @@
+/** منقولة من src/app/capa/actions.ts — ملف "use server" في Next.js الحديث ممنوع يصدّر غير
+ * async functions، والقيمة دي محتاجة في src/app/capa/[id]/StatusTransitionButtons.tsx (client). */
+export const CAPA_ALL_STATUSES = ["Open", "InProgress", "VerificationPending", "Effective", "Ineffective", "Closed"] as const;
+
 export const capaRootCauseMethodLabel: Record<string, string> = {
   FiveWhys: "الأسباب الخمسة (5 Whys)",
   Fishbone: "مخطط عظمة السمكة",

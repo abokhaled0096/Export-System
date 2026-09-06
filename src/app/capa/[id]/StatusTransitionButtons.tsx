@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { updateCAPAStatusAction, CAPA_ALL_STATUSES } from "../actions";
+import { updateCAPAStatusAction } from "../actions";
+import { CAPA_ALL_STATUSES } from "@/lib/capaLabels";
 import { capaStatusLabel, CAPA_STATUS_TRANSITIONS } from "@/lib/capaLabels";
 import { Button } from "@/components/ui/button";
 

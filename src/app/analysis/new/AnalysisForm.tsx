@@ -1,7 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
-import { createAnalysis, type AnalysisFormState } from "../actions";
+import { useActionState, useRef, useState, useTransition } from "react";
+import { createAnalysis, computeAnalysisSuggestionAction, type AnalysisFormState, type AnalysisSuggestionState } from "../actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,13 +26,34 @@ export default function AnalysisForm({
   markets: Option[];
 }) {
   const [state, formAction, pending] = useActionState(createAnalysis, initialState);
+  const [productId, setProductId] = useState<string | null>(null);
+  const [marketId, setMarketId] = useState<string | null>(null);
+  const [suggestion, setSuggestion] = useState<AnalysisSuggestionState | null>(null);
+  const [suggesting, startSuggesting] = useTransition();
+
+  const opportunityRef = useRef<HTMLInputElement>(null);
+  const riskRef = useRef<HTMLInputElement>(null);
+
+  const requestSuggestion = () => {
+    if (!productId || !marketId) return;
+    startSuggesting(async () => {
+      const result = await computeAnalysisSuggestionAction(productId, marketId);
+      setSuggestion(result);
+    });
+  };
+
+  const applySuggestion = () => {
+    if (!suggestion?.result) return;
+    if (opportunityRef.current) opportunityRef.current.value = String(suggestion.result.opportunityScore);
+    if (riskRef.current) riskRef.current.value = String(suggestion.result.riskScore);
+  };
 
   return (
     <form action={formAction} className="flex max-w-xl flex-col gap-5">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="productId">المنتج *</Label>
-          <Select name="productId">
+          <Select name="productId" onValueChange={(v) => { setProductId(v as string); setSuggestion(null); }}>
             <SelectTrigger id="productId" className="w-full">
               <SelectValue placeholder="اختر منتج">
                 {(value: string | null) =>
@@ -54,7 +75,7 @@ export default function AnalysisForm({
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="marketId">السوق *</Label>
-          <Select name="marketId">
+          <Select name="marketId" onValueChange={(v) => { setMarketId(v as string); setSuggestion(null); }}>
             <SelectTrigger id="marketId" className="w-full">
               <SelectValue placeholder="اختر سوق">
                 {(value: string | null) =>
@@ -81,19 +102,48 @@ export default function AnalysisForm({
         <Input id="year" name="year" type="number" defaultValue={new Date().getFullYear()} />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div>
+        <Button type="button" variant="outline" size="sm" disabled={!productId || !marketId || suggesting} onClick={requestSuggestion}>
+          {suggesting ? "بيحسب..." : "🧮 اقتراح آلي من بيانات حقيقية (مخاطرة السوق + المنافسين)"}
+        </Button>
+        {suggestion?.formError && <p className="mt-2 text-xs text-destructive">{suggestion.formError}</p>}
+        {suggestion?.result && (
+          <div className="mt-2 rounded-lg bg-sky-50 p-3 text-xs text-sky-800">
+            <p className="font-medium">
+              اقتراح: درجة الفرصة {suggestion.result.opportunityScore} · درجة المخاطرة {suggestion.result.riskScore}
+            </p>
+            <ul className="mt-1.5 list-inside list-disc space-y-0.5">
+              {suggestion.result.reasoning.map((r, i) => (
+                <li key={i}>{r}</li>
+              ))}
+            </ul>
+            <Button type="button" size="sm" className="mt-2" onClick={applySuggestion}>
+              طبّق الاقتراح في الحقول
+            </Button>
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="opportunityScore">درجة الفرصة (0-100) *</Label>
-          <Input id="opportunityScore" name="opportunityScore" type="number" min={0} max={100} />
+          <Input ref={opportunityRef} id="opportunityScore" name="opportunityScore" type="number" min={0} max={100} />
           {state.errors?.opportunityScore && (
             <span className="text-xs text-destructive">{state.errors.opportunityScore[0]}</span>
           )}
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="riskScore">درجة المخاطرة (0-100) *</Label>
-          <Input id="riskScore" name="riskScore" type="number" min={0} max={100} />
+          <Input ref={riskRef} id="riskScore" name="riskScore" type="number" min={0} max={100} />
           {state.errors?.riskScore && (
             <span className="text-xs text-destructive">{state.errors.riskScore[0]}</span>
+          )}
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="confidenceLevel">مستوى الثقة (0-100)</Label>
+          <Input id="confidenceLevel" name="confidenceLevel" type="number" min={0} max={100} />
+          {state.errors?.confidenceLevel && (
+            <span className="text-xs text-destructive">{state.errors.confidenceLevel[0]}</span>
           )}
         </div>
       </div>

@@ -12,15 +12,9 @@ import { logError, isNextControlFlowError, businessRuleMessage, isIdempotencyKey
 import { requireAal2 } from "@/lib/mfa";
 import { encryptSecret, updateSecret } from "@/lib/vault";
 import { requestEntityCreation } from "@/lib/masterDataChangeRequest";
+import { BankAccountSchema } from "@/lib/bankAccountSchema";
 
 // ==================== BankAccount ====================
-
-export const BankAccountSchema = z.object({
-  accountName: z.string().trim().min(1, "اسم الحساب مطلوب"),
-  bankName: z.string().trim().min(1, "اسم البنك مطلوب"),
-  currency: z.string().trim().length(3).toUpperCase(),
-  openingBalance: z.coerce.number().optional(),
-});
 
 export type BankAccountFormState = { errors?: Record<string, string[]>; formError?: string; requestSubmitted?: boolean };
 
