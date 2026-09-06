@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
-import { getCurrentOrgId } from "@/lib/org";
+import { requireCurrentUser } from "@/lib/session";
+import { getPermissionScope, ownerScopeWhere } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
 import ContactForm from "./ContactForm";
 
@@ -13,9 +14,15 @@ export default async function NewContactPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const orgId = await getCurrentOrgId();
+  const user = await requireCurrentUser();
+  const orgId = user.orgId;
   const prisma = await getScopedPrisma();
-  const company = await prisma.company.findFirst({ where: { id, orgId, deletedAt: null } });
+  // ⚠️ نفس فجوة IDOR في /deals/[id]/scenarios/new (اتصلحت في إعادة مراجعة وحدة 2، 7 سبتمبر) —
+  // كانت بتسرّب اسم شركة مندوب تاني قبل الإرسال حتى لو createContact نفسها بترفض الإنشاء
+  // فعليًا (assertOwnScope موجود من الأساس). اتكشفت هنا كمان في إعادة مراجعة وحدة 3 (7 سبتمبر).
+  const scope = await getPermissionScope(user.roleId, "Company", "View");
+  const ownerFilter = await ownerScopeWhere(scope, user);
+  const company = await prisma.company.findFirst({ where: { id, orgId, deletedAt: null, ...ownerFilter } });
   if (!company) notFound();
 
   return (
