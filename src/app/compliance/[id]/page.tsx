@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
-import { getCurrentOrgId } from "@/lib/org";
+import { requireCurrentUser } from "@/lib/session";
+import { requirePermission, getPermissionScope, scopedOwnerIdFilter } from "@/lib/permissions";
 import RequirementForm from "./RequirementForm";
 import RequirementStatusForm from "./RequirementStatusForm";
 import GateForm from "./GateForm";
@@ -48,11 +49,32 @@ export const dynamic = "force-dynamic";
 
 export default async function ComplianceCaseDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const orgId = await getCurrentOrgId();
+  const user = await requireCurrentUser();
+
+  // ⚠️ الصفحة دي كانت بلا أي فحص صلاحية خالص — لا binary permission ولا فلترة Own/Team scope
+  // (اتكشف في مراجعة وحدة 5، 6 سبتمبر). أي حد مسجّل دخول في المنظمة كان يقدر يفتح تفاصيل أي
+  // ملف امتثال (بيانات صفقة/عميل/بنود مالية) لو عرف/خمّن الـid، بغض النظر عن دوره أو صلاحياته.
+  try {
+    await requirePermission(user.roleId, "ComplianceCase", "View");
+  } catch {
+    return (
+      <main className="mx-auto max-w-3xl px-6 py-10">
+        <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-6 text-center text-sm text-destructive">
+          معندكش صلاحية الوصول للصفحة دي.
+        </div>
+      </main>
+    );
+  }
+
+  const orgId = user.orgId;
   const prisma = await getScopedPrisma();
 
+  const scope = await getPermissionScope(user.roleId, "ComplianceCase", "View");
+  const scopedOwnerId = await scopedOwnerIdFilter(scope, user);
+  const dealOwnerFilter = scopedOwnerId !== undefined ? { opportunity: { ownerId: scopedOwnerId } } : {};
+
   const kase = await prisma.complianceCase.findFirst({
-    where: { id, orgId },
+    where: { id, orgId, deal: dealOwnerFilter },
     include: {
       deal: { include: { customer: true } },
       product: true,

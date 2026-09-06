@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireCurrentUser } from "@/lib/session";
-import { requirePermission } from "@/lib/permissions";
+import { requirePermission, getPermissionScope, scopedOwnerIdFilter } from "@/lib/permissions";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
 import { PAGE_SIZE, parsePage } from "@/lib/pagination";
 import Pagination from "@/components/Pagination";
@@ -50,9 +50,17 @@ export default async function CompliancePage({
   const orgId = user.orgId;
   const prisma = await getScopedPrisma();
 
+  // Own/Team scope (مثلًا SalesManager بتاع فريقه) — نفس نمط /deals، كان ناقص هنا بالكامل (اتكشف
+  // في مراجعة وحدة 5، 6 سبتمبر): SalesManager (Team scope) كان يشوف كل ملفات الامتثال في
+  // المنظمة، مش بس صفقات فريقه. ComplianceOfficer عنده Org scope فمش بيتأثر.
+  const scope = await getPermissionScope(user.roleId, "ComplianceCase", "View");
+  const scopedOwnerId = await scopedOwnerIdFilter(scope, user);
+  const dealOwnerFilter = scopedOwnerId !== undefined ? { opportunity: { ownerId: scopedOwnerId } } : {};
+
   const where: Prisma.ComplianceCaseWhereInput = {
     orgId,
     deletedAt: null,
+    deal: dealOwnerFilter,
     ...(status && statuses.includes(status) ? { status: status as ComplianceCaseStatus } : {}),
   };
 

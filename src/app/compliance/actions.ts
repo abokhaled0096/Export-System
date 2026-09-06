@@ -5,9 +5,27 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getScopedPrisma, withScopedTransaction } from "@/lib/scoped-prisma";
 import { requireCurrentUser } from "@/lib/session";
-import { requirePermission } from "@/lib/permissions";
+import { requirePermission, assertOwnScope } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 import { logError, isNextControlFlowError } from "@/lib/errorLog";
+
+/** بيرجّع ownerId الصفقة اللي ملف الامتثال ده تابع لها — بيتستخدم لفحص Own/Team scope. مفيش
+ * ownerId مباشر على ComplianceCase نفسه (نفس تعليق seed.ts)، لكن نفس المنطق ده مُطبَّق فعليًا على
+ * Document/DocumentPackage (وحدة 4) اللي تابعين لصفقة بالظبط زي كده — الفحص ده كان ناقص هنا
+ * بالكامل (اتكشف في مراجعة وحدة 5، 6 سبتمبر): SalesManager عنده Team scope حقيقي على كل موارد
+ * الامتثال، وبلا الفحص ده كان يقدر يتعامل مع ملف امتثال/بوابة/إثبات منشأ لأي صفقة في المنظمة
+ * كلها، مش بس صفقات فريقه — نفس فئة الثغرة المكتشفة والمُصلَحة في وحدة 2. */
+async function assertDealOwnScope(scope: Awaited<ReturnType<typeof requirePermission>>, dealId: string, user: Awaited<ReturnType<typeof requireCurrentUser>>) {
+  const scopedPrisma = await getScopedPrisma();
+  const deal = await scopedPrisma.deal.findUniqueOrThrow({ where: { id: dealId }, include: { opportunity: { select: { ownerId: true } } } });
+  await assertOwnScope(scope, deal.opportunity.ownerId, user);
+}
+
+async function assertComplianceCaseOwnScope(scope: Awaited<ReturnType<typeof requirePermission>>, complianceCaseId: string, user: Awaited<ReturnType<typeof requireCurrentUser>>) {
+  const scopedPrisma = await getScopedPrisma();
+  const kase = await scopedPrisma.complianceCase.findUniqueOrThrow({ where: { id: complianceCaseId }, select: { dealId: true } });
+  await assertDealOwnScope(scope, kase.dealId, user);
+}
 
 const OPERATION_TYPES = ["CommercialExport", "Sample", "Tender", "TrialShipment", "AnnualContract", "PrivateLabel"] as const;
 
@@ -34,7 +52,8 @@ export async function createComplianceCase(
   const user = await requireCurrentUser();
   let caseId: string;
   try {
-    await requirePermission(user.roleId, "ComplianceCase", "Create");
+    const scope = await requirePermission(user.roleId, "ComplianceCase", "Create");
+    await assertDealOwnScope(scope, dealId, user);
     const scopedPrisma = await getScopedPrisma();
     const deal = await scopedPrisma.deal.findUniqueOrThrow({ where: { id: dealId } });
 
@@ -118,7 +137,10 @@ export async function createRequirement(
   const user = await requireCurrentUser();
   const { complianceCaseId, productId, marketId, mandatory, responsibleParty, issuingAuthority, ...rest } = parsed.data;
   try {
-    await requirePermission(user.roleId, "Requirement", "Create");
+    const scope = await requirePermission(user.roleId, "Requirement", "Create");
+    if (complianceCaseId) {
+      await assertComplianceCaseOwnScope(scope, complianceCaseId, user);
+    }
     await withScopedTransaction(async (tx) => {
       const requirement = await tx.requirement.create({
         data: {
@@ -167,7 +189,15 @@ export async function updateRequirementStatus(
 
   const user = await requireCurrentUser();
   try {
-    await requirePermission(user.roleId, "Requirement", "Edit");
+    const scope = await requirePermission(user.roleId, "Requirement", "Edit");
+    // بنفحص ملكية الصفقة عبر complianceCaseId الحقيقي بتاع المتطلب نفسه (لو موجود) — مش
+    // الباراميتر المُرسَل. متطلب في وضع البحث المبكر (productId+marketId بلا complianceCaseId)
+    // مفيش صفقة يتفحص ضدها أصلًا.
+    const scopedPrisma = await getScopedPrisma();
+    const existingRequirement = await scopedPrisma.requirement.findUniqueOrThrow({ where: { id: requirementId }, select: { complianceCaseId: true } });
+    if (existingRequirement.complianceCaseId) {
+      await assertComplianceCaseOwnScope(scope, existingRequirement.complianceCaseId, user);
+    }
     await withScopedTransaction(async (tx) => {
       const before = await tx.requirement.findUniqueOrThrow({ where: { id: requirementId } });
       await tx.requirement.update({ where: { id: requirementId }, data: { status: parsed.data.status } });
@@ -217,7 +247,8 @@ export async function createGate(
 
   const user = await requireCurrentUser();
   try {
-    await requirePermission(user.roleId, "Gate", "Create");
+    const scope = await requirePermission(user.roleId, "Gate", "Create");
+    await assertComplianceCaseOwnScope(scope, complianceCaseId, user);
     await withScopedTransaction(async (tx) => {
       const gate = await tx.gate.create({
         data: {
@@ -269,7 +300,13 @@ export async function decideGate(
 
   const user = await requireCurrentUser();
   try {
-    await requirePermission(user.roleId, "Gate", "Edit");
+    const scope = await requirePermission(user.roleId, "Gate", "Edit");
+    // بنفحص ملكية البوابة نفسها (عبر complianceCase الحقيقي بتاعها)، مش complianceCaseId المُرسَل
+    // كباراميتر — عشان محدش يقدر "يقرض" ملكية ملف امتثال يملكه عشان يعدّي فحص الملكية بينما
+    // فعليًا بيعدّل بوابة تابعة لملف امتثال تاني (نفس فئة باگ createNegotiationRound في وحدة 3).
+    const scopedPrisma = await getScopedPrisma();
+    const gate = await scopedPrisma.gate.findUniqueOrThrow({ where: { id: gateId }, select: { complianceCaseId: true } });
+    await assertComplianceCaseOwnScope(scope, gate.complianceCaseId, user);
     await withScopedTransaction(async (tx) => {
       await tx.gate.update({
         where: { id: gateId },
@@ -321,7 +358,7 @@ export async function requestGateWaiver(
 ): Promise<RequestGateWaiverState> {
   const user = await requireCurrentUser();
   try {
-    await requirePermission(user.roleId, "Gate", "Edit");
+    const scope = await requirePermission(user.roleId, "Gate", "Edit");
     const scopedPrisma = await getScopedPrisma();
     const existingPending = await scopedPrisma.approval.findFirst({
       where: { orgId: user.orgId, subjectType: "Gate.waiver", subjectId: gateId, decision: "Pending" },
@@ -330,8 +367,9 @@ export async function requestGateWaiver(
 
     const gate = await scopedPrisma.gate.findUniqueOrThrow({
       where: { id: gateId },
-      include: { complianceCase: { include: { deal: true } } },
+      include: { complianceCase: { include: { deal: { include: { opportunity: { select: { ownerId: true } } } } } } },
     });
+    await assertOwnScope(scope, gate.complianceCase.deal.opportunity.ownerId, user);
 
     await withScopedTransaction(async (tx) => {
       const approval = await tx.approval.create({
@@ -622,7 +660,8 @@ export async function createOriginProof(
   const user = await requireCurrentUser();
   const { shipmentId, cumulationType, certificateNumber, issuedDate, issuingAuthority, ...rest } = parsed.data;
   try {
-    await requirePermission(user.roleId, "OriginProof", "Create");
+    const scope = await requirePermission(user.roleId, "OriginProof", "Create");
+    await assertDealOwnScope(scope, dealId, user);
     await withScopedTransaction(async (tx) => {
       const proof = await tx.originProof.create({
         data: {
@@ -690,7 +729,12 @@ export async function updateOriginProofAction(
   const user = await requireCurrentUser();
   const { cumulationType, certificateNumber, issuedDate, issuingAuthority, ...rest } = parsed.data;
   try {
-    await requirePermission(user.roleId, "OriginProof", "Edit");
+    const scope = await requirePermission(user.roleId, "OriginProof", "Edit");
+    // بنفحص ملكية إثبات المنشأ نفسه عبر dealId الحقيقي بتاعه، مش الباراميتر complianceCaseId
+    // المُرسَل (نفس السبب الموضّح في decideGate فوق).
+    const scopedPrisma = await getScopedPrisma();
+    const existingProof = await scopedPrisma.originProof.findUniqueOrThrow({ where: { id: originProofId }, select: { dealId: true } });
+    await assertDealOwnScope(scope, existingProof.dealId, user);
     await withScopedTransaction(async (tx) => {
       const before = await tx.originProof.findUniqueOrThrow({ where: { id: originProofId } });
       await tx.originProof.update({
@@ -761,7 +805,8 @@ export async function createRejectionCase(
   const user = await requireCurrentUser();
   const { capaId, shipmentId, currency, finalResult, ...rest } = parsed.data;
   try {
-    await requirePermission(user.roleId, "RejectionCase", "Create");
+    const scope = await requirePermission(user.roleId, "RejectionCase", "Create");
+    await assertComplianceCaseOwnScope(scope, complianceCaseId, user);
     await withScopedTransaction(async (tx) => {
       const rejectionCase = await tx.rejectionCase.create({
         data: {
@@ -837,7 +882,8 @@ export async function createLCRequirement(
   const user = await requireCurrentUser();
   const { expiryDate, latestShipmentDate, requiredWording, ...rest } = parsed.data;
   try {
-    await requirePermission(user.roleId, "LCRequirement", "Create");
+    const scope = await requirePermission(user.roleId, "LCRequirement", "Create");
+    await assertDealOwnScope(scope, dealId, user);
     await withScopedTransaction(async (tx) => {
       const lcRequirement = await tx.lCRequirement.create({
         data: {
