@@ -59,6 +59,7 @@ export default async function CompareScenariosPage({ params }: { params: Promise
     { label: "Incoterm", value: (s) => s.incoterm },
     { label: "نقطة التعادل", value: (s) => `${fmt(s.breakEvenPrice)} ${s.currency}` },
     { label: "الحد الأدنى (walkAwayPrice)", value: (s) => `${fmt(s.walkAwayPrice)} ${s.currency}` },
+    { label: "السعر الافتتاحي", value: (s) => (s.openingPrice ? `${fmt(s.openingPrice)} ${s.currency}` : "—") },
     { label: "السعر المستهدف", value: (s) => (s.targetPrice ? `${fmt(s.targetPrice)} ${s.currency}` : "—") },
     { label: "السعر النهائي", value: (s) => (s.finalPrice ? `${fmt(s.finalPrice)} ${s.currency}` : "—") },
     {

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireCurrentUser } from "@/lib/session";
-import { requirePermission } from "@/lib/permissions";
+import { requirePermission, getPermissionScope, scopedOwnerIdFilter } from "@/lib/permissions";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -23,8 +23,15 @@ export default async function QuoteBundlesPage() {
   }
 
   const prisma = await getScopedPrisma();
+
+  // مراجعة وحدة 2 (6 سبتمبر): بلا الفلتر ده كل الحزم كانت ظاهرة لأي حد عنده QuoteBundle.View
+  // بغض النظر عن الـscope بتاعه — يعني SalesRep (Own) كان يشوف أسعار عروض مندوبين تانيين.
+  const scope = await getPermissionScope(user.roleId, "QuoteBundle", "View");
+  const scopedOwnerId = await scopedOwnerIdFilter(scope, user);
+  const ownerFilter = scopedOwnerId !== undefined ? { quotes: { some: { deal: { opportunity: { ownerId: scopedOwnerId } } } } } : {};
+
   const bundles = await prisma.quoteBundle.findMany({
-    where: { orgId: user.orgId },
+    where: { orgId: user.orgId, ...ownerFilter },
     orderBy: { createdAt: "desc" },
     include: { customer: { select: { legalName: true } }, createdByUser: { select: { fullName: true } }, _count: { select: { quotes: true } } },
   });

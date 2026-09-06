@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { withScopedTransaction } from "@/lib/scoped-prisma";
 import { requireCurrentUser } from "@/lib/session";
-import { requirePermission } from "@/lib/permissions";
+import { requirePermission, assertOwnScope } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 import { logError, isNextControlFlowError, businessRuleMessage } from "@/lib/errorLog";
 
@@ -31,11 +31,17 @@ export async function createQuoteBundle(_prevState: QuoteBundleFormState, formDa
   const user = await requireCurrentUser();
   let bundleId: string;
   try {
-    await requirePermission(user.roleId, "QuoteBundle", "Create");
+    const scope = await requirePermission(user.roleId, "QuoteBundle", "Create");
     bundleId = await withScopedTransaction(async (tx) => {
-      const quotes = await tx.quote.findMany({ where: { id: { in: parsed.data.quoteIds }, orgId: user.orgId } });
+      const quotes = await tx.quote.findMany({
+        where: { id: { in: parsed.data.quoteIds }, orgId: user.orgId },
+        include: { deal: { include: { opportunity: { select: { ownerId: true } } } } },
+      });
       if (quotes.length !== parsed.data.quoteIds.length) throw new Error("فيه عرض سعر مش موجود ضمن اللي اخترتهم.");
       for (const q of quotes) {
+        // كل عرض بيتحقق بملكيته لوحده — بلا الفحص ده، SalesRep (Own scope) كان يقدر يضم عروض
+        // أسعار من صفقات مش بتاعته خالص لنفس العميل (اتكشف في مراجعة وحدة 2، 6 سبتمبر).
+        await assertOwnScope(scope, q.deal.opportunity.ownerId, user);
         if (q.customerId !== parsed.data.customerId) throw new Error("كل عروض الأسعار في الحزمة لازم تكون لنفس العميل.");
         if (q.bundleId) throw new Error("فيه عرض سعر متضاف لحزمة تانية بالفعل — شيله من هناك الأول.");
         if (!(BUNDLABLE_QUOTE_STATUSES as readonly string[]).includes(q.status)) {
@@ -80,13 +86,17 @@ export async function createQuoteBundle(_prevState: QuoteBundleFormState, formDa
  * لصفحة القائمة لو الحزمة اللي كان بيتفرّج عليها اتشالت. */
 export async function removeQuoteFromBundleAction(quoteId: string): Promise<{ bundleDeleted: boolean }> {
   const user = await requireCurrentUser();
-  await requirePermission(user.roleId, "QuoteBundle", "Create");
+  const scope = await requirePermission(user.roleId, "QuoteBundle", "Create");
 
   let bundleDeleted = false;
   let bundleIdForRevalidate: string | null = null;
   try {
     await withScopedTransaction(async (tx) => {
-      const quote = await tx.quote.findUniqueOrThrow({ where: { id: quoteId } });
+      const quote = await tx.quote.findUniqueOrThrow({
+        where: { id: quoteId },
+        include: { deal: { include: { opportunity: { select: { ownerId: true } } } } },
+      });
+      await assertOwnScope(scope, quote.deal.opportunity.ownerId, user);
       const bundleId = quote.bundleId;
       if (!bundleId) return;
       bundleIdForRevalidate = bundleId;

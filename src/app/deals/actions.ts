@@ -90,6 +90,7 @@ const ScenarioSchema = z.object({
   namedPlace: z.string().trim().optional().or(z.literal("")),
   currency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase(),
   walkAwayPrice: z.coerce.number().positive("الحد الأدنى للسعر مطلوب"),
+  openingPrice: z.coerce.number().positive().optional(),
   targetPrice: z.coerce.number().positive().optional(),
   financeCost: z.coerce.number().nonnegative().optional(),
   riskReserve: z.coerce.number().nonnegative().optional(),
@@ -114,6 +115,7 @@ export async function createScenario(
     namedPlace: formData.get("namedPlace") || undefined,
     currency: formData.get("currency"),
     walkAwayPrice: formData.get("walkAwayPrice"),
+    openingPrice: formData.get("openingPrice") || undefined,
     targetPrice: formData.get("targetPrice") || undefined,
     financeCost: formData.get("financeCost") || undefined,
     riskReserve: formData.get("riskReserve") || undefined,
@@ -813,13 +815,14 @@ export async function sendQuoteEmail(
  */
 export async function acceptQuote(quoteId: string) {
   const user = await requireCurrentUser();
-  await requirePermission(user.roleId, "Quote", "Approve");
+  const scope = await requirePermission(user.roleId, "Quote", "Approve");
 
   const { dealId } = await withScopedTransaction(async (tx) => {
     const quote = await tx.quote.findUniqueOrThrow({
       where: { id: quoteId },
-      include: { scenario: true, deal: true },
+      include: { scenario: true, deal: { include: { opportunity: { select: { ownerId: true } } } } },
     });
+    await assertOwnScope(scope, quote.deal.opportunity.ownerId, user);
     if (quote.status === "Accepted" || quote.status === "Rejected") {
       throw new Error("العرض ده اتقفل بالفعل (مقبول أو مرفوض).");
     }
@@ -903,10 +906,14 @@ export async function confirmSalesOrder(
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
 
   const user = await requireCurrentUser();
-  await requirePermission(user.roleId, "SalesOrder", "Edit");
+  const scope = await requirePermission(user.roleId, "SalesOrder", "Edit");
 
   const scopedPrisma = await getScopedPrisma();
-  const salesOrder = await scopedPrisma.salesOrder.findUniqueOrThrow({ where: { id: salesOrderId } });
+  const salesOrder = await scopedPrisma.salesOrder.findUniqueOrThrow({
+    where: { id: salesOrderId },
+    include: { deal: { include: { opportunity: { select: { ownerId: true } } } } },
+  });
+  await assertOwnScope(scope, salesOrder.deal.opportunity.ownerId, user);
   if (salesOrder.status !== "Draft") return { formError: "أمر البيع ده اتأكد بالفعل." };
 
   try {
@@ -1261,14 +1268,28 @@ export async function createCommissionEntry(dealId: string, _prevState: Commissi
   return {};
 }
 
+/** بيتأكد إن ownerId الصفقة المرتبطة بعمولة معيّنة بيحترم scope المستخدم (Own/Team) — نفس نمط
+ * assertOwnScope المطبَّق على باقي أفعال هذا الملف، كان ناقص هنا (اتكشف في مراجعة وحدة 2، 6 سبتمبر):
+ * SalesManager عنده Team scope فعليًا على CommissionEntry.Edit، وبلا الفحص ده كان يقدر يعتمد/يسدد
+ * عمولة أي فريق تاني في المنظمة. `dealId` هنا بيتاخد من `entry.dealId` (القاعدة) مش من أي باراميتر
+ * مُرسَل من العميل، عشان محدش يقدر يزوّر مصدر الملكية. عمولات بلا `dealId` (Deal? nullable) بتتخطّى
+ * الفحص — مفيش صفقة تتتبّع ملكيتها منها أصلًا. */
+async function assertCommissionEntryOwnScope(tx: ScopedTx, scope: Awaited<ReturnType<typeof requirePermission>>, entryDealId: string | null, user: { id: string; teamId: string | null }) {
+  if (!entryDealId) return;
+  const deal = await tx.deal.findUnique({ where: { id: entryDealId }, include: { opportunity: { select: { ownerId: true } } } });
+  if (!deal) return;
+  await assertOwnScope(scope, deal.opportunity.ownerId, user);
+}
+
 /** موافقة إدارية بس — بلا أي أثر محاسبي. الترحيل الفعلي بيحصل بس عند السداد. */
 export async function approveCommissionEntryAction(dealId: string, entryId: string) {
   const user = await requireCurrentUser();
-  await requirePermission(user.roleId, "CommissionEntry", "Edit");
+  const scope = await requirePermission(user.roleId, "CommissionEntry", "Edit");
 
   try {
     await withScopedTransaction(async (tx) => {
       const entry = await tx.commissionEntry.findUniqueOrThrow({ where: { id: entryId } });
+      await assertCommissionEntryOwnScope(tx, scope, entry.dealId, user);
       if (entry.status !== "Accrued") throw new Error(`العمولة حالتها ${entry.status} — المستحقة (Accrued) بس اللي تتعتمد.`);
       await tx.commissionEntry.update({ where: { id: entryId }, data: { status: "Approved" } });
       await logAudit(tx, { orgId: user.orgId, userId: user.id, action: "commissionEntry.approved", entityType: "CommissionEntry", entityId: entryId });
@@ -1286,11 +1307,12 @@ export async function approveCommissionEntryAction(dealId: string, entryId: stri
  * الحالة "مدفوعة". ⚠️ بلا Payment/BankAccount عمدًا — راجع تعليق postCommissionPayment. */
 export async function payCommissionEntryAction(dealId: string, entryId: string) {
   const user = await requireCurrentUser();
-  await requirePermission(user.roleId, "CommissionEntry", "Edit");
+  const scope = await requirePermission(user.roleId, "CommissionEntry", "Edit");
 
   try {
     await withScopedTransaction(async (tx) => {
       const entry = await tx.commissionEntry.findUniqueOrThrow({ where: { id: entryId } });
+      await assertCommissionEntryOwnScope(tx, scope, entry.dealId, user);
       if (entry.status !== "Approved") throw new Error(`العمولة حالتها ${entry.status} — المعتمَدة (Approved) بس اللي تتسدد.`);
 
       const paidAt = new Date();

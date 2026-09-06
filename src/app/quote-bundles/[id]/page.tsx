@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Prisma } from "@/generated/prisma/client";
 import { requireCurrentUser } from "@/lib/session";
-import { requirePermission } from "@/lib/permissions";
+import { requirePermission, getPermissionScope, scopedOwnerIdFilter } from "@/lib/permissions";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
 import RemoveQuoteButton from "./RemoveQuoteButton";
 import { Badge } from "@/components/ui/badge";
@@ -38,8 +38,14 @@ export default async function QuoteBundleDetailPage({ params }: { params: Promis
   }
 
   const prisma = await getScopedPrisma();
+
+  // نفس فلتر ملكية /quote-bundles (راجع الملحوظة هناك).
+  const scope = await getPermissionScope(user.roleId, "QuoteBundle", "View");
+  const scopedOwnerId = await scopedOwnerIdFilter(scope, user);
+  const ownerFilter = scopedOwnerId !== undefined ? { quotes: { some: { deal: { opportunity: { ownerId: scopedOwnerId } } } } } : {};
+
   const bundle = await prisma.quoteBundle.findFirst({
-    where: { id, orgId: user.orgId },
+    where: { id, orgId: user.orgId, ...ownerFilter },
     include: {
       customer: true,
       createdByUser: { select: { fullName: true } },

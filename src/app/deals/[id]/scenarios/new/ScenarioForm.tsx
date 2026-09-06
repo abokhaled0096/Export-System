@@ -129,7 +129,18 @@ export default function ScenarioForm({ dealId }: { dealId: string }) {
         </span>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="openingPrice">السعر الافتتاحي (أول عرض للعميل)</Label>
+          <Input
+            id="openingPrice"
+            name="openingPrice"
+            type="number"
+            step="0.0001"
+            value={val("openingPrice")}
+            onChange={(e) => draft.setField("openingPrice", e.target.value)}
+          />
+        </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="targetPrice">السعر المستهدف</Label>
           <Input

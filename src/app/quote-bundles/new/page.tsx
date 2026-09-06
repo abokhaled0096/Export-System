@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireCurrentUser } from "@/lib/session";
-import { requirePermission } from "@/lib/permissions";
+import { requirePermission, getPermissionScope, scopedOwnerIdFilter } from "@/lib/permissions";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
 import ListSearch from "@/components/ListSearch";
 import NewBundleForm from "./NewBundleForm";
@@ -71,8 +71,14 @@ export default async function NewQuoteBundlePage({ searchParams }: { searchParam
     );
   }
 
+  // مراجعة وحدة 2 (6 سبتمبر): لازم تفلتر بنفس scope الملكية بتاعة QuoteBundle.Create — من غير
+  // الفلتر ده، SalesRep (Own) كان يقدر يشوف ويضم عروض أسعار من صفقات مش بتاعته خالص لنفس العميل.
+  const bundleScope = await getPermissionScope(user.roleId, "QuoteBundle", "Create");
+  const scopedOwnerId = await scopedOwnerIdFilter(bundleScope, user);
+  const dealOwnerFilter = scopedOwnerId !== undefined ? { opportunity: { ownerId: scopedOwnerId } } : {};
+
   const eligibleQuotes = await prisma.quote.findMany({
-    where: { orgId: user.orgId, customerId, bundleId: null, status: { in: ["Draft", "PendingApproval", "Sent"] } },
+    where: { orgId: user.orgId, customerId, bundleId: null, status: { in: ["Draft", "PendingApproval", "Sent"] }, deal: dealOwnerFilter },
     orderBy: { createdAt: "desc" },
     include: { deal: { include: { product: true } } },
   });
