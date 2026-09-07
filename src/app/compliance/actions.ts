@@ -7,7 +7,8 @@ import { getScopedPrisma, withScopedTransaction } from "@/lib/scoped-prisma";
 import { requireCurrentUser } from "@/lib/session";
 import { requirePermission, assertOwnScope } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
-import { logError, isNextControlFlowError } from "@/lib/errorLog";
+import { logError, isNextControlFlowError, businessRuleMessage } from "@/lib/errorLog";
+import { assertWorkflowTransitionAllowed } from "@/lib/workflow";
 
 /** بيرجّع ownerId الصفقة اللي ملف الامتثال ده تابع لها — بيتستخدم لفحص Own/Team scope. مفيش
  * ownerId مباشر على ComplianceCase نفسه (نفس تعليق seed.ts)، لكن نفس المنطق ده مُطبَّق فعليًا على
@@ -219,6 +220,11 @@ export async function updateRequirementStatus(
     }
     await withScopedTransaction(async (tx) => {
       const before = await tx.requirement.findUniqueOrThrow({ where: { id: requirementId } });
+      // انتقال حقيقي بقى — بس الأزواج المسموح بيها في جدول WorkflowDefinition (وحدة 9، راجع
+      // STATUS.md 7 سبتمبر). كانت بلا أي فحص خالص قبل كده (اتكشف في إعادة مراجعة وحدة 5، 7 سبتمبر).
+      if (before.status !== parsed.data.status) {
+        await assertWorkflowTransitionAllowed(tx, user.orgId, "Requirement", requirementId, before.status, parsed.data.status);
+      }
       await tx.requirement.update({ where: { id: requirementId }, data: { status: parsed.data.status } });
       await logAudit(tx, {
         orgId: user.orgId,
@@ -233,7 +239,7 @@ export async function updateRequirementStatus(
   } catch (e) {
     if (isNextControlFlowError(e)) throw e;
     await logError({ orgId: user.orgId, userId: user.id, action: "updateRequirementStatus", error: e });
-    return { formError: "حصل خطأ أثناء تحديث حالة المتطلب — حاول تاني." };
+    return { formError: businessRuleMessage(e, "حصل خطأ أثناء تحديث حالة المتطلب — حاول تاني.") };
   }
 
   revalidatePath(`/compliance/${complianceCaseId}`);
@@ -327,6 +333,13 @@ export async function decideGate(
     const gate = await scopedPrisma.gate.findUniqueOrThrow({ where: { id: gateId }, select: { complianceCaseId: true } });
     await assertComplianceCaseOwnScope(scope, gate.complianceCaseId, user);
     await withScopedTransaction(async (tx) => {
+      // إعادة تحقّق من status جوه الـtransaction نفسها (نفس نمط isLocked في createCostItem) —
+      // انتقال حقيقي بقى — بس القرار المسموح من Pending (الحالة الابتدائية) بس، عبر جدول
+      // WorkflowDefinition (وحدة 9، راجع STATUS.md 7 سبتمبر). كانت بلا أي فحص خالص قبل كده —
+      // بوابة اتقررت بالفعل كان ينفع تتقرر تاني بأي قيمة تانية بلا قيد (اتكشف في إعادة مراجعة
+      // وحدة 5، 7 سبتمبر). Waived مش من ضمن القيم هنا أصلًا (بيمرّ عبر requestGateWaiver+اعتماد).
+      const fresh = await tx.gate.findUniqueOrThrow({ where: { id: gateId }, select: { status: true } });
+      await assertWorkflowTransitionAllowed(tx, user.orgId, "Gate", gateId, fresh.status, parsed.data.status);
       await tx.gate.update({
         where: { id: gateId },
         data: { status: parsed.data.status, decidedBy: user.id, decidedAt: new Date() },
@@ -343,6 +356,11 @@ export async function decideGate(
   } catch (e) {
     if (isNextControlFlowError(e)) throw e;
     await logError({ orgId: user.orgId, userId: user.id, action: "decideGate", error: e });
+    // assertWorkflowTransitionAllowed بترمي Error نضيفة (مش رسالة Prisma/Postgres خام) — آمن
+    // نرجعها زي ما هي، عكس رسائل الـTrigger تحت.
+    if (e instanceof Error && e.message.includes("مينفعش الانتقال من")) {
+      return { formError: e.message };
+    }
     // ⚠️ متعمّد ما بنرجعش e.message هنا — Prisma بيغلّف رسالة الـTrigger جوه نص مطوّل فيه
     // مسار الملف والاستعلام الخام، ورسالة نضيفة يدوية زي دي أأمن (نفس نمط createQuote/walkAwayPrice).
     if (e instanceof Error && e.message.includes("متطلب حاجب")) {
@@ -804,6 +822,11 @@ export async function updateOriginProofAction(
     await assertDealOwnScope(scope, existingProof.dealId, user);
     await withScopedTransaction(async (tx) => {
       const before = await tx.originProof.findUniqueOrThrow({ where: { id: originProofId } });
+      // انتقال حقيقي بقى — بس الأزواج المسموح بيها في جدول WorkflowDefinition (وحدة 9، راجع
+      // STATUS.md 7 سبتمبر). كانت بلا أي فحص خالص قبل كده (اتكشف في إعادة مراجعة وحدة 5، 7 سبتمبر).
+      if (before.status !== rest.status) {
+        await assertWorkflowTransitionAllowed(tx, user.orgId, "OriginProof", originProofId, before.status, rest.status);
+      }
       await tx.originProof.update({
         where: { id: originProofId },
         data: {
@@ -827,7 +850,7 @@ export async function updateOriginProofAction(
   } catch (e) {
     if (isNextControlFlowError(e)) throw e;
     await logError({ orgId: user.orgId, userId: user.id, action: "updateOriginProofAction", error: e });
-    return { formError: "حصل خطأ أثناء تحديث إثبات المنشأ — حاول تاني." };
+    return { formError: businessRuleMessage(e, "حصل خطأ أثناء تحديث إثبات المنشأ — حاول تاني.") };
   }
 
   revalidatePath(`/compliance/${complianceCaseId}`);

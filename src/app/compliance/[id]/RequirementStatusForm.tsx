@@ -7,19 +7,22 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const initialState: UpdateRequirementStatusState = {};
-const statuses = Object.keys(requirementStatusLabel);
 
 export default function RequirementStatusForm({
   requirementId,
   complianceCaseId,
   currentStatus,
+  allowedNextStatuses,
 }: {
   requirementId: string;
   complianceCaseId: string;
   currentStatus: string;
+  allowedNextStatuses: string[];
 }) {
   const action = updateRequirementStatus.bind(null, requirementId, complianceCaseId);
   const [state, formAction, pending] = useActionState(action, initialState);
+  // الحالة الحالية + الانتقالات المسموحة بس (جدول WorkflowDefinition، وحدة 9).
+  const statuses = [currentStatus, ...allowedNextStatuses.filter((s) => s !== currentStatus)];
 
   return (
     <form action={formAction} className="flex items-center gap-2">

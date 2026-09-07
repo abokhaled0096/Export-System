@@ -130,6 +130,14 @@ export default async function ComplianceCaseDetailPage({ params }: { params: Pro
     select: { id: true, name: true, supplier: { select: { legalName: true } } },
     orderBy: { name: "asc" },
   });
+  // الانتقالات المسموحة لـRequirement/Gate/OriginProof بقت في جدول WorkflowDefinition (وحدة 9) —
+  // كانت بلا أي فحص خالص قبل كده (اتكشف في إعادة مراجعة وحدة 5، 7 سبتمبر). بيتقروا مرة واحدة
+  // هنا ويتحسبوا لكل عنصر في القوائم تحت، بدل استعلام منفصل لكل عنصر.
+  const workflowDefs = await prisma.workflowDefinition.findMany({
+    where: { orgId, entityType: { in: ["Requirement", "Gate", "OriginProof"] } },
+  });
+  const allowedNext = (entityType: string, fromStage: string) =>
+    workflowDefs.filter((d) => d.entityType === entityType && d.fromStage === fromStage).map((d) => d.toStage);
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-10">
@@ -189,6 +197,7 @@ export default async function ComplianceCaseDetailPage({ params }: { params: Pro
                         requirementId={r.id}
                         complianceCaseId={kase.id}
                         currentStatus={r.status}
+                        allowedNextStatuses={allowedNext("Requirement", r.status)}
                       />
                     </TableCell>
                   </TableRow>
@@ -252,7 +261,7 @@ export default async function ComplianceCaseDetailPage({ params }: { params: Pro
                       <GateDecisionForm
                         gateId={g.id}
                         complianceCaseId={kase.id}
-                        currentStatus={g.status}
+                        allowedNextStatuses={allowedNext("Gate", g.status)}
                         hasPendingWaiver={pendingWaiverGateIds.has(g.id)}
                       />
                     </TableCell>
@@ -508,6 +517,7 @@ export default async function ComplianceCaseDetailPage({ params }: { params: Pro
                           issuingAuthority: p.issuingAuthority,
                           status: p.status,
                         }}
+                        allowedNextStatuses={allowedNext("OriginProof", p.status)}
                       />
                     </TableCell>
                   </TableRow>

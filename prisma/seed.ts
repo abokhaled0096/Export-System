@@ -687,6 +687,38 @@ async function main() {
     { entityType: "Product", fromStage: "Draft", toStage: "NeedsReview" },
     { entityType: "Product", fromStage: "NeedsReview", toStage: "Verified" },
     { entityType: "Product", fromStage: "Verified", toStage: "NeedsReview" },
+    // Gate.status (وحدة 5) — كانت بلا أي فحص خالص، بوابة اتقررت بالفعل كانت تتقرر تاني بأي قيمة
+    // بلا قيد. اتحدد بعد نقاش مع المستخدم: قرار مسموح من Pending/Failed/NotApplicable بس (نفس
+    // سلوك الواجهة الحالي المضمَّن في GateDecisionForm.tsx اللي بيمنع إعادة القرار من
+    // Passed/PassedWithConditions/Waived بس)، لأي واحدة من الأربعة قرارات المباشرة (اتكشف في
+    // إعادة مراجعة وحدة 5، 7 سبتمبر).
+    ...(["Pending", "Failed", "NotApplicable"] as const).flatMap((fromStage) =>
+      (["Passed", "PassedWithConditions", "Failed", "NotApplicable"] as const).map((toStage) => ({
+        entityType: "Gate",
+        fromStage,
+        toStage,
+      }))
+    ),
+    // OriginProof.status (وحدة 5) — بلا رجوع مباشر لـDraft بعد الإصدار عمدًا.
+    { entityType: "OriginProof", fromStage: "Draft", toStage: "Issued" },
+    { entityType: "OriginProof", fromStage: "Issued", toStage: "Verified" },
+    { entityType: "OriginProof", fromStage: "Issued", toStage: "Rejected" },
+    { entityType: "OriginProof", fromStage: "Verified", toStage: "Expired" },
+    // Requirement.status (وحدة 5) — أي حالة بحث/تأهيل أوّلية ({Applicable,PossiblyApplicable,
+    // NotApplicable}) تقدر توصّل لأي نتيجة تقييم، وNeedsExpertReview (تصعيد) تقدر تتحوّل لأي
+    // نتيجة تقييم نهائية بعد المراجعة (بلا رجوع لحالة بحث أوّلية تانية).
+    ...(["Applicable", "PossiblyApplicable", "NotApplicable"] as const).flatMap((fromStage) =>
+      (["Met", "PartiallyMet", "NotMet", "Blocking", "NeedsExpertReview"] as const).map((toStage) => ({
+        entityType: "Requirement",
+        fromStage,
+        toStage,
+      }))
+    ),
+    ...(["Met", "PartiallyMet", "NotMet", "Blocking"] as const).map((toStage) => ({
+      entityType: "Requirement",
+      fromStage: "NeedsExpertReview",
+      toStage,
+    })),
   ];
   for (const t of WORKFLOW_TRANSITIONS) {
     await prisma.workflowDefinition.upsert({

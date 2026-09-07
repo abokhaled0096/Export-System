@@ -89,7 +89,7 @@ export default async function WorkflowDefinitionsPage() {
         </Table>
       </div>
       <p className="mt-3 text-xs text-muted-foreground">
-        الكيانات المربوطة فعليًا بالمحرك دلوقتي: Opportunity، CAPA، وProduct (راجع updateOpportunityStageAction/updateCAPAStatusAction/updateProduct). القيود الحرجة الحقيقية (RFQAnalysis قبل QuoteSent، verifiedBy قبل إقفال CAPA) لسه مفروضة على مستوى القاعدة (Trigger) بغض النظر عن الجدول ده.
+        الكيانات المربوطة فعليًا بالمحرك دلوقتي: Opportunity، CAPA، Product، Requirement، Gate، وOriginProof (راجع updateOpportunityStageAction/updateCAPAStatusAction/updateProduct/updateRequirementStatus/decideGate/updateOriginProofAction). القيود الحرجة الحقيقية (RFQAnalysis قبل QuoteSent، verifiedBy قبل إقفال CAPA، متطلبات حاجبة/PEM/مهلة ACI قبل عبور بوابة) لسه مفروضة على مستوى القاعدة (Trigger) بغض النظر عن الجدول ده.
       </p>
     </main>
   );

@@ -11,7 +11,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 const initialState: OriginProofUpdateFormState = {};
 const cumulationTypes = Object.keys(originProofCumulationTypeLabel);
-const statuses = Object.keys(originProofStatusLabel);
 
 export type EditableOriginProof = {
   id: string;
@@ -24,10 +23,20 @@ export type EditableOriginProof = {
   status: string;
 };
 
-export default function EditOriginProofForm({ complianceCaseId, proof }: { complianceCaseId: string; proof: EditableOriginProof }) {
+export default function EditOriginProofForm({
+  complianceCaseId,
+  proof,
+  allowedNextStatuses,
+}: {
+  complianceCaseId: string;
+  proof: EditableOriginProof;
+  allowedNextStatuses: string[];
+}) {
   const action = updateOriginProofAction.bind(null, complianceCaseId, proof.id);
   const [state, formAction, pending] = useActionState(action, initialState);
   const [open, setOpen] = useState(false);
+  // الحالة الحالية + الانتقالات المسموحة بس (جدول WorkflowDefinition، وحدة 9).
+  const statuses = [proof.status, ...allowedNextStatuses.filter((s) => s !== proof.status)];
 
   if (!open) {
     return (

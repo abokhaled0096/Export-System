@@ -14,17 +14,16 @@ const directStatusLabel: Record<string, string> = {
   Failed: "فشلت",
   NotApplicable: "غير منطبقة",
 };
-const directStatuses = Object.keys(directStatusLabel);
 
 export default function GateDecisionForm({
   gateId,
   complianceCaseId,
-  currentStatus,
+  allowedNextStatuses,
   hasPendingWaiver,
 }: {
   gateId: string;
   complianceCaseId: string;
-  currentStatus: string;
+  allowedNextStatuses: string[];
   hasPendingWaiver: boolean;
 }) {
   const [decideState, decideAction, decidePending] = useActionState(
@@ -36,9 +35,12 @@ export default function GateDecisionForm({
     waiverInitial
   );
 
-  if (currentStatus === "Waived" || currentStatus === "Passed" || currentStatus === "PassedWithConditions") {
+  // مفيش انتقالات مسموحة أصلًا (جدول WorkflowDefinition، وحدة 9) = بوابة اتقررت بالفعل
+  // (Passed/PassedWithConditions/Waived) — بديل عن الفحص الحرفي القديم، بدل خريطة TS ثابتة.
+  if (allowedNextStatuses.length === 0) {
     return null;
   }
+  const directStatuses = allowedNextStatuses;
 
   return (
     <div className="flex flex-col gap-1.5">
