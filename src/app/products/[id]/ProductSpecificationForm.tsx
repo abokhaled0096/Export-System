@@ -2,14 +2,11 @@
 
 import { useActionState } from "react";
 import { createProductSpecification, type ProductSpecificationFormState } from "../actions";
-import { productSpecificationStatusLabel } from "@/lib/specificationLabels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const initialState: ProductSpecificationFormState = {};
-const statuses = Object.keys(productSpecificationStatusLabel);
 
 export default function ProductSpecificationForm({ productId }: { productId: string }) {
   const action = createProductSpecification.bind(null, productId);
@@ -22,23 +19,6 @@ export default function ProductSpecificationForm({ productId }: { productId: str
           النسخة
         </Label>
         <Input id="version" name="version" type="number" min="1" step="1" defaultValue={1} className="w-20" />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="spec-status" className="text-xs">
-          الحالة *
-        </Label>
-        <Select name="status" defaultValue={statuses[0]}>
-          <SelectTrigger id="spec-status" className="w-36">
-            <SelectValue>{(value: string) => productSpecificationStatusLabel[value] ?? value}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {statuses.map((s) => (
-              <SelectItem key={s} value={s}>
-                {productSpecificationStatusLabel[s]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="storageConditions" className="text-xs">

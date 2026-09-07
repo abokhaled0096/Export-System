@@ -25,7 +25,6 @@ export async function createSupplier(_prevState: SupplierFormState, formData: Fo
     taxId: formData.get("taxId") || undefined,
     commercialRegNo: formData.get("commercialRegNo") || undefined,
     supplierType: formData.getAll("supplierType"),
-    status: formData.get("status"),
   });
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
 
@@ -56,6 +55,7 @@ export async function createSupplier(_prevState: SupplierFormState, formData: Fo
       const supplier = await tx.supplier.create({
         data: {
           orgId: user.orgId,
+          status: "Identified",
           tradeName: tradeName || undefined,
           country: country || undefined,
           governorate: governorate || undefined,
@@ -90,8 +90,6 @@ export async function createSupplier(_prevState: SupplierFormState, formData: Fo
 const FACILITY_TYPES = [
   "Farm", "Field", "CollectionCenter", "PackingHouse", "Factory", "FreezingFacility", "DryingFacility", "ProcessingFacility", "Warehouse", "ColdStore", "Laboratory",
 ] as const;
-const FACILITY_STATUSES = ["Active", "UnderReview", "Suspended", "Closed"] as const;
-
 const FacilitySchema = z.object({
   facilityType: z.enum(FACILITY_TYPES),
   name: z.string().trim().min(1, "اسم المنشأة مطلوب"),
@@ -100,7 +98,6 @@ const FacilitySchema = z.object({
   productionLines: z.coerce.number().int().min(0).optional(),
   shifts: z.coerce.number().int().min(0).optional(),
   hasTraceabilitySystem: z.coerce.boolean().optional(),
-  status: z.enum(FACILITY_STATUSES),
 });
 
 export type FacilityFormState = { errors?: Record<string, string[]>; formError?: string };
@@ -114,7 +111,6 @@ export async function createFacility(supplierId: string, _prevState: FacilityFor
     productionLines: formData.get("productionLines") || undefined,
     shifts: formData.get("shifts") || undefined,
     hasTraceabilitySystem: formData.get("hasTraceabilitySystem") === "on",
-    status: formData.get("status"),
   });
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
 
@@ -124,7 +120,7 @@ export async function createFacility(supplierId: string, _prevState: FacilityFor
     await requirePermission(user.roleId, "Facility", "Create");
     await withScopedTransaction(async (tx) => {
       const facility = await tx.facility.create({
-        data: { orgId: user.orgId, supplierId, address: address || undefined, ...rest },
+        data: { orgId: user.orgId, supplierId, status: "UnderReview", address: address || undefined, ...rest },
       });
       await logAudit(tx, {
         orgId: user.orgId,
@@ -295,8 +291,6 @@ export async function createSupplierAudit(supplierId: string, _prevState: Suppli
 }
 
 const SUPPLY_CONTRACT_TYPES = ["Framework", "TollProcessing", "FarmingContract", "ExclusiveSupply", "SeasonalContract", "SpotAgreement"] as const;
-const SUPPLY_CONTRACT_STATUSES = ["Draft", "UnderNegotiation", "Active", "Expired", "Terminated"] as const;
-
 const SupplyContractSchema = z.object({
   contractType: z.enum(SUPPLY_CONTRACT_TYPES),
   documentId: z.string().uuid().optional().or(z.literal("")),
@@ -305,7 +299,6 @@ const SupplyContractSchema = z.object({
   priceAdjustmentMechanism: z.string().trim().optional().or(z.literal("")),
   forceMajeureClause: z.string().trim().optional().or(z.literal("")),
   penaltyTerms: z.string().trim().optional().or(z.literal("")),
-  status: z.enum(SUPPLY_CONTRACT_STATUSES),
 });
 
 export type SupplyContractFormState = { errors?: Record<string, string[]>; formError?: string };
@@ -319,7 +312,6 @@ export async function createSupplyContract(supplierId: string, _prevState: Suppl
     priceAdjustmentMechanism: formData.get("priceAdjustmentMechanism") || undefined,
     forceMajeureClause: formData.get("forceMajeureClause") || undefined,
     penaltyTerms: formData.get("penaltyTerms") || undefined,
-    status: formData.get("status"),
   });
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
 
@@ -339,6 +331,7 @@ export async function createSupplyContract(supplierId: string, _prevState: Suppl
         data: {
           orgId: user.orgId,
           supplierId,
+          status: "Draft",
           documentId: documentId || undefined,
           startDate: startDate ? new Date(startDate) : undefined,
           endDate: endDate ? new Date(endDate) : undefined,
@@ -368,7 +361,6 @@ export async function createSupplyContract(supplierId: string, _prevState: Suppl
 }
 
 const PACKAGING_MATERIAL_TYPES = ["Carton", "Bag", "Label", "Jar", "Bottle", "Pallet", "StretchFilm", "Strap", "InnerLiner", "Divider"] as const;
-const PACKAGING_MATERIAL_STATUSES = ["Requested", "Ordered", "PartiallyReceived", "Received", "Accepted", "Rejected"] as const;
 
 const PackagingMaterialSchema = z.object({
   materialType: z.enum(PACKAGING_MATERIAL_TYPES),
@@ -383,7 +375,6 @@ const PackagingMaterialSchema = z.object({
   quantityAccepted: z.coerce.number().min(0).optional(),
   unitCost: z.coerce.number().min(0).optional(),
   currency: z.string().trim().optional().or(z.literal("")),
-  status: z.enum(PACKAGING_MATERIAL_STATUSES),
 });
 
 export type PackagingMaterialFormState = { errors?: Record<string, string[]>; formError?: string };
@@ -402,7 +393,6 @@ export async function createPackagingMaterial(supplierId: string, _prevState: Pa
     quantityAccepted: formData.get("quantityAccepted") || undefined,
     unitCost: formData.get("unitCost") || undefined,
     currency: formData.get("currency") || undefined,
-    status: formData.get("status"),
   });
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
 
@@ -415,6 +405,7 @@ export async function createPackagingMaterial(supplierId: string, _prevState: Pa
         data: {
           orgId: user.orgId,
           supplierId,
+          status: "Requested",
           specification: specification || undefined,
           dimensions: dimensions || undefined,
           artworkVersion: artworkVersion || undefined,
@@ -443,8 +434,6 @@ export async function createPackagingMaterial(supplierId: string, _prevState: Pa
 
 const SUPPLIER_SAMPLE_PURPOSES = ["Qualification", "PrePurchase", "Production", "Retention", "Customer", "Laboratory", "Shipment"] as const;
 const SUPPLIER_SAMPLE_RESULTS = ["Pending", "Approved", "Conditional", "Rejected"] as const;
-const SUPPLIER_SAMPLE_STATUSES = ["Requested", "Sent", "Received", "Evaluated", "Closed"] as const;
-
 const SupplierSampleSchema = z.object({
   productId: z.string().uuid("اختر منتج"),
   batchId: z.string().uuid().optional().or(z.literal("")),
@@ -453,7 +442,6 @@ const SupplierSampleSchema = z.object({
   cost: z.coerce.number().min(0).optional(),
   currency: z.string().trim().optional().or(z.literal("")),
   result: z.enum(SUPPLIER_SAMPLE_RESULTS),
-  status: z.enum(SUPPLIER_SAMPLE_STATUSES),
 });
 
 export type SupplierSampleFormState = { errors?: Record<string, string[]>; formError?: string };
@@ -467,7 +455,6 @@ export async function createSupplierSample(supplierId: string, _prevState: Suppl
     cost: formData.get("cost") || undefined,
     currency: formData.get("currency") || undefined,
     result: formData.get("result"),
-    status: formData.get("status"),
   });
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
 
@@ -491,6 +478,7 @@ export async function createSupplierSample(supplierId: string, _prevState: Suppl
         data: {
           orgId: user.orgId,
           supplierId,
+          status: "Requested",
           batchId: batchId || undefined,
           currency: currency || undefined,
           ...rest,

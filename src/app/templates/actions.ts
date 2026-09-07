@@ -12,7 +12,6 @@ const DOCUMENT_TYPES = [
   "Quotation", "ProformaInvoice", "CommercialInvoice", "PackingList", "SalesContract", "SalesConfirmation", "TechnicalDataSheet", "COA", "Declaration", "PriceList", "EmailDraft",
 ] as const;
 const DOCUMENT_LANGUAGES = ["Arabic", "English", "Bilingual"] as const;
-const TEMPLATE_STATUSES = ["Draft", "Approved", "Archived"] as const;
 
 const TemplateSchema = z.object({
   documentType: z.enum(DOCUMENT_TYPES),
@@ -20,7 +19,6 @@ const TemplateSchema = z.object({
   marketId: z.string().uuid().optional().or(z.literal("")),
   customerId: z.string().uuid().optional().or(z.literal("")),
   version: z.coerce.number().int().min(1).optional(),
-  status: z.enum(TEMPLATE_STATUSES),
 });
 
 export type TemplateFormState = { errors?: Record<string, string[]>; formError?: string };
@@ -32,7 +30,6 @@ export async function createTemplate(_prevState: TemplateFormState, formData: Fo
     marketId: formData.get("marketId") || undefined,
     customerId: formData.get("customerId") || undefined,
     version: formData.get("version") || undefined,
-    status: formData.get("status"),
   });
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
 
@@ -57,6 +54,7 @@ export async function createTemplate(_prevState: TemplateFormState, formData: Fo
       const template = await tx.template.create({
         data: {
           orgId: user.orgId,
+          status: "Draft",
           marketId: marketId || undefined,
           customerId: customerId || undefined,
           ...rest,

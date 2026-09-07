@@ -993,9 +993,6 @@ const DOCUMENT_TYPES = [
   "Quotation", "ProformaInvoice", "CommercialInvoice", "PackingList", "SalesContract", "SalesConfirmation", "TechnicalDataSheet", "COA", "Declaration", "PriceList", "EmailDraft",
 ] as const;
 const DOCUMENT_LANGUAGES = ["Arabic", "English", "Bilingual"] as const;
-const DOCUMENT_STATUSES = [
-  "Draft", "Incomplete", "UnderReview", "RevisionRequired", "Approved", "Issued", "Sent", "Acknowledged", "Superseded", "Expired", "Cancelled",
-] as const;
 const DOCUMENT_ETA_STATUSES = ["NotApplicable", "Pending", "Submitted", "Validated", "Rejected"] as const;
 
 const DocumentSchema = z.object({
@@ -1003,7 +1000,6 @@ const DocumentSchema = z.object({
   documentNumber: z.string().trim().min(1, "رقم المستند مطلوب"),
   version: z.coerce.number().int().positive().optional(),
   language: z.enum(DOCUMENT_LANGUAGES),
-  status: z.enum(DOCUMENT_STATUSES),
   confidentiality: z.string().trim().optional().or(z.literal("")),
   expiryDate: z.string().trim().optional().or(z.literal("")),
   etaUuid: z.string().trim().optional().or(z.literal("")),
@@ -1024,7 +1020,6 @@ export async function createDocument(dealId: string, _prevState: DocumentFormSta
     documentNumber: formData.get("documentNumber"),
     version: formData.get("version") || undefined,
     language: formData.get("language"),
-    status: formData.get("status"),
     confidentiality: formData.get("confidentiality") || undefined,
     expiryDate: formData.get("expiryDate") || undefined,
     etaUuid: formData.get("etaUuid") || undefined,
@@ -1053,6 +1048,7 @@ export async function createDocument(dealId: string, _prevState: DocumentFormSta
         data: {
           orgId: user.orgId,
           dealId,
+          status: "Draft",
           confidentiality: confidentiality || undefined,
           expiryDate: expiryDate ? new Date(expiryDate) : undefined,
           etaUuid: etaUuid || undefined,
@@ -1087,11 +1083,8 @@ export async function createDocument(dealId: string, _prevState: DocumentFormSta
 }
 
 const DOCUMENT_PACKAGE_TYPES = ["QuotationPack", "FirstOrderPack", "ShipmentPack", "SamplePack", "TenderPack"] as const;
-const DOCUMENT_PACKAGE_STATUSES = ["NotStarted", "InProgress", "MissingData", "UnderReview", "Complete", "Issued", "Sent"] as const;
-
 const DocumentPackageSchema = z.object({
   packageType: z.enum(DOCUMENT_PACKAGE_TYPES),
-  status: z.enum(DOCUMENT_PACKAGE_STATUSES),
 });
 
 export type DocumentPackageFormState = { errors?: Record<string, string[]>; formError?: string };
@@ -1101,7 +1094,6 @@ export type DocumentPackageFormState = { errors?: Record<string, string[]>; form
 export async function createDocumentPackage(dealId: string, _prevState: DocumentPackageFormState, formData: FormData): Promise<DocumentPackageFormState> {
   const parsed = DocumentPackageSchema.safeParse({
     packageType: formData.get("packageType"),
-    status: formData.get("status"),
   });
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
 
@@ -1118,7 +1110,7 @@ export async function createDocumentPackage(dealId: string, _prevState: Document
 
     await withScopedTransaction(async (tx) => {
       const pkg = await tx.documentPackage.create({
-        data: { orgId: user.orgId, dealId, ...parsed.data },
+        data: { orgId: user.orgId, dealId, status: "NotStarted", ...parsed.data },
       });
       await logAudit(tx, {
         orgId: user.orgId,
@@ -1204,18 +1196,15 @@ export async function createDocumentVersion(dealId: string, _prevState: Document
   return {};
 }
 
-// ⚠️ الإنشاء مقصور على Accrued بس — نفس نمط CAPA_INITIAL_STATUSES. Approved بقى انتقال إداري
-// منفصل، وPaid بيحصل بس عبر payCommissionEntryAction اللي بيرحّل قيد فعلي (Trigger
-// enforce_commission_entry_paid بيرفض Paid بلا journalEntryId مهما حصل).
-const COMMISSION_ENTRY_INITIAL_STATUSES = ["Accrued"] as const;
-
+// ⚠️ الإنشاء دايمًا Accrued — Approved بقى انتقال إداري منفصل، وPaid بيحصل بس عبر
+// payCommissionEntryAction اللي بيرحّل قيد فعلي (Trigger enforce_commission_entry_paid بيرفض
+// Paid بلا journalEntryId مهما حصل). كانت الحالة دي حقل فورم بقيمة وحيدة مسموحة، اتشالت.
 const CommissionEntrySchema = z.object({
   planId: z.string().uuid("اختر خطة عمولة"),
   userId: z.string().uuid("اختر مستخدم"),
   salesOrderId: z.string().uuid().optional().or(z.literal("")),
   amount: z.coerce.number().positive("المبلغ مطلوب"),
   currency: z.string().trim().length(3).toUpperCase().optional().or(z.literal("")),
-  status: z.enum(COMMISSION_ENTRY_INITIAL_STATUSES),
 });
 
 export type CommissionEntryFormState = { errors?: Record<string, string[]>; formError?: string };
@@ -1229,7 +1218,6 @@ export async function createCommissionEntry(dealId: string, _prevState: Commissi
     salesOrderId: formData.get("salesOrderId") || undefined,
     amount: formData.get("amount"),
     currency: formData.get("currency") || undefined,
-    status: formData.get("status"),
   });
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
 
@@ -1263,6 +1251,7 @@ export async function createCommissionEntry(dealId: string, _prevState: Commissi
         data: {
           orgId: user.orgId,
           dealId,
+          status: "Accrued",
           salesOrderId: salesOrderId || undefined,
           currency: currency || undefined,
           ...rest,

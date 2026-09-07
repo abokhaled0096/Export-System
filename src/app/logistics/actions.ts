@@ -225,7 +225,6 @@ export async function addShipmentParty(
   return {};
 }
 
-const BOOKING_STATUSES = ["Draft", "Requested", "Pending", "Confirmed", "Amended", "Rolled", "Split", "Cancelled", "Expired", "Completed"] as const;
 const BookingSchema = z.object({
   bookingNumber: z.string().trim().optional().or(z.literal("")),
   vessel: z.string().trim().optional().or(z.literal("")),
@@ -238,7 +237,6 @@ const BookingSchema = z.object({
   freeTimeDays: z.coerce.number().int().min(0).optional(),
   providerId: z.string().uuid().optional().or(z.literal("")),
   freightQuoteId: z.string().uuid().optional().or(z.literal("")),
-  status: z.enum(BOOKING_STATUSES),
 });
 
 export type BookingFormState = { errors?: Record<string, string[]>; formError?: string };
@@ -260,7 +258,6 @@ export async function createBooking(
     freeTimeDays: formData.get("freeTimeDays") || undefined,
     providerId: formData.get("providerId") || undefined,
     freightQuoteId: formData.get("freightQuoteId") || undefined,
-    status: formData.get("status"),
   });
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
 
@@ -284,6 +281,7 @@ export async function createBooking(
         data: {
           orgId: user.orgId,
           shipmentId,
+          status: "Draft",
           bookingNumber: bookingNumber || undefined,
           vessel: vessel || undefined,
           voyage: voyage || undefined,
@@ -827,7 +825,6 @@ export async function addTemperatureLog(
   return {};
 }
 
-const TRANSPORT_TRIP_STATUSES = ["Scheduled", "InProgress", "Completed", "Delayed", "Cancelled"] as const;
 const TransportTripSchema = z.object({
   carrier: z.string().trim().optional().or(z.literal("")),
   vehicleNumber: z.string().trim().optional().or(z.literal("")),
@@ -840,7 +837,6 @@ const TransportTripSchema = z.object({
   emptyReturnAt: z.string().trim().optional().or(z.literal("")),
   cost: z.coerce.number().min(0).optional(),
   currency: z.string().trim().optional().or(z.literal("")),
-  status: z.enum(TRANSPORT_TRIP_STATUSES),
 });
 
 export type TransportTripFormState = { errors?: Record<string, string[]>; formError?: string };
@@ -864,7 +860,6 @@ export async function createTransportTrip(
     emptyReturnAt: formData.get("emptyReturnAt") || undefined,
     cost: formData.get("cost") || undefined,
     currency: formData.get("currency") || undefined,
-    status: formData.get("status"),
   });
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
 
@@ -878,6 +873,7 @@ export async function createTransportTrip(
         data: {
           orgId: user.orgId,
           shipmentId,
+          status: "Scheduled",
           carrier: carrier || undefined,
           vehicleNumber: vehicleNumber || undefined,
           driverName: driverName || undefined,

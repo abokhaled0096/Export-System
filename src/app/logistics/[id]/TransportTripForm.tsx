@@ -2,14 +2,11 @@
 
 import { useActionState } from "react";
 import { createTransportTrip, type TransportTripFormState } from "../actions";
-import { transportTripStatusLabel } from "@/lib/logisticsLabels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const initialState: TransportTripFormState = {};
-const statuses = Object.keys(transportTripStatusLabel);
 
 export default function TransportTripForm({ shipmentId }: { shipmentId: string }) {
   const action = createTransportTrip.bind(null, shipmentId);
@@ -82,23 +79,6 @@ export default function TransportTripForm({ shipmentId }: { shipmentId: string }
           العملة
         </Label>
         <Input id="tt-currency" name="currency" className="w-20" placeholder="USD" />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="tt-status" className="text-xs">
-          الحالة
-        </Label>
-        <Select name="status" defaultValue={statuses[0]}>
-          <SelectTrigger id="tt-status" className="w-32">
-            <SelectValue>{(value: string) => transportTripStatusLabel[value] ?? value}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {statuses.map((s) => (
-              <SelectItem key={s} value={s}>
-                {transportTripStatusLabel[s]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </div>
       <Button type="submit" disabled={pending}>
         {pending ? "جاري التسجيل..." : "+ رحلة"}

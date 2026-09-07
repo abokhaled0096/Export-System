@@ -2,14 +2,12 @@
 
 import { useActionState } from "react";
 import { createCargoReadiness, type CargoReadinessFormState } from "../actions";
-import { cargoReadinessStatusLabel } from "@/lib/procurementLabels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const initialState: CargoReadinessFormState = {};
-const statuses = Object.keys(cargoReadinessStatusLabel);
 
 export default function CargoReadinessForm({
   purchaseOrderId,
@@ -46,23 +44,6 @@ export default function CargoReadinessForm({
           درجة الجاهزية
         </Label>
         <Input id="readinessScore" name="readinessScore" type="number" min="0" max="100" step="0.01" className="w-24" />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="cr-status" className="text-xs">
-          الحالة *
-        </Label>
-        <Select name="status" defaultValue={statuses[0]}>
-          <SelectTrigger id="cr-status" className="w-40">
-            <SelectValue>{(value: string) => cargoReadinessStatusLabel[value] ?? value}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {statuses.map((s) => (
-              <SelectItem key={s} value={s}>
-                {cargoReadinessStatusLabel[s]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="readyDate" className="text-xs">

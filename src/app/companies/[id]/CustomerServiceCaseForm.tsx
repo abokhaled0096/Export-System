@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { createCustomerServiceCase, type CustomerServiceCaseFormState } from "../actions";
-import { customerServiceCaseTypeLabel, customerServiceCaseStatusLabel } from "@/lib/customerServiceCaseLabels";
+import { customerServiceCaseTypeLabel } from "@/lib/customerServiceCaseLabels";
 import { capaStatusLabel } from "@/lib/capaLabels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 const initialState: CustomerServiceCaseFormState = {};
 const caseTypes = Object.keys(customerServiceCaseTypeLabel);
-const statuses = Object.keys(customerServiceCaseStatusLabel);
 
 export default function CustomerServiceCaseForm({
   companyId,
@@ -89,23 +88,6 @@ export default function CustomerServiceCaseForm({
           العملة
         </Label>
         <Input id="csc-currency" name="currency" placeholder="USD" className="w-20" />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="csc-status" className="text-xs">
-          الحالة
-        </Label>
-        <Select name="status" defaultValue={statuses[0]}>
-          <SelectTrigger id="csc-status" className="w-32">
-            <SelectValue>{(value: string) => customerServiceCaseStatusLabel[value] ?? value}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {statuses.map((s) => (
-              <SelectItem key={s} value={s}>
-                {customerServiceCaseStatusLabel[s]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </div>
       <Button type="submit" variant="outline" disabled={pending}>
         {pending ? "جاري الإضافة..." : "+ حالة خدمة عملاء"}

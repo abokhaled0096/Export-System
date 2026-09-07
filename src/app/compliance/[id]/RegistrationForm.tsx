@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { createRegistration, type RegistrationFormState } from "../actions";
-import { registrationTypeLabel, registrationStatusLabel } from "@/lib/complianceLabels";
+import { registrationTypeLabel } from "@/lib/complianceLabels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,7 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 const initialState: RegistrationFormState = {};
 const types = Object.keys(registrationTypeLabel);
-const statuses = Object.keys(registrationStatusLabel);
 
 export default function RegistrationForm({
   complianceCaseId,
@@ -128,23 +127,6 @@ export default function RegistrationForm({
           تاريخ الانتهاء
         </Label>
         <Input id="reg-expiryDate" name="expiryDate" type="date" className="w-40" />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="reg-status" className="text-xs">
-          الحالة
-        </Label>
-        <Select name="status" defaultValue={statuses[0]}>
-          <SelectTrigger id="reg-status" className="w-40">
-            <SelectValue>{(value: string) => registrationStatusLabel[value] ?? value}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {statuses.map((s) => (
-              <SelectItem key={s} value={s}>
-                {registrationStatusLabel[s]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </div>
       <Button type="submit" disabled={pending}>
         {pending ? "جاري الإضافة..." : "+ تسجيل"}

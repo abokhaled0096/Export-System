@@ -151,14 +151,9 @@ export async function createProductionPlan(
   return {};
 }
 
-const CARGO_READINESS_STATUSES = [
-  "NotStarted", "MaterialsPending", "InProduction", "QualityHold", "PartialReady", "ReadyWithConditions", "CargoReady", "LoadingReleased", "Blocked", "Cancelled",
-] as const;
-
 const CargoReadinessSchema = z.object({
   shipmentId: z.string().uuid("اختر شحنة"),
   readinessScore: z.coerce.number().min(0).max(100).optional(),
-  status: z.enum(CARGO_READINESS_STATUSES),
   readyDate: z.string().trim().optional().or(z.literal("")),
   pickupLocation: z.string().trim().optional().or(z.literal("")),
 });
@@ -170,7 +165,6 @@ export async function createCargoReadiness(purchaseOrderId: string, _prevState: 
   const parsed = CargoReadinessSchema.safeParse({
     shipmentId: formData.get("shipmentId"),
     readinessScore: formData.get("readinessScore") || undefined,
-    status: formData.get("status"),
     readyDate: formData.get("readyDate") || undefined,
     pickupLocation: formData.get("pickupLocation") || undefined,
   });
@@ -191,6 +185,7 @@ export async function createCargoReadiness(purchaseOrderId: string, _prevState: 
         data: {
           orgId: user.orgId,
           purchaseOrderId,
+          status: "NotStarted",
           readyDate: readyDate ? new Date(readyDate) : undefined,
           pickupLocation: pickupLocation || undefined,
           ...rest,

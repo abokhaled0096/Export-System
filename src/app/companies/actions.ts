@@ -454,8 +454,6 @@ export async function createRedFlag(companyId: string, _prevState: RedFlagFormSt
 }
 
 const CUSTOMER_SERVICE_CASE_TYPES = ["Complaint", "Claim", "QualityIssue", "Shortage", "Damage", "LateShipment", "WrongDocumentation"] as const;
-const CUSTOMER_SERVICE_CASE_STATUSES = ["Open", "Investigating", "PendingCustomer", "Resolved", "Closed"] as const;
-
 const CustomerServiceCaseSchema = z.object({
   caseType: z.enum(CUSTOMER_SERVICE_CASE_TYPES),
   slaDeadline: z.string().trim().optional().or(z.literal("")),
@@ -463,7 +461,6 @@ const CustomerServiceCaseSchema = z.object({
   capaId: z.string().uuid().optional().or(z.literal("")),
   compensationAmount: z.coerce.number().min(0).optional(),
   currency: z.string().trim().length(3).toUpperCase().optional().or(z.literal("")),
-  status: z.enum(CUSTOMER_SERVICE_CASE_STATUSES),
 });
 
 export type CustomerServiceCaseFormState = { errors?: Record<string, string[]>; formError?: string };
@@ -477,7 +474,6 @@ export async function createCustomerServiceCase(companyId: string, _prevState: C
     capaId: formData.get("capaId") || undefined,
     compensationAmount: formData.get("compensationAmount") || undefined,
     currency: formData.get("currency") || undefined,
-    status: formData.get("status"),
   });
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
 
@@ -500,6 +496,7 @@ export async function createCustomerServiceCase(companyId: string, _prevState: C
           orgId: user.orgId,
           companyId,
           ownerId: user.id,
+          status: "Open",
           slaDeadline: slaDeadline ? new Date(slaDeadline) : undefined,
           rootCause: rootCause || undefined,
           capaId: capaId || undefined,

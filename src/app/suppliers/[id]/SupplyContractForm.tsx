@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { createSupplyContract, type SupplyContractFormState } from "../actions";
-import { supplyContractTypeLabel, supplyContractStatusLabel } from "@/lib/procurementLabels";
+import { supplyContractTypeLabel } from "@/lib/procurementLabels";
 import { documentTypeLabel } from "@/lib/documentLabels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 const initialState: SupplyContractFormState = {};
 const contractTypes = Object.keys(supplyContractTypeLabel);
-const statuses = Object.keys(supplyContractStatusLabel);
 
 export default function SupplyContractForm({
   supplierId,
@@ -95,23 +94,6 @@ export default function SupplyContractForm({
           شروط الجزاءات
         </Label>
         <Input id="penaltyTerms" name="penaltyTerms" className="w-40" />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="contract-status" className="text-xs">
-          الحالة *
-        </Label>
-        <Select name="status" defaultValue={statuses[0]}>
-          <SelectTrigger id="contract-status" className="w-32">
-            <SelectValue>{(value: string) => supplyContractStatusLabel[value] ?? value}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {statuses.map((s) => (
-              <SelectItem key={s} value={s}>
-                {supplyContractStatusLabel[s]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </div>
       <Button type="submit" variant="outline" disabled={pending}>
         {pending ? "جاري الإضافة..." : "+ عقد توريد"}

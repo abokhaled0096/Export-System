@@ -1,7 +1,7 @@
 import { requireCurrentUser } from "@/lib/session";
 import { requirePermission } from "@/lib/permissions";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
-import RiskForm, { type UserOption } from "./RiskForm";
+import RiskForm from "./RiskForm";
 import StatusButtons from "./StatusButtons";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -39,10 +39,6 @@ export default async function RisksPage() {
     orderBy: [{ status: "asc" }, { financialImpact: "desc" }],
     include: { owner: { select: { fullName: true } } },
   });
-  const users = await prisma.user.findMany({ where: { orgId }, select: { id: true, fullName: true }, orderBy: { fullName: "asc" } });
-
-  const userOptions: UserOption[] = users.map((u) => ({ id: u.id, label: u.fullName }));
-
   return (
     <main className="mx-auto max-w-6xl px-6 py-10">
       <div>
@@ -51,7 +47,7 @@ export default async function RisksPage() {
       </div>
 
       <div className="mt-6">
-        <RiskForm users={userOptions} currentUserId={user.id} />
+        <RiskForm />
       </div>
 
       <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card">

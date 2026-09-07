@@ -2,14 +2,13 @@
 
 import { useActionState } from "react";
 import { createDocumentPackage, type DocumentPackageFormState } from "../actions";
-import { documentPackageTypeLabel, documentPackageStatusLabel } from "@/lib/documentPackageLabels";
+import { documentPackageTypeLabel } from "@/lib/documentPackageLabels";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const initialState: DocumentPackageFormState = {};
 const packageTypes = Object.keys(documentPackageTypeLabel);
-const statuses = Object.keys(documentPackageStatusLabel);
 
 export default function DocumentPackageForm({ dealId }: { dealId: string }) {
   const action = createDocumentPackage.bind(null, dealId);
@@ -29,23 +28,6 @@ export default function DocumentPackageForm({ dealId }: { dealId: string }) {
             {packageTypes.map((t) => (
               <SelectItem key={t} value={t}>
                 {documentPackageTypeLabel[t]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="dp-status" className="text-xs">
-          الحالة
-        </Label>
-        <Select name="status" defaultValue={statuses[0]}>
-          <SelectTrigger id="dp-status" className="w-36">
-            <SelectValue>{(value: string) => documentPackageStatusLabel[value] ?? value}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {statuses.map((s) => (
-              <SelectItem key={s} value={s}>
-                {documentPackageStatusLabel[s]}
               </SelectItem>
             ))}
           </SelectContent>

@@ -11,11 +11,6 @@ import { CAPA_ALL_STATUSES } from "@/lib/capaLabels";
 import { assertWorkflowTransitionAllowed } from "@/lib/workflow";
 
 const CAPA_ROOT_CAUSE_METHODS = ["FiveWhys", "Fishbone", "Other"] as const;
-// ⚠️ الإنشاء مقصور على حالات البداية بس. Overdue محسوبة من dueDate وقت العرض (src/lib/capaLabels.ts
-// isCAPAOverdue) مش قيمة تُكتب — والـTrigger enforce_capa_verification بيرفضها لو حد حاول
-// يكتبها من خارج الفورم. Effective/Ineffective/Closed محتاجة verifiedBy (بلا واجهة إدخال وقت
-// الإنشاء)، فمتاحة بس من updateCAPAStatusAction عبر تدفّق الانتقال الحقيقي تحت.
-const CAPA_INITIAL_STATUSES = ["Open", "InProgress", "VerificationPending"] as const;
 
 const CAPASchema = z.object({
   rootCause: z.string().trim().optional().or(z.literal("")),
@@ -23,13 +18,14 @@ const CAPASchema = z.object({
   correctiveAction: z.string().trim().optional().or(z.literal("")),
   preventiveAction: z.string().trim().optional().or(z.literal("")),
   dueDate: z.string().trim().optional().or(z.literal("")),
-  status: z.enum(CAPA_INITIAL_STATUSES),
 });
 
 export type CAPAFormState = { errors?: Record<string, string[]>; formError?: string };
 
 /** ownerId بيتحدَّد تلقائيًا بالمستخدم الحالي — نفس نمط BatchMarketEligibility.assessedBy.
- * verifiedBy بلا واجهة إدخال — نفس معاملة ProductSpecification.approvedBy. */
+ * verifiedBy بلا واجهة إدخال — نفس معاملة ProductSpecification.approvedBy. status دايمًا Open —
+ * كان فورم بيسمح تختار من 3 حالات بداية (Open/InProgress/VerificationPending) بلا فايدة حقيقية،
+ * الانتقال الفعلي بيحصل بعد كده عبر updateCAPAStatusAction (تدفّق WorkflowDefinition الحقيقي). */
 export async function createCAPA(_prevState: CAPAFormState, formData: FormData): Promise<CAPAFormState> {
   const parsed = CAPASchema.safeParse({
     rootCause: formData.get("rootCause") || undefined,
@@ -37,7 +33,6 @@ export async function createCAPA(_prevState: CAPAFormState, formData: FormData):
     correctiveAction: formData.get("correctiveAction") || undefined,
     preventiveAction: formData.get("preventiveAction") || undefined,
     dueDate: formData.get("dueDate") || undefined,
-    status: formData.get("status"),
   });
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
 
@@ -50,6 +45,7 @@ export async function createCAPA(_prevState: CAPAFormState, formData: FormData):
         data: {
           orgId: user.orgId,
           ownerId: user.id,
+          status: "Open",
           rootCause: rootCause || undefined,
           rootCauseMethod: rootCauseMethod || undefined,
           correctiveAction: correctiveAction || undefined,

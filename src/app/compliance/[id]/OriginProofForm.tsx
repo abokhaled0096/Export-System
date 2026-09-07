@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { createOriginProof, type OriginProofFormState } from "../actions";
-import { originProofTypeLabel, originProofCumulationTypeLabel, originProofStatusLabel } from "@/lib/complianceLabels";
+import { originProofTypeLabel, originProofCumulationTypeLabel } from "@/lib/complianceLabels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,7 +12,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 const initialState: OriginProofFormState = {};
 const proofTypes = Object.keys(originProofTypeLabel);
 const cumulationTypes = Object.keys(originProofCumulationTypeLabel);
-const statuses = Object.keys(originProofStatusLabel);
 
 export default function OriginProofForm({
   complianceCaseId,
@@ -104,23 +103,6 @@ export default function OriginProofForm({
             الجهة المُصدرة
           </Label>
           <Input id="op-issuingAuthority" name="issuingAuthority" className="w-40" />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="op-status" className="text-xs">
-            الحالة
-          </Label>
-          <Select name="status" defaultValue={statuses[0]}>
-            <SelectTrigger id="op-status" className="w-36">
-              <SelectValue>{(value: string) => originProofStatusLabel[value] ?? value}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {statuses.map((s) => (
-                <SelectItem key={s} value={s}>
-                  {originProofStatusLabel[s]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
         </div>
         <Button type="submit" disabled={pending}>
           {pending ? "جاري الإضافة..." : "+ إثبات منشأ"}

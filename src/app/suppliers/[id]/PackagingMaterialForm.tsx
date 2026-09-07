@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { createPackagingMaterial, type PackagingMaterialFormState } from "../actions";
-import { packagingMaterialTypeLabel, packagingMaterialStatusLabel } from "@/lib/procurementLabels";
+import { packagingMaterialTypeLabel } from "@/lib/procurementLabels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,7 +11,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 const initialState: PackagingMaterialFormState = {};
 const materialTypes = Object.keys(packagingMaterialTypeLabel);
-const statuses = Object.keys(packagingMaterialStatusLabel);
 
 export default function PackagingMaterialForm({ supplierId }: { supplierId: string }) {
   const action = createPackagingMaterial.bind(null, supplierId);
@@ -101,23 +100,6 @@ export default function PackagingMaterialForm({ supplierId }: { supplierId: stri
           العملة
         </Label>
         <Input id="packaging-currency" name="currency" className="w-20" placeholder="USD" />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="packaging-status" className="text-xs">
-          الحالة *
-        </Label>
-        <Select name="status" defaultValue={statuses[0]}>
-          <SelectTrigger id="packaging-status" className="w-32">
-            <SelectValue>{(value: string) => packagingMaterialStatusLabel[value] ?? value}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {statuses.map((s) => (
-              <SelectItem key={s} value={s}>
-                {packagingMaterialStatusLabel[s]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </div>
       <Button type="submit" variant="outline" disabled={pending}>
         {pending ? "جاري الإضافة..." : "+ مادة تعبئة"}

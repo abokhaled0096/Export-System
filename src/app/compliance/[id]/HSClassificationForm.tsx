@@ -2,14 +2,11 @@
 
 import { useActionState } from "react";
 import { createHSClassification, type HSClassificationFormState } from "../actions";
-import { hsClassificationStatusLabel } from "@/lib/complianceLabels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const initialState: HSClassificationFormState = {};
-const statuses = Object.keys(hsClassificationStatusLabel);
 
 export default function HSClassificationForm({
   complianceCaseId,
@@ -45,23 +42,6 @@ export default function HSClassificationForm({
           مرجع القرار الجمركي
         </Label>
         <Input id="rulingReference" name="rulingReference" className="w-40" />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="hs-status" className="text-xs">
-          الحالة
-        </Label>
-        <Select name="status" defaultValue={statuses[0]}>
-          <SelectTrigger id="hs-status" className="w-44">
-            <SelectValue>{(value: string) => hsClassificationStatusLabel[value] ?? value}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {statuses.map((s) => (
-              <SelectItem key={s} value={s}>
-                {hsClassificationStatusLabel[s]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </div>
       <Button type="submit" disabled={pending}>
         {pending ? "جاري الإضافة..." : "+ تصنيف جمركي"}

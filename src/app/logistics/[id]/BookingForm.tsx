@@ -2,14 +2,12 @@
 
 import { useActionState } from "react";
 import { createBooking, type BookingFormState } from "../actions";
-import { bookingStatusLabel } from "@/lib/logisticsLabels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const initialState: BookingFormState = {};
-const statuses = Object.keys(bookingStatusLabel);
 
 export default function BookingForm({
   shipmentId,
@@ -117,23 +115,6 @@ export default function BookingForm({
           </Select>
         </div>
       )}
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="booking-status" className="text-xs">
-          الحالة
-        </Label>
-        <Select name="status" defaultValue={statuses[0]}>
-          <SelectTrigger id="booking-status" className="w-36">
-            <SelectValue>{(value: string) => bookingStatusLabel[value] ?? value}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {statuses.map((s) => (
-              <SelectItem key={s} value={s}>
-                {bookingStatusLabel[s]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
       <Button type="submit" disabled={pending}>
         {pending ? "جاري الإضافة..." : "+ حجز"}
       </Button>

@@ -93,7 +93,6 @@ export default function CommissionEntryForm({
         </Label>
         <Input id="ce-currency" name="currency" placeholder="USD" className="w-20" />
       </div>
-      <input type="hidden" name="status" value="Accrued" />
       <Button type="submit" variant="outline" disabled={pending}>
         {pending ? "جاري التسجيل..." : "+ عمولة"}
       </Button>

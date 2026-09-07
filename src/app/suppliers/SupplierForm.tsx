@@ -2,15 +2,13 @@
 
 import { useActionState } from "react";
 import { createSupplier, type SupplierFormState } from "./actions";
-import { supplierTypeLabel, supplierStatusLabel } from "@/lib/procurementLabels";
+import { supplierTypeLabel } from "@/lib/procurementLabels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const initialState: SupplierFormState = {};
-const statuses = Object.keys(supplierStatusLabel);
 const types = Object.keys(supplierTypeLabel);
 
 export default function SupplierForm() {
@@ -61,23 +59,6 @@ export default function SupplierForm() {
             السجل التجاري
           </Label>
           <Input id="commercialRegNo" name="commercialRegNo" className="w-32" />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="s-status" className="text-xs">
-            الحالة
-          </Label>
-          <Select name="status" defaultValue={statuses[0]}>
-            <SelectTrigger id="s-status" className="w-36">
-              <SelectValue>{(value: string) => supplierStatusLabel[value] ?? value}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {statuses.map((s) => (
-                <SelectItem key={s} value={s}>
-                  {supplierStatusLabel[s]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
         </div>
         <Button type="submit" disabled={pending}>
           {pending ? "جاري الإضافة..." : "+ مورّد"}

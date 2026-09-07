@@ -442,15 +442,10 @@ export async function requestGateWaiver(
   return {};
 }
 
-const HS_STATUSES = [
-  "Proposed", "UnderReview", "ConfirmedInternally", "ConfirmedByBroker", "ConfirmedByRuling", "Disputed", "NeedsExpertReview", "Rejected",
-] as const;
-
 const HSClassificationSchema = z.object({
   productId: z.string().uuid("اختر منتج"),
   marketId: z.string().uuid("اختر سوق"),
   hsCode: z.string().trim().min(4, "HS Code غير صالح"),
-  status: z.enum(HS_STATUSES),
   dutyRatePct: z.coerce.number().min(0).max(100).optional(),
   rulingReference: z.string().trim().optional().or(z.literal("")),
 });
@@ -466,7 +461,6 @@ export async function createHSClassification(
     productId: formData.get("productId"),
     marketId: formData.get("marketId"),
     hsCode: formData.get("hsCode"),
-    status: formData.get("status"),
     dutyRatePct: formData.get("dutyRatePct") || undefined,
     rulingReference: formData.get("rulingReference") || undefined,
   });
@@ -485,7 +479,7 @@ export async function createHSClassification(
     if (!market) return { formError: "السوق غير موجود." };
     await withScopedTransaction(async (tx) => {
       const hs = await tx.hSClassification.create({
-        data: { orgId: user.orgId, rulingReference: rulingReference || undefined, ...rest },
+        data: { orgId: user.orgId, status: "Proposed", rulingReference: rulingReference || undefined, ...rest },
       });
       await logAudit(tx, {
         orgId: user.orgId,
@@ -606,10 +600,6 @@ export async function createCertificate(
 const REGISTRATION_TYPES = [
   "FacilityRegistration", "ProductRegistration", "ExporterRegistration", "ImporterRegistration", "LabelRegistration",
 ] as const;
-const REGISTRATION_STATUSES = [
-  "NotStarted", "CollectingDocuments", "Submitted", "UnderReview", "InspectionRequired", "Approved", "Rejected", "Expired", "Suspended", "RenewalRequired",
-] as const;
-
 const RegistrationSchema = z.object({
   registrationType: z.enum(REGISTRATION_TYPES),
   country: z.string().trim().min(1, "الدولة مطلوبة"),
@@ -621,7 +611,6 @@ const RegistrationSchema = z.object({
   submissionDate: z.string().trim().optional().or(z.literal("")),
   approvalDate: z.string().trim().optional().or(z.literal("")),
   expiryDate: z.string().trim().optional().or(z.literal("")),
-  status: z.enum(REGISTRATION_STATUSES),
 });
 
 export type RegistrationFormState = { errors?: Record<string, string[]>; formError?: string };
@@ -642,7 +631,6 @@ export async function createRegistration(
     submissionDate: formData.get("submissionDate") || undefined,
     approvalDate: formData.get("approvalDate") || undefined,
     expiryDate: formData.get("expiryDate") || undefined,
-    status: formData.get("status"),
   });
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
 
@@ -669,6 +657,7 @@ export async function createRegistration(
       const registration = await tx.registration.create({
         data: {
           orgId: user.orgId,
+          status: "NotStarted",
           productId: productId || undefined,
           supplierId: supplierId || undefined,
           facilityId: facilityId || undefined,
@@ -711,7 +700,6 @@ const OriginProofSchema = z.object({
   certificateNumber: z.string().trim().optional().or(z.literal("")),
   issuedDate: z.string().trim().optional().or(z.literal("")),
   issuingAuthority: z.string().trim().optional().or(z.literal("")),
-  status: z.enum(ORIGIN_PROOF_STATUSES),
 });
 
 export type OriginProofFormState = { errors?: Record<string, string[]>; formError?: string };
@@ -731,7 +719,6 @@ export async function createOriginProof(
     certificateNumber: formData.get("certificateNumber") || undefined,
     issuedDate: formData.get("issuedDate") || undefined,
     issuingAuthority: formData.get("issuingAuthority") || undefined,
-    status: formData.get("status"),
   });
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
 
@@ -752,6 +739,7 @@ export async function createOriginProof(
         data: {
           orgId: user.orgId,
           dealId,
+          status: "Draft",
           shipmentId: shipmentId || undefined,
           cumulationType: cumulationType || undefined,
           certificateNumber: certificateNumber || undefined,

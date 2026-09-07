@@ -9,10 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 const initialState: KpiFormState = {};
 
-export type UserOption = { id: string; label: string };
 export type PeriodOption = { id: string; label: string };
 
-export default function KpiForm({ users, periods, currentUserId }: { users: UserOption[]; periods: PeriodOption[]; currentUserId: string }) {
+export default function KpiForm({ periods }: { periods: PeriodOption[] }) {
   const [state, formAction, pending] = useActionState(createKPI, initialState);
 
   if (periods.length === 0) {
@@ -38,23 +37,6 @@ export default function KpiForm({ users, periods, currentUserId }: { users: User
         </Label>
         <Input id="kpi-category" name="category" placeholder="مبيعات / تشغيل / مالي" />
         {state.errors?.category && <span className="text-xs text-destructive">{state.errors.category[0]}</span>}
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="kpi-owner" className="text-xs">
-          المسؤول *
-        </Label>
-        <Select name="ownerId" defaultValue={currentUserId}>
-          <SelectTrigger id="kpi-owner">
-            <SelectValue>{(value: string) => users.find((u) => u.id === value)?.label ?? "—"}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {users.map((u) => (
-              <SelectItem key={u.id} value={u.id}>
-                {u.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="kpi-period" className="text-xs">

@@ -244,13 +244,8 @@ export async function restoreProduct(productId: string) {
   revalidatePath("/products/archived");
 }
 
-const PRODUCT_SPECIFICATION_STATUSES = [
-  "Draft", "InternalReview", "CustomerReview", "CustomerApproved", "QualityApproved", "Superseded", "Expired",
-] as const;
-
 const ProductSpecificationSchema = z.object({
   version: z.coerce.number().int().positive().optional(),
-  status: z.enum(PRODUCT_SPECIFICATION_STATUSES),
   storageConditions: z.string().trim().optional().or(z.literal("")),
   shelfLifeDays: z.coerce.number().int().min(0).optional(),
   reviewDate: z.string().trim().optional().or(z.literal("")),
@@ -267,7 +262,6 @@ export async function createProductSpecification(
 ): Promise<ProductSpecificationFormState> {
   const parsed = ProductSpecificationSchema.safeParse({
     version: formData.get("version") || undefined,
-    status: formData.get("status"),
     storageConditions: formData.get("storageConditions") || undefined,
     shelfLifeDays: formData.get("shelfLifeDays") || undefined,
     reviewDate: formData.get("reviewDate") || undefined,
@@ -283,6 +277,7 @@ export async function createProductSpecification(
         data: {
           orgId: user.orgId,
           productId,
+          status: "Draft",
           storageConditions: storageConditions || undefined,
           reviewDate: reviewDate ? new Date(reviewDate) : undefined,
           ...rest,

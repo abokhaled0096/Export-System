@@ -1,7 +1,7 @@
 import { requireCurrentUser } from "@/lib/session";
 import { requirePermission } from "@/lib/permissions";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
-import KpiForm, { type UserOption, type PeriodOption } from "./KpiForm";
+import KpiForm, { type PeriodOption } from "./KpiForm";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export const dynamic = "force-dynamic";
@@ -30,10 +30,8 @@ export default async function KpisPage() {
     orderBy: { createdAt: "desc" },
     include: { owner: { select: { fullName: true } }, period: { select: { periodName: true } } },
   });
-  const users = await prisma.user.findMany({ where: { orgId }, select: { id: true, fullName: true }, orderBy: { fullName: "asc" } });
   const periods = await prisma.accountingPeriod.findMany({ where: { orgId }, orderBy: { startDate: "desc" }, select: { id: true, periodName: true } });
 
-  const userOptions: UserOption[] = users.map((u) => ({ id: u.id, label: u.fullName }));
   const periodOptions: PeriodOption[] = periods.map((p) => ({ id: p.id, label: p.periodName }));
 
   return (
@@ -44,7 +42,7 @@ export default async function KpisPage() {
       </div>
 
       <div className="mt-6">
-        <KpiForm users={userOptions} periods={periodOptions} currentUserId={user.id} />
+        <KpiForm periods={periodOptions} />
       </div>
 
       <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card">

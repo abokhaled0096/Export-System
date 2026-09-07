@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { createSupplierSample, type SupplierSampleFormState } from "../actions";
-import { supplierSamplePurposeLabel, supplierSampleResultLabel, supplierSampleStatusLabel } from "@/lib/procurementLabels";
+import { supplierSamplePurposeLabel, supplierSampleResultLabel } from "@/lib/procurementLabels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,7 +11,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 const initialState: SupplierSampleFormState = {};
 const purposes = Object.keys(supplierSamplePurposeLabel);
 const results = Object.keys(supplierSampleResultLabel);
-const statuses = Object.keys(supplierSampleStatusLabel);
 
 export default function SupplierSampleForm({ supplierId, products }: { supplierId: string; products: { id: string; nameAr: string }[] }) {
   const action = createSupplierSample.bind(null, supplierId);
@@ -84,23 +83,6 @@ export default function SupplierSampleForm({ supplierId, products }: { supplierI
             {results.map((r) => (
               <SelectItem key={r} value={r}>
                 {supplierSampleResultLabel[r]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="sample-status" className="text-xs">
-          الحالة *
-        </Label>
-        <Select name="status" defaultValue={statuses[0]}>
-          <SelectTrigger id="sample-status" className="w-32">
-            <SelectValue>{(value: string) => supplierSampleStatusLabel[value] ?? value}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {statuses.map((s) => (
-              <SelectItem key={s} value={s}>
-                {supplierSampleStatusLabel[s]}
               </SelectItem>
             ))}
           </SelectContent>

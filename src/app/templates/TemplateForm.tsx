@@ -3,7 +3,6 @@
 import { useActionState } from "react";
 import { createTemplate, type TemplateFormState } from "./actions";
 import { documentTypeLabel, documentLanguageLabel } from "@/lib/documentLabels";
-import { templateStatusLabel } from "@/lib/templateLabels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,7 +11,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 const initialState: TemplateFormState = {};
 const documentTypes = Object.keys(documentTypeLabel);
 const languages = Object.keys(documentLanguageLabel);
-const statuses = Object.keys(templateStatusLabel);
 
 export default function TemplateForm({
   markets,
@@ -102,23 +100,6 @@ export default function TemplateForm({
           النسخة
         </Label>
         <Input id="tpl-version" name="version" type="number" min="1" step="1" defaultValue={1} className="w-20" />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="tpl-status" className="text-xs">
-          الحالة
-        </Label>
-        <Select name="status" defaultValue={statuses[0]}>
-          <SelectTrigger id="tpl-status" className="w-32">
-            <SelectValue>{(value: string) => templateStatusLabel[value] ?? value}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {statuses.map((s) => (
-              <SelectItem key={s} value={s}>
-                {templateStatusLabel[s]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </div>
       <Button type="submit" disabled={pending}>
         {pending ? "جاري الإضافة..." : "+ قالب"}

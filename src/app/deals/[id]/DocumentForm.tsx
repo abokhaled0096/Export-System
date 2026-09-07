@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { createDocument, type DocumentFormState } from "../actions";
-import { documentTypeLabel, documentLanguageLabel, documentStatusLabel, documentEtaStatusLabel } from "@/lib/documentLabels";
+import { documentTypeLabel, documentLanguageLabel, documentEtaStatusLabel } from "@/lib/documentLabels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,7 +11,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 const initialState: DocumentFormState = {};
 const documentTypes = Object.keys(documentTypeLabel);
 const languages = Object.keys(documentLanguageLabel);
-const statuses = Object.keys(documentStatusLabel);
 const etaStatuses = Object.keys(documentEtaStatusLabel);
 
 export default function DocumentForm({ dealId }: { dealId: string }) {
@@ -68,23 +67,6 @@ export default function DocumentForm({ dealId }: { dealId: string }) {
             {languages.map((l) => (
               <SelectItem key={l} value={l}>
                 {documentLanguageLabel[l]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="doc-status" className="text-xs">
-          الحالة *
-        </Label>
-        <Select name="status" defaultValue={statuses[0]}>
-          <SelectTrigger id="doc-status" className="w-32">
-            <SelectValue>{(value: string) => documentStatusLabel[value] ?? value}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {statuses.map((s) => (
-              <SelectItem key={s} value={s}>
-                {documentStatusLabel[s]}
               </SelectItem>
             ))}
           </SelectContent>

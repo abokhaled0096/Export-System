@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { createFacility, type FacilityFormState } from "../actions";
-import { facilityTypeLabel, facilityStatusLabel } from "@/lib/procurementLabels";
+import { facilityTypeLabel } from "@/lib/procurementLabels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,7 +11,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 const initialState: FacilityFormState = {};
 const types = Object.keys(facilityTypeLabel);
-const statuses = Object.keys(facilityStatusLabel);
 
 export default function FacilityForm({ supplierId }: { supplierId: string }) {
   const action = createFacility.bind(null, supplierId);
@@ -72,23 +71,6 @@ export default function FacilityForm({ supplierId }: { supplierId: string }) {
         <Label htmlFor="hasTraceabilitySystem" className="text-xs font-normal">
           نظام تتبّع
         </Label>
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="f-status" className="text-xs">
-          الحالة
-        </Label>
-        <Select name="status" defaultValue={statuses[1]}>
-          <SelectTrigger id="f-status" className="w-32">
-            <SelectValue>{(value: string) => facilityStatusLabel[value] ?? value}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {statuses.map((s) => (
-              <SelectItem key={s} value={s}>
-                {facilityStatusLabel[s]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </div>
       <Button type="submit" disabled={pending}>
         {pending ? "جاري الإضافة..." : "+ منشأة"}

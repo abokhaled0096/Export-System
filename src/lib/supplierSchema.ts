@@ -6,9 +6,6 @@ import { z } from "zod";
 export const SUPPLIER_TYPES = [
   "Farm", "Farmer", "Aggregator", "Trader", "Processor", "Manufacturer", "PackingHouse", "FreezingFacility", "DryingFacility", "PackagingSupplier", "Warehouse", "ColdStore", "Laboratory",
 ] as const;
-export const SUPPLIER_STATUSES = [
-  "Identified", "Contacted", "UnderReview", "DocumentsPending", "AuditRequired", "SampleRequired", "Conditional", "Approved", "Preferred", "Suspended", "Rejected", "Blacklisted", "Archived",
-] as const;
 
 export const SupplierSchema = z.object({
   legalName: z.string().trim().min(1, "الاسم القانوني مطلوب"),
@@ -19,5 +16,4 @@ export const SupplierSchema = z.object({
   taxId: z.string().trim().optional().or(z.literal("")),
   commercialRegNo: z.string().trim().optional().or(z.literal("")),
   supplierType: z.array(z.enum(SUPPLIER_TYPES)).optional(),
-  status: z.enum(SUPPLIER_STATUSES),
 });
