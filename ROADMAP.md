@@ -13,7 +13,7 @@
 1. **Push المستودع على GitHub + حط 4 Secrets** (`DATABASE_URL`, `DIRECT_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`) في Settings → Secrets and variables → Actions.
    **ليه أول حاجة**: الـCI (فحص `tsc`/`eslint`/`test:rls` تلقائي على كل تعديل) مبني وجاهز بس معطّل تمامًا لغياب remote. من غيره أي تعديل مستقبلي بلا شبكة أمان.
 2. **تجديد مفتاح OpenAI** من `platform.openai.com` → API Keys (القديم اتلصق في شات قديم، لسه شغّال في `.env`).
-3. **عمل حساب Supabase Auth تاني** (SalesRep أو SalesManager) من `/admin/users` — ده الحساب الوحيد اللي هيسمح نتأكد حيًا (مش منطقيًا بس) إن فلترة Own/Team scope شغّالة من تسجيل الدخول لحد آخر صفحة، وإن قاعدة فصل المهام على Supplier/Payment بتتفعّل صح بين مستخدمين حقيقيين مختلفين.
+3. ~~عمل حساب Supabase Auth تاني~~ اتعمل 8 سبتمبر — `finance@aboheiba.com` بدور Finance، مربوط عبر `prisma/link-auth-user.ts`. جاهز للاختبار الحي (Own/Team scope، فصل المهام، مسار `MasterDataChangeRequest` الجديد لـProduct/PurchaseOrder) وقت ما تحب.
 
 ---
 
