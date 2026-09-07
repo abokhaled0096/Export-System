@@ -232,6 +232,17 @@ export async function createLabTest(batchId: string, _prevState: LabTestFormStat
   const { inspectionId, supplierSampleId, parameter, unit, laboratory, ...rest } = parsed.data;
   try {
     await requirePermission(user.roleId, "LabTest", "Create");
+    // inspectionId/supplierSampleId اختياريين جايين من الفورم — لازم يتأكدوا إنهم بتوع نفس
+    // المنظمة قبل الإنشاء (اتكشف في إعادة مراجعة وحدة 7، 7 سبتمبر).
+    const scopedPrisma = await getScopedPrisma();
+    if (inspectionId) {
+      const inspection = await scopedPrisma.inspection.findFirst({ where: { id: inspectionId } });
+      if (!inspection) return { formError: "الفحص غير موجود." };
+    }
+    if (supplierSampleId) {
+      const supplierSample = await scopedPrisma.supplierSample.findFirst({ where: { id: supplierSampleId } });
+      if (!supplierSample) return { formError: "عينة المورّد غير موجودة." };
+    }
     await withScopedTransaction(async (tx) => {
       const labTest = await tx.labTest.create({
         data: {
@@ -304,6 +315,17 @@ export async function createBatchRawMaterialLine(
   const { farmId, inventoryId, ...rest } = parsed.data;
   try {
     await requirePermission(user.roleId, "BatchRawMaterialLine", "Create");
+    // farmId/inventoryId جايين من الفورم — لازم يتأكدوا إنهم بتوع نفس المنظمة قبل الإنشاء
+    // (اتكشف في إعادة مراجعة وحدة 7، 7 سبتمبر).
+    const scopedPrisma = await getScopedPrisma();
+    if (farmId) {
+      const farm = await scopedPrisma.farm.findFirst({ where: { id: farmId } });
+      if (!farm) return { formError: "المزرعة غير موجودة." };
+    }
+    if (inventoryId) {
+      const inventory = await scopedPrisma.inventory.findFirst({ where: { id: inventoryId } });
+      if (!inventory) return { formError: "سجل المخزون غير موجود." };
+    }
     await withScopedTransaction(async (tx) => {
       const line = await tx.batchRawMaterialLine.create({
         data: {

@@ -124,6 +124,17 @@ _(فاضي دلوقتي — كل البنود اتقفلت أو اتصلحت. ر
 
 _(هنا هتتنقل البنود اللي خلصت، مع التاريخ وملخص سطر واحد وأي ملف اتغيّر)_
 
+- **[2026-09-07] إعادة مراجعة وحدة 7 (التوريد والإنتاج والجودة ESPPQC) — حقن FK عابر للمنظمات في 8 دوال عبر 4 ملفات، واحدة منها بخطر كسر صفحة فعلي.**
+  - **`createCargoReadiness` (`src/app/purchase-orders/actions.ts`) — الأخطر**: `shipmentId` **إلزامي** (`z.string().uuid("اختر شحنة")`) جاي من الفورم بلا أي فحص عضوية منظمة. `/purchase-orders/[id]` بتعرض `c.shipment.deal.customer.legalName` — سلسلة ثلاث علاقات **بلا `?.` خالص**. أي `shipmentId` عابر للمنظمة كان هيسجَّل بنجاح (الـFK بيتحقق بس من وجود الصف) وبعدين يكسر صفحة أمر الشراء بالكامل لأي حد في المنظمة لما `c.shipment` يرجع `null` من RLS وقت الـjoin — نفس فئة `addShipmentParty` بوحدة 6 بالحرف. اتصلح بفحص `scopedPrisma.shipment.findFirst({where:{id}})` قبل الإنشاء.
+  - **السبعة الباقيين — بلا خطر كسر صفحة** (الحقول دي إما بتتعرض بـ`?.` أو مش متعرَّضة بعلاقة خالص في الصفحات المعنية):
+    - `suppliers/actions.ts`: `createNCR.capaId`، `createSupplierAudit.facilityId`، `createSupplyContract.documentId`، `createSupplierSample.batchId` — الأربعة فاتوا وقت فحص `facilityId`/`productId` الإلزاميين في نفس الدوال بالمراجعة الأولى (6 سبتمبر)، يعني الإصلاح وقتها كان جزئي (غطّى الحقل الإلزامي بس مش الاختياري جنبه) — نفس النمط اللي اتكرر في وحدة 4 (`specificationId`) ووحدة 5 (7 دوال).
+    - `batches/actions.ts`: `createLabTest.inspectionId`/`supplierSampleId`، `createBatchRawMaterialLine.farmId`/`inventoryId`.
+    - `inventory/actions.ts`: `createInventory.batchId`/`lotId` — فات وقت فحص `productId` الإلزامي في نفس الدالة.
+  - اتصلحوا كلهم بنفس نمط `findFirst` سكوبد للاتساق مع باقي الوحدات (تلوّث بيانات بدل كسر صفحة).
+  - **فحص شامل بلا عيوب جديدة تانية**: `createSupplierRFQ`، `createSupplierQuote`، `createPurchaseOrder`، `createSourcingRequest` (`sourcing/actions.ts`)، `createBatch`، `createProductionPlan` (`purchase-orders/actions.ts`)، و`createInspection`، `createQualityRelease`، `createLot`، `createBatchMarketEligibility` (`batches/actions.ts`) اتفحصوا من جديد بالكامل — كل الفحوصات من المراجعة الأولى (6 سبتمبر) وإعادة مراجعة وحدة 4 (`specificationId` في `sourcing/actions.ts`) لسه شغّالة صح، مفيش تراجع.
+  - **مُختبر بسكريبت مباشر ضد بيانات حقيقية**: منشأة/منتج/شحنة اتعملوا مؤقتًا، اتفحصوا بشرط `orgId` حقيقي (بيرجّع الصف) ووهمي (بيرجّع `null`) — بالظبط سلوك الفحص الجديد، اتنضّفوا بعد الاختبار.
+  - `tsc`/`eslint` نضاف، `test:rls` **178/178** بلا تغيير (إصلاح تطبيقي بس)، `next build` ناجح. الملفات: `src/app/suppliers/actions.ts`, `src/app/purchase-orders/actions.ts`, `src/app/batches/actions.ts`, `src/app/inventory/actions.ts`.
+
 - **[2026-09-07] إعادة مراجعة وحدة 6 (اللوجستيات ELCTIS) — حقن FK عابر للمنظمات في 5 دوال، واحدة منها بخطر كسر صفحة فعلي.**
   - **`addShipmentParty` — الأخطر**: `companyId` **إلزامي** (`z.string().uuid("اختر شركة")`) جاي من الفورم بلا أي فحص عضوية منظمة. `/logistics/[id]` بتجيب `shipment.parties` بـ`include: { company: true }` وبتعرض `p.company.legalName` **بلا `?.`** — بالظبط نفس فئة باگ `Competitor`/`addShipmentLot` الأصلي: أي `companyId` عابر للمنظمة كان هيسجَّل بنجاح (الـFK بيتحقق بس من وجود الصف، مش من `orgId`)، وبعدين `include` هيرجّع `company: null` (RLS بيحجب الصف وقت الـjoin) → `Cannot read properties of null` تكسر صفحة الشحنة كلها لأي حد في المنظمة. اتصلح بفحص `scopedPrisma.company.findFirst({where:{id, deletedAt:null}})` قبل الإنشاء.
   - **الأربعة الباقيين — بلا خطر كسر صفحة** (الحقول دي بتتعرض بـ`?.` في `/logistics/[id]` أو مش بتتعرض بعلاقة خالص):

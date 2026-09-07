@@ -54,6 +54,16 @@ export async function createInventory(_prevState: InventoryFormState, formData: 
     const scopedPrisma = await getScopedPrisma();
     const product = await scopedPrisma.product.findFirst({ where: { id: rest.productId, deletedAt: null } });
     if (!product) return { formError: "المنتج غير موجود." };
+    // batchId/lotId اختياريين جايين من الفورم — لازم يتأكدوا إنهم بتوع نفس المنظمة قبل الإنشاء
+    // (اتكشف في إعادة مراجعة وحدة 7، 7 سبتمبر).
+    if (batchId) {
+      const batch = await scopedPrisma.batch.findFirst({ where: { id: batchId } });
+      if (!batch) return { formError: "الدفعة غير موجودة." };
+    }
+    if (lotId) {
+      const lot = await scopedPrisma.lot.findFirst({ where: { id: lotId } });
+      if (!lot) return { formError: "الدفعة (Lot) غير موجودة." };
+    }
     await withScopedTransaction(async (tx) => {
       const inventory = await tx.inventory.create({
         data: {

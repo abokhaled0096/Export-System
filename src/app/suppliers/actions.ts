@@ -186,6 +186,12 @@ export async function createNCR(supplierId: string, _prevState: NCRFormState, fo
     const scopedPrisma = await getScopedPrisma();
     const facility = await scopedPrisma.facility.findFirst({ where: { id: rest.facilityId } });
     if (!facility) return { formError: "المنشأة غير موجودة." };
+    // capaId اختياري جاي من الفورم — لازم يتأكد إنه فعلًا بتاع نفس المنظمة قبل الإنشاء (اتكشف
+    // في إعادة مراجعة وحدة 7، 7 سبتمبر — كان فات وقت فحص facilityId في المراجعة الأولى).
+    if (capaId) {
+      const capa = await scopedPrisma.cAPA.findFirst({ where: { id: capaId } });
+      if (!capa) return { formError: "الـCAPA غير موجود." };
+    }
     await withScopedTransaction(async (tx) => {
       const ncr = await tx.nCR.create({
         data: {
@@ -250,6 +256,13 @@ export async function createSupplierAudit(supplierId: string, _prevState: Suppli
   const { facilityId, auditDate, auditor, followUpDate, ...rest } = parsed.data;
   try {
     await requirePermission(user.roleId, "SupplierAudit", "Create");
+    // facilityId اختياري جاي من الفورم — لازم يتأكد إنه فعلًا بتاع نفس المنظمة قبل الإنشاء
+    // (اتكشف في إعادة مراجعة وحدة 7، 7 سبتمبر).
+    if (facilityId) {
+      const scopedPrisma = await getScopedPrisma();
+      const facility = await scopedPrisma.facility.findFirst({ where: { id: facilityId } });
+      if (!facility) return { formError: "المنشأة غير موجودة." };
+    }
     await withScopedTransaction(async (tx) => {
       const audit = await tx.supplierAudit.create({
         data: {
@@ -314,6 +327,13 @@ export async function createSupplyContract(supplierId: string, _prevState: Suppl
   const { documentId, startDate, endDate, priceAdjustmentMechanism, forceMajeureClause, penaltyTerms, ...rest } = parsed.data;
   try {
     await requirePermission(user.roleId, "SupplyContract", "Create");
+    // documentId اختياري جاي من الفورم — لازم يتأكد إنه فعلًا بتاع نفس المنظمة قبل الإنشاء
+    // (اتكشف في إعادة مراجعة وحدة 7، 7 سبتمبر).
+    if (documentId) {
+      const scopedPrisma = await getScopedPrisma();
+      const document = await scopedPrisma.document.findFirst({ where: { id: documentId } });
+      if (!document) return { formError: "المستند غير موجود." };
+    }
     await withScopedTransaction(async (tx) => {
       const contract = await tx.supplyContract.create({
         data: {
@@ -460,6 +480,12 @@ export async function createSupplierSample(supplierId: string, _prevState: Suppl
     const scopedPrisma = await getScopedPrisma();
     const product = await scopedPrisma.product.findFirst({ where: { id: rest.productId, deletedAt: null } });
     if (!product) return { formError: "المنتج غير موجود." };
+    // batchId اختياري جاي من الفورم — لازم يتأكد إنه فعلًا بتاع نفس المنظمة قبل الإنشاء (اتكشف
+    // في إعادة مراجعة وحدة 7، 7 سبتمبر).
+    if (batchId) {
+      const batch = await scopedPrisma.batch.findFirst({ where: { id: batchId } });
+      if (!batch) return { formError: "الدفعة غير موجودة." };
+    }
     await withScopedTransaction(async (tx) => {
       const sample = await tx.supplierSample.create({
         data: {

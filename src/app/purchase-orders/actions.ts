@@ -180,6 +180,12 @@ export async function createCargoReadiness(purchaseOrderId: string, _prevState: 
   const { readyDate, pickupLocation, ...rest } = parsed.data;
   try {
     await requirePermission(user.roleId, "CargoReadiness", "Create");
+    // shipmentId إلزامي وبيتعرض بلا `?.` في `/purchase-orders/[id]` (`c.shipment.deal.customer.legalName`)
+    // — لازم يتحقق قبل الإنشاء، وإلا كسر صفحة أمر الشراء بالكامل (اتكشف في إعادة مراجعة وحدة 7،
+    // 7 سبتمبر — نفس فئة باگ addShipmentParty بوحدة 6).
+    const scopedPrisma = await getScopedPrisma();
+    const shipment = await scopedPrisma.shipment.findFirst({ where: { id: rest.shipmentId } });
+    if (!shipment) return { formError: "الشحنة غير موجودة." };
     await withScopedTransaction(async (tx) => {
       const readiness = await tx.cargoReadiness.create({
         data: {
