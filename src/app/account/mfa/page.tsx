@@ -16,9 +16,14 @@ export default async function MfaSettingsPage() {
     <main className="mx-auto max-w-2xl px-6 py-10">
       <div className="flex items-baseline justify-between">
         <h1 className="text-2xl font-semibold text-neutral-900">التحقق بخطوتين (MFA)</h1>
-        <Link href="/account/sessions" className="text-sm text-primary hover:underline">
-          الجلسات والأجهزة ←
-        </Link>
+        <div className="flex gap-3">
+          <Link href="/account/password" className="text-sm text-primary hover:underline">
+            كلمة السر ←
+          </Link>
+          <Link href="/account/sessions" className="text-sm text-primary hover:underline">
+            الجلسات والأجهزة ←
+          </Link>
+        </div>
       </div>
       <p className="mt-1 text-sm text-neutral-500">
         مطلوب قبل أي عملية حساسة (اعتماد/رفض موافقة استثنائية على تجاوز السعر الأدنى) — راجع

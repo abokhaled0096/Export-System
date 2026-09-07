@@ -23,9 +23,14 @@ export default async function SessionsPage() {
 
   return (
     <main className="mx-auto max-w-2xl px-6 py-10">
-      <Link href="/account/mfa" className="text-sm text-muted-foreground hover:underline">
-        → التحقق بخطوتين (MFA)
-      </Link>
+      <div className="flex gap-3">
+        <Link href="/account/mfa" className="text-sm text-muted-foreground hover:underline">
+          → التحقق بخطوتين (MFA)
+        </Link>
+        <Link href="/account/password" className="text-sm text-muted-foreground hover:underline">
+          → كلمة السر
+        </Link>
+      </div>
 
       <h1 className="mt-3 text-2xl font-semibold text-foreground">الجلسات والأجهزة</h1>
       <p className="mt-1 text-sm text-muted-foreground">
