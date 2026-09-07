@@ -289,6 +289,26 @@ export async function createInvoice(_prevState: InvoiceFormState, formData: Form
       if (existing) return { invoiceId: existing.id };
     }
 
+    // companyId/supplierId/documentId اختياريين جايين من الفورم — لازم يتأكدوا إنهم بتوع نفس
+    // المنظمة قبل الإنشاء (اتكشف في إعادة مراجعة وحدة 8، 7 سبتمبر). salesOrderId/purchaseOrderId
+    // محميين ضمنيًا فعلًا — بيتفحصوا بـ`tx.salesOrder.findUniqueOrThrow`/`tx.purchaseOrder.findUniqueOrThrow`
+    // جوه transaction سكوبد تحت، فأي id عابر للمنظمة هيترفض هناك قبل أي كتابة.
+    {
+      const scopedPrisma = await getScopedPrisma();
+      if (companyId) {
+        const company = await scopedPrisma.company.findFirst({ where: { id: companyId, deletedAt: null } });
+        if (!company) return { formError: "الشركة غير موجودة." };
+      }
+      if (supplierId) {
+        const supplier = await scopedPrisma.supplier.findFirst({ where: { id: supplierId, deletedAt: null } });
+        if (!supplier) return { formError: "المورّد غير موجود." };
+      }
+      if (documentId) {
+        const document = await scopedPrisma.document.findFirst({ where: { id: documentId } });
+        if (!document) return { formError: "المستند غير موجود." };
+      }
+    }
+
     const invoiceId = await withScopedTransaction(async (tx) => {
       const year = new Date(issueDate).getFullYear();
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`INV-${user.orgId}-${year}`}, 0))`;
@@ -479,6 +499,16 @@ export async function createPayment(_prevState: PaymentFormState, formData: Form
     const scopedPrisma = await getScopedPrisma();
     const bankAccount = await scopedPrisma.bankAccount.findFirst({ where: { id: rest.bankAccountId } });
     if (!bankAccount) return { formError: "الحساب البنكي غير موجود." };
+    // companyId/supplierId اختياريين جايين من الفورم — لازم يتأكدوا إنهم بتوع نفس المنظمة قبل
+    // الإنشاء (اتكشف في إعادة مراجعة وحدة 8، 7 سبتمبر).
+    if (companyId) {
+      const company = await scopedPrisma.company.findFirst({ where: { id: companyId, deletedAt: null } });
+      if (!company) return { formError: "الشركة غير موجودة." };
+    }
+    if (supplierId) {
+      const supplier = await scopedPrisma.supplier.findFirst({ where: { id: supplierId, deletedAt: null } });
+      if (!supplier) return { formError: "المورّد غير موجود." };
+    }
 
     // الفحص بعد الصلاحية عمدًا مش قبلها — مستخدم بلا Payment.Create مايشوفش حتى إن السجل موجود.
     if (idempotencyKey) {
@@ -660,6 +690,11 @@ export async function linkInvoiceDocumentAction(invoiceId: string, documentId: s
     await withScopedTransaction(async (tx) => {
       const invoice = await tx.invoice.findUniqueOrThrow({ where: { id: invoiceId } });
       if (invoice.status !== "Draft") throw new Error("المستند القانوني بيتربط بالمسودات بس — الفاتورة اتصدرت خلاص.");
+
+      // documentId جاي من الفورم — لازم يتأكد إنه فعلًا بتاع نفس المنظمة قبل الربط (اتكشف في
+      // إعادة مراجعة وحدة 8، 7 سبتمبر).
+      const document = await tx.document.findFirst({ where: { id: documentId } });
+      if (!document) throw new Error("المستند غير موجود.");
 
       await tx.invoice.update({ where: { id: invoiceId }, data: { documentId } });
       await logAudit(tx, {

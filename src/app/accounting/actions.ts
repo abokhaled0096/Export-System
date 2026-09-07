@@ -41,6 +41,13 @@ export async function createChartOfAccount(_prevState: ChartOfAccountFormState, 
   const { parentAccountId, currency, ...rest } = parsed.data;
   try {
     await requirePermission(user.roleId, "ChartOfAccount", "Create");
+    // parentAccountId اختياري جاي من الفورم — لازم يتأكد إنه فعلًا بتاع نفس المنظمة قبل الإنشاء
+    // (اتكشف في إعادة مراجعة وحدة 8، 7 سبتمبر).
+    if (parentAccountId) {
+      const scopedPrisma = await getScopedPrisma();
+      const parentAccount = await scopedPrisma.chartOfAccount.findFirst({ where: { id: parentAccountId } });
+      if (!parentAccount) return { formError: "الحساب الأب غير موجود." };
+    }
     await withScopedTransaction(async (tx) => {
       const account = await tx.chartOfAccount.create({
         data: { orgId: user.orgId, parentAccountId: parentAccountId || undefined, currency: currency || undefined, ...rest },

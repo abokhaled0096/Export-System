@@ -109,6 +109,13 @@ export async function createFixedAsset(_prevState: FixedAssetFormState, formData
 
   try {
     await requirePermission(user.roleId, "FixedAsset", "Create");
+    // costCenterId اختياري جاي من الفورم — لازم يتأكد إنه فعلًا بتاع نفس المنظمة قبل الإنشاء
+    // (اتكشف في إعادة مراجعة وحدة 8، 7 سبتمبر).
+    if (costCenterId) {
+      const scopedPrisma = await getScopedPrisma();
+      const costCenter = await scopedPrisma.costCenter.findFirst({ where: { id: costCenterId } });
+      if (!costCenter) return { formError: "مركز التكلفة غير موجود." };
+    }
     const assetId = await withScopedTransaction(async (tx) => {
       const year = new Date(purchaseDate).getFullYear();
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`FA-${user.orgId}-${year}`}, 0))`;
@@ -375,6 +382,13 @@ export async function payTaxRecordAction(taxRecordId: string, _prevState: TaxPay
 
   try {
     await requirePermission(user.roleId, "TaxRecord", "Edit");
+    // bankAccountId إلزامي وبيتعرض بلا `?.` في `/accounting/payments`/`payments/[id]`
+    // (`p.bankAccount.accountName`) — نفس فحص `createPayment` بالحرف، كان ناقص هنا (اتكشف في
+    // إعادة مراجعة وحدة 8، 7 سبتمبر) لأن الدالة دي بتنشئ Payment كمان لكن مسار مختلف عن
+    // createPayment العادية.
+    const scopedPrisma = await getScopedPrisma();
+    const bankAccount = await scopedPrisma.bankAccount.findFirst({ where: { id: bankAccountId } });
+    if (!bankAccount) return { formError: "الحساب البنكي غير موجود." };
     await withScopedTransaction(async (tx) => {
       const record = await tx.taxRecord.findUniqueOrThrow({ where: { id: taxRecordId } });
       if (record.filingStatus === "Paid") throw new Error("الإقرار ده مسدَّد بالفعل.");
