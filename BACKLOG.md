@@ -124,6 +124,22 @@ _(فاضي دلوقتي — كل البنود اتقفلت أو اتصلحت. ر
 
 _(هنا هتتنقل البنود اللي خلصت، مع التاريخ وملخص سطر واحد وأي ملف اتغيّر)_
 
+- **[2026-09-07] إعادة مراجعة وحدة 5 (الامتثال والجمارك ECCDC) — أكبر تجمّع حقن FK عابر للمنظمات لقيته في جلسة واحدة، 7 من 13 دالة في `compliance/actions.ts`.**
+  - مراجعة وحدة 5 الأولى (6 سبتمبر) ركّزت على فئة تصعيد الصلاحيات (`assertOwnScope`/`assertComplianceCaseOwnScope`) ولقتها فعلًا سليمة بعد إصلاحها وقتها. لكن نفس الدوال محتاجة فحص منفصل تمامًا (فئة حقن FK) كان لسه ناقص في 7 دوال:
+    - `createComplianceCase`: `supplierId` (اختياري).
+    - `createRequirement`: `productId`/`marketId` (وضع البحث المبكر، اختياريين).
+    - `createHSClassification`: `productId`/`marketId` (إلزاميين).
+    - `createCertificate`: `companyId`/`productId`/`supplierId`/`facilityId` (الأربعة اختياريين — أكتر دالة FKs في الملف).
+    - `createRegistration`: `productId`/`supplierId`/`facilityId` (الثلاثة اختياريين).
+    - `createOriginProof`: `shipmentId` (اختياري).
+    - `createRejectionCase`: `capaId`/`shipmentId` (الاتنين اختياريين).
+  - **بلا خطر كسر صفحة في أي منها**: اتفحص `/compliance/[id]` بالكامل — مفيش أي دالة عرض بتجيب `.supplier`/`.company`/`.facility`/`.shipment`/`.capa` بعلاقة مباشرة بلا `?.` على هذه الكيانات؛ قوائم `certificates`/`registrations`/`hsClassifications` بتتفلتر بـ`productId`/`companyId` الموروثين من `ComplianceCase` نفسه (مش من الصف الجديد)، فصف بـFK عابر للمنظمة مش هيظهر أصلًا في العرض. لكن بلا الفحص كان ينفع تتربط بيانات امتثال حسّاسة (شهادات/تسجيلات/تصنيفات جمركية) بمورد/شركة/منشأة/شحنة/CAPA من منظمة تانية بصمت — نفس فئة تلوّث البيانات المُصلَحة في `Template` (وحدة 4).
+  - اتصلحت كلها بفحص `findFirst` سكوبد قبل الإنشاء (تسلسليًا، مش `Promise.all` — راجع P2028).
+  - **فحص شامل بلا عيوب جديدة تانية**: `createGate`, `decideGate`, `requestGateWaiver`, `updateRequirementStatus`, `updateOriginProofAction`, و`createLCRequirement` اتفحصوا من جديد بالكامل — فحص "قرض الملكية" في `decideGate`/`updateOriginProofAction` (من المراجعة الأولى، 6 سبتمبر) لسه شغّال صح (بيستخرج الملكية من `gate.complianceCaseId`/`originProof.dealId` الحقيقيين مش من الباراميتر المُرسَل)، ومفيش FKs إضافية محتاجة فحص في الست دوال دي.
+  - **مُختبر بسكريبت مباشر ضد بيانات حقيقية**: مورّد/منتج/سوق/شركة/منشأة اتعملوا مؤقتًا، اتفحصوا بشرط `orgId` حقيقي (بيرجّع الصف) ووهمي (بيرجّع `null`)، اتنضّفوا بعد الاختبار.
+  - **ملحوظة تنظيف جانبية أثناء الاختبار**: محاولة سكريبت مباشر فاشلة (بسبب `CAPA.create` محتاج علاقة `organization`/`ownerUser` صريحة مش scalar `orgId`) سابت صفوف يتيمة (Facility/Supplier/Product/Market/Company بأسماء "M5b") قبل ما توصل لخطوة التنظيف — اتكشفت واتنضّفت يدويًا بسكريبت منفصل قبل ما أكمل.
+  - `tsc`/`eslint` نضاف (تحذير `_prevState` غير مستخدم في `decideGate` اتأكد بـ`git stash` إنه قديم، مش ناتج عن التعديلات دي)، `test:rls` **178/178** بلا تغيير (إصلاح تطبيقي بس)، `next build` ناجح. الملف: `src/app/compliance/actions.ts`.
+
 - **[2026-09-07] إعادة مراجعة وحدة 4 (المستندات ECDSS) — حقن FK عابر للمنظمات في `Template` نفسها، وفي كيان `ProductSpecification` (بتاع الوحدة دي) مُستخدَم من وحدة 7 بلا تحقق كامل.**
   - **`createTemplate`** (`src/app/templates/actions.ts`): `marketId`/`customerId` اختياريين جايين من الفورم بلا فحص عضوية منظمة. `/templates` بتعرضهم بـ`?.` من الأساس (`t.market?.countryNameAr`, `t.customer?.legalName`) فمفيش خطر كسر صفحة، لكن بلا الفحص كان ينفع تُنشأ صف `Template` بيربط قالب المنظمة بسوق/عميل منظمة تانية بصمت — تلوّث بيانات بدل كسر صفحة، لكن نفس فئة الثغرة المتكررة في كل وحدة سابقة. اتصلح بفحص `findFirst` سكوبد قبل الإنشاء (تسلسلي، مش `Promise.all` — P2028). `createClause` اتفحصت بالتوازي ولوحظ إنها آمنة أصلًا — الكيان مفهوش أي FK خالص.
   - **`ProductSpecification.specificationId` في وحدة 7**: أثناء تتبّع كل استخدامات كيانات Module 4 عبر الوحدات التانية، لقيت `createSourcingRequest` و`createPurchaseOrder` (`src/app/sourcing/actions.ts`) بيقبلوا `specificationId` (اختياري) من الفورم بلا فحص — رغم إن نفس الدالتين بالظبط اتصلحوا في مراجعة وحدة 7 (6 سبتمبر) لحقول `supplierId`/`facilityId`، يعني الإصلاح وقتها كان جزئي (غطّى بعض FKs في الدالة مش كلها). مفيش صفحة بتعرض علاقة `.specification` مباشرة حاليًا فمفيش خطر كسر، لكن نفس فئة تلوّث البيانات. اتصلحت الاتنين بنفس نمط `findFirst` سكوبد.

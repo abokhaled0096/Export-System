@@ -57,6 +57,14 @@ export async function createComplianceCase(
     const scopedPrisma = await getScopedPrisma();
     const deal = await scopedPrisma.deal.findUniqueOrThrow({ where: { id: dealId } });
 
+    // supplierId اختياري جاي من الفورم — لازم يتأكد إنه فعلًا بتاع نفس المنظمة قبل الإنشاء، نفس
+    // فئة الفحوصات المُضافة في باقي الوحدات لكل FK اختياري من الفورم (اتكشف في إعادة مراجعة
+    // وحدة 5، 7 سبتمبر — الملف ده بالكامل كان فيه نفس الفجوة على أغلب الدوال، راجع BACKLOG.md).
+    if (parsed.data.supplierId) {
+      const supplier = await scopedPrisma.supplier.findFirst({ where: { id: parsed.data.supplierId, deletedAt: null } });
+      if (!supplier) return { formError: "المورّد غير موجود." };
+    }
+
     caseId = await withScopedTransaction(async (tx) => {
       const kase = await tx.complianceCase.create({
         data: {
@@ -140,6 +148,17 @@ export async function createRequirement(
     const scope = await requirePermission(user.roleId, "Requirement", "Create");
     if (complianceCaseId) {
       await assertComplianceCaseOwnScope(scope, complianceCaseId, user);
+    }
+    // productId/marketId (وضع البحث المبكر) جايين من الفورم — لازم يتأكدوا إنهم بتوع نفس المنظمة
+    // قبل الإنشاء (اتكشف في إعادة مراجعة وحدة 5، 7 سبتمبر).
+    const scopedPrisma = await getScopedPrisma();
+    if (productId) {
+      const product = await scopedPrisma.product.findFirst({ where: { id: productId, deletedAt: null } });
+      if (!product) return { formError: "المنتج غير موجود." };
+    }
+    if (marketId) {
+      const market = await scopedPrisma.market.findFirst({ where: { id: marketId, deletedAt: null } });
+      if (!market) return { formError: "السوق غير موجود." };
     }
     await withScopedTransaction(async (tx) => {
       const requirement = await tx.requirement.create({
@@ -439,6 +458,13 @@ export async function createHSClassification(
   const { rulingReference, ...rest } = parsed.data;
   try {
     await requirePermission(user.roleId, "HSClassification", "Create");
+    // productId/marketId إلزاميين جايين من الفورم — لازم يتأكدوا إنهم بتوع نفس المنظمة قبل
+    // الإنشاء (اتكشف في إعادة مراجعة وحدة 5، 7 سبتمبر). ⚠️ مش Promise.all — راجع BACKLOG.md (P2028).
+    const scopedPrisma = await getScopedPrisma();
+    const product = await scopedPrisma.product.findFirst({ where: { id: rest.productId, deletedAt: null } });
+    if (!product) return { formError: "المنتج غير موجود." };
+    const market = await scopedPrisma.market.findFirst({ where: { id: rest.marketId, deletedAt: null } });
+    if (!market) return { formError: "السوق غير موجود." };
     await withScopedTransaction(async (tx) => {
       const hs = await tx.hSClassification.create({
         data: { orgId: user.orgId, rulingReference: rulingReference || undefined, ...rest },
@@ -507,6 +533,25 @@ export async function createCertificate(
   const { companyId, productId, supplierId, facilityId, issueDate, expiryDate, ...rest } = parsed.data;
   try {
     await requirePermission(user.roleId, "Certificate", "Create");
+    // كل الـFKs الأربعة اختياريين جايين من الفورم — لازم يتأكدوا إنهم بتوع نفس المنظمة قبل
+    // الإنشاء (اتكشف في إعادة مراجعة وحدة 5، 7 سبتمبر). ⚠️ مش Promise.all — راجع BACKLOG.md (P2028).
+    const scopedPrisma = await getScopedPrisma();
+    if (companyId) {
+      const company = await scopedPrisma.company.findFirst({ where: { id: companyId, deletedAt: null } });
+      if (!company) return { formError: "الشركة غير موجودة." };
+    }
+    if (productId) {
+      const product = await scopedPrisma.product.findFirst({ where: { id: productId, deletedAt: null } });
+      if (!product) return { formError: "المنتج غير موجود." };
+    }
+    if (supplierId) {
+      const supplier = await scopedPrisma.supplier.findFirst({ where: { id: supplierId, deletedAt: null } });
+      if (!supplier) return { formError: "المورّد غير موجود." };
+    }
+    if (facilityId) {
+      const facility = await scopedPrisma.facility.findFirst({ where: { id: facilityId } });
+      if (!facility) return { formError: "المنشأة غير موجودة." };
+    }
     await withScopedTransaction(async (tx) => {
       const cert = await tx.certificate.create({
         data: {
@@ -587,6 +632,21 @@ export async function createRegistration(
   const { productId, supplierId, facilityId, registrationNumber, submissionDate, approvalDate, expiryDate, ...rest } = parsed.data;
   try {
     await requirePermission(user.roleId, "Registration", "Create");
+    // الثلاثة FKs اختياريين جايين من الفورم — لازم يتأكدوا إنهم بتوع نفس المنظمة قبل الإنشاء
+    // (اتكشف في إعادة مراجعة وحدة 5، 7 سبتمبر). ⚠️ مش Promise.all — راجع BACKLOG.md (P2028).
+    const scopedPrisma = await getScopedPrisma();
+    if (productId) {
+      const product = await scopedPrisma.product.findFirst({ where: { id: productId, deletedAt: null } });
+      if (!product) return { formError: "المنتج غير موجود." };
+    }
+    if (supplierId) {
+      const supplier = await scopedPrisma.supplier.findFirst({ where: { id: supplierId, deletedAt: null } });
+      if (!supplier) return { formError: "المورّد غير موجود." };
+    }
+    if (facilityId) {
+      const facility = await scopedPrisma.facility.findFirst({ where: { id: facilityId } });
+      if (!facility) return { formError: "المنشأة غير موجودة." };
+    }
     await withScopedTransaction(async (tx) => {
       const registration = await tx.registration.create({
         data: {
@@ -662,6 +722,13 @@ export async function createOriginProof(
   try {
     const scope = await requirePermission(user.roleId, "OriginProof", "Create");
     await assertDealOwnScope(scope, dealId, user);
+    // shipmentId اختياري جاي من الفورم — لازم يتأكد إنه فعلًا بتاع نفس المنظمة قبل الإنشاء
+    // (اتكشف في إعادة مراجعة وحدة 5، 7 سبتمبر).
+    if (shipmentId) {
+      const scopedPrisma = await getScopedPrisma();
+      const shipment = await scopedPrisma.shipment.findFirst({ where: { id: shipmentId } });
+      if (!shipment) return { formError: "الشحنة غير موجودة." };
+    }
     await withScopedTransaction(async (tx) => {
       const proof = await tx.originProof.create({
         data: {
@@ -807,6 +874,17 @@ export async function createRejectionCase(
   try {
     const scope = await requirePermission(user.roleId, "RejectionCase", "Create");
     await assertComplianceCaseOwnScope(scope, complianceCaseId, user);
+    // capaId/shipmentId اختياريين جايين من الفورم — لازم يتأكدوا إنهم بتوع نفس المنظمة قبل
+    // الإنشاء (اتكشف في إعادة مراجعة وحدة 5، 7 سبتمبر). ⚠️ مش Promise.all — راجع BACKLOG.md (P2028).
+    const scopedPrisma = await getScopedPrisma();
+    if (capaId) {
+      const capa = await scopedPrisma.cAPA.findFirst({ where: { id: capaId } });
+      if (!capa) return { formError: "الـCAPA غير موجود." };
+    }
+    if (shipmentId) {
+      const shipment = await scopedPrisma.shipment.findFirst({ where: { id: shipmentId } });
+      if (!shipment) return { formError: "الشحنة غير موجودة." };
+    }
     await withScopedTransaction(async (tx) => {
       const rejectionCase = await tx.rejectionCase.create({
         data: {
