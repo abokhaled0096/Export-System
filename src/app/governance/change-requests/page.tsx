@@ -11,6 +11,8 @@ const ENTITY_LINK_BASE: Record<string, string> = {
   Company: "/companies",
   Supplier: "/suppliers",
   BankAccount: "/accounting/bank-accounts",
+  Product: "/products",
+  PurchaseOrder: "/purchase-orders",
 };
 
 export const dynamic = "force-dynamic";

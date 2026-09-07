@@ -5,31 +5,19 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getScopedPrisma, withScopedTransaction } from "@/lib/scoped-prisma";
 import { requireCurrentUser } from "@/lib/session";
-import { requirePermission } from "@/lib/permissions";
+import { requirePermission, getPermissionScope } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 import { parseCsv } from "@/lib/csv";
 import { logError, isNextControlFlowError, businessRuleMessage } from "@/lib/errorLog";
 import { assertWorkflowTransitionAllowed } from "@/lib/workflow";
+import { requestEntityCreation } from "@/lib/masterDataChangeRequest";
+import { ProductSchema } from "@/lib/productSchema";
 
 const monthsField = z
   .array(z.string())
   .transform((arr) => arr.map(Number))
   .pipe(z.array(z.number().int().min(1, "شهر غير صالح").max(12, "شهر غير صالح")))
   .optional();
-
-const ProductSchema = z.object({
-  nameAr: z.string().trim().min(2, "الاسم بالعربية لازم يكون حرفين على الأقل"),
-  nameEn: z.string().trim().min(2, "الاسم بالإنجليزية لازم يكون حرفين على الأقل"),
-  hsCode: z.string().trim().min(4, "HS Code غير صالح"),
-  category: z.string().trim().min(1, "الفئة مطلوبة"),
-  originCountry: z.string().trim().min(1, "بلد المنشأ مطلوب"),
-  harvestSeason: z.string().trim().optional(),
-  availableMonths: monthsField,
-  storageTempC: z.coerce.number().min(-30).max(50).optional(),
-  shelfLifeDays: z.coerce.number().int().positive().optional(),
-  requiresRefrigeration: z.coerce.boolean().optional(),
-  confirmDuplicate: z.coerce.boolean().optional(),
-});
 
 export type ProductFormState = {
   errors?: Partial<Record<keyof z.infer<typeof ProductSchema>, string[]>>;
@@ -63,6 +51,26 @@ export async function createProduct(
   // (أو يتفحص digest بتاعه جوه catch) عشان الـredirect ميتبلعش. راجع src/lib/errorLog.ts.
   const user = await requireCurrentUser();
   const { confirmDuplicate, ...data } = parsed.data;
+
+  // مفيش صلاحية إنشاء مباشر؟ لو عنده صلاحية "طلب إضافة"، يتسجّل الطلب بدل الرفض المباشر — نفس
+  // نمط createCompany/createSupplier/createBankAccount (راجع decideMasterDataChangeRequestAction).
+  if (!(await getPermissionScope(user.roleId, "Product", "Create"))) {
+    if (!(await getPermissionScope(user.roleId, "MasterDataChangeRequest", "Create"))) {
+      return { formError: "معندكش صلاحية إضافة منتج، ولا صلاحية طلب إضافة." };
+    }
+    try {
+      await withScopedTransaction((tx) =>
+        requestEntityCreation(tx, { orgId: user.orgId, userId: user.id, entityType: "Product", proposedChanges: parsed.data })
+      );
+    } catch (e) {
+      if (isNextControlFlowError(e)) throw e;
+      await logError({ orgId: user.orgId, userId: user.id, action: "createProduct.request", error: e });
+      return { formError: "حصل خطأ أثناء تسجيل الطلب — حاول تاني." };
+    }
+    revalidatePath("/governance/change-requests");
+    redirect("/governance/change-requests");
+  }
+
   try {
     await requirePermission(user.roleId, "Product", "Create");
     const scopedPrisma = await getScopedPrisma();

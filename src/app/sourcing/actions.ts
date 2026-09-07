@@ -6,9 +6,11 @@ import { z } from "zod";
 import { Prisma } from "@/generated/prisma/client";
 import { getScopedPrisma, withScopedTransaction } from "@/lib/scoped-prisma";
 import { requireCurrentUser } from "@/lib/session";
-import { requirePermission } from "@/lib/permissions";
+import { requirePermission, getPermissionScope } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 import { logError, isNextControlFlowError } from "@/lib/errorLog";
+import { requestEntityCreation } from "@/lib/masterDataChangeRequest";
+import { PurchaseOrderSchema } from "@/lib/purchaseOrderSchema";
 
 const SourcingRequestSchema = z.object({
   specificationId: z.string().uuid().optional().or(z.literal("")),
@@ -227,17 +229,6 @@ export async function createSupplierQuote(
   return {};
 }
 
-const PurchaseOrderSchema = z.object({
-  supplierId: z.string().uuid("اختر مورّد"),
-  facilityId: z.string().uuid().optional().or(z.literal("")),
-  specificationId: z.string().uuid().optional().or(z.literal("")),
-  quantity: z.coerce.number().positive("الكمية مطلوبة"),
-  unitPrice: z.coerce.number().positive("سعر الوحدة مطلوب"),
-  currency: z.string().trim().min(1, "العملة مطلوبة"),
-  paymentTerms: z.string().trim().optional().or(z.literal("")),
-  penalties: z.string().trim().optional().or(z.literal("")),
-});
-
 export type PurchaseOrderFormState = { errors?: Record<string, string[]>; formError?: string };
 
 /** لو unitPrice > SourcingRequest.maximumPurchasePrice، الـTrigger (enforce_purchase_order_max_price)
@@ -283,6 +274,36 @@ export async function createPurchaseOrder(
   }
 
   const abovePriceCeiling = new Prisma.Decimal(rest.unitPrice).greaterThan(sourcingRequest.maximumPurchasePrice);
+
+  // مفيش صلاحية إنشاء مباشر؟ لو عنده صلاحية "طلب إضافة"، يتسجّل الطلب بدل الرفض المباشر — نفس نمط
+  // createCompany/createSupplier/createBankAccount/createProduct. لكن لو السعر فوق السقف، الطلب
+  // بيترفض من الأساس (قرار صريح من المستخدم، 7 سبتمبر): مسار الموافقة الاستثنائية على السعر
+  // (تحت) محتاج PurchaseOrder.Create أصلًا، فمفيش داعي نسجّل طلب هيتقفل حتمًا وقت الاعتماد
+  // (الـTrigger enforce_purchase_order_max_price هيمنعه على مستوى القاعدة أيًا كان).
+  if (!(await getPermissionScope(user.roleId, "PurchaseOrder", "Create"))) {
+    if (abovePriceCeiling) {
+      return { formError: "سعر الوحدة فوق الحد الأقصى المسموح لطلب التوريد ده — طلب الموافقة الاستثنائية على السعر محتاج صلاحية PurchaseOrder.Create مباشرة." };
+    }
+    if (!(await getPermissionScope(user.roleId, "MasterDataChangeRequest", "Create"))) {
+      return { formError: "معندكش صلاحية إنشاء أمر شراء، ولا صلاحية طلب إضافة." };
+    }
+    try {
+      await withScopedTransaction((tx) =>
+        requestEntityCreation(tx, {
+          orgId: user.orgId,
+          userId: user.id,
+          entityType: "PurchaseOrder",
+          proposedChanges: { sourcingRequestId, ...parsed.data },
+        })
+      );
+    } catch (e) {
+      if (isNextControlFlowError(e)) throw e;
+      await logError({ orgId: user.orgId, userId: user.id, action: "createPurchaseOrder.request", error: e });
+      return { formError: "حصل خطأ أثناء تسجيل الطلب — حاول تاني." };
+    }
+    revalidatePath("/governance/change-requests");
+    redirect("/governance/change-requests");
+  }
 
   if (abovePriceCeiling) {
     const existingPending = await scopedPrisma.approval.findFirst({

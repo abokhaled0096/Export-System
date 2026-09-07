@@ -13,6 +13,9 @@ import { NEW_ENTITY_SENTINEL } from "@/lib/masterDataChangeRequest";
 import { CompanySchema } from "@/lib/companySchema";
 import { SupplierSchema } from "@/lib/supplierSchema";
 import { BankAccountSchema } from "@/lib/bankAccountSchema";
+import { ProductSchema } from "@/lib/productSchema";
+import { PurchaseOrderSchema } from "@/lib/purchaseOrderSchema";
+import { Prisma } from "@/generated/prisma/client";
 
 /**
  * بيحوّل طلب إنشاء (entityId === NEW_ENTITY_SENTINEL) لكيان حقيقي وقت الاعتماد — هنا بالظبط
@@ -71,6 +74,66 @@ async function createEntityFromChangeRequest(
       const account = await tx.bankAccount.create({ data: { orgId, ...data } });
       await logAudit(tx, { orgId, userId: approverId, action: "bankAccount.created", entityType: "BankAccount", entityId: account.id, afterValue: { ...data, source: "changeRequest", requestedBy } });
       return account.id;
+    }
+    case "Product": {
+      // confirmDuplicate تحذير ناعم وقت الإنشاء المباشر بس (createProduct) — مالهوش معنى وقت
+      // الاعتماد، فبيتشال من الفحص أصلًا هنا بدل ما يتحقق ويتشال بعد كده.
+      const data = ProductSchema.omit({ confirmDuplicate: true }).parse(proposedChanges);
+      const product = await tx.product.create({
+        data: { orgId, ...data, availableMonths: data.availableMonths ?? [], status: "Draft" },
+      });
+      await logAudit(tx, { orgId, userId: approverId, action: "product.created", entityType: "Product", entityId: product.id, afterValue: { ...data, source: "changeRequest", requestedBy } });
+      return product.id;
+    }
+    case "PurchaseOrder": {
+      // sourcingRequestId مش جزء من PurchaseOrderSchema (بيوصل كـbound argument للفعل المباشر،
+      // مش حقل فورم) — لازم يتفصل قبل التحقق، ويتخزّن جوه proposedChanges عمدًا وقت الطلب
+      // (راجع createPurchaseOrder في src/app/sourcing/actions.ts) عشان نعرف نربط الـPO الناتج
+      // بطلب التوريد الصح وقت الاعتماد.
+      const { sourcingRequestId, ...rest } = proposedChanges as { sourcingRequestId: string } & Record<string, unknown>;
+      const data = PurchaseOrderSchema.parse(rest);
+      const { facilityId, specificationId, paymentTerms, penalties, ...restData } = data;
+
+      const sourcingRequest = await tx.sourcingRequest.findUniqueOrThrow({ where: { id: sourcingRequestId } });
+
+      // فحص السقف تاني وقت الاعتماد (defense in depth) — ممكن maximumPurchasePrice يتغيّر بين
+      // وقت الطلب ووقت القرار. لو فوق السقف، الـTrigger (enforce_purchase_order_max_price) هيمنع
+      // الإنشاء أصلًا على مستوى القاعدة، لكن رسالة واضحة هنا أفضل من رسالة Trigger خام.
+      if (new Prisma.Decimal(restData.unitPrice).greaterThan(sourcingRequest.maximumPurchasePrice)) {
+        throw new Error("سعر الوحدة بقى فوق الحد الأقصى المسموح لطلب التوريد ده — ارفض الطلب واطلب تاني بسعر مختلف أو بصلاحية PurchaseOrder.Create مباشرة (تدعم موافقة استثنائية).");
+      }
+
+      const supplier = await tx.supplier.findFirst({ where: { id: restData.supplierId, deletedAt: null } });
+      if (!supplier) throw new Error("المورّد غير موجود.");
+      if (facilityId) {
+        const facility = await tx.facility.findFirst({ where: { id: facilityId } });
+        if (!facility) throw new Error("المنشأة غير موجودة.");
+      }
+      if (specificationId) {
+        const specification = await tx.productSpecification.findFirst({ where: { id: specificationId } });
+        if (!specification) throw new Error("المواصفة غير موجودة.");
+      }
+
+      const year = new Date().getFullYear();
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`po-number-${orgId}-${year}`}))`;
+      const countThisYear = await tx.purchaseOrder.count({ where: { orgId, poNumber: { startsWith: `PO-${year}-` } } });
+      const poNumber = `PO-${year}-${String(countThisYear + 1).padStart(4, "0")}`;
+
+      const po = await tx.purchaseOrder.create({
+        data: {
+          orgId,
+          sourcingRequestId,
+          facilityId: facilityId || undefined,
+          specificationId: specificationId || undefined,
+          poNumber,
+          paymentTerms: paymentTerms || undefined,
+          penalties: penalties || undefined,
+          ...restData,
+        },
+      });
+      await tx.sourcingRequest.update({ where: { id: sourcingRequestId }, data: { status: "POIssued" } });
+      await logAudit(tx, { orgId, userId: approverId, action: "purchaseOrder.created", entityType: "PurchaseOrder", entityId: po.id, afterValue: { sourcingRequestId, poNumber, ...restData, source: "changeRequest", requestedBy } });
+      return po.id;
     }
     default:
       throw new Error(`اعتماد طلبات إنشاء ${entityType} مش مدعوم لسه.`);
@@ -452,6 +515,8 @@ export async function decideMasterDataChangeRequestAction(requestId: string, sta
   revalidatePath("/companies");
   revalidatePath("/suppliers");
   revalidatePath("/accounting/bank-accounts");
+  revalidatePath("/products");
+  revalidatePath("/sourcing");
 }
 
 // ==================== FieldPermission (وحدة 9 — 7 سبتمبر) ====================
