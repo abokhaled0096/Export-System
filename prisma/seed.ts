@@ -663,6 +663,10 @@ async function main() {
   // ترحيل الانتقالات المسموحة اللي كانت خرائط TS ثابتة (OPPORTUNITY_STAGE_TRANSITIONS،
   // CAPA_STATUS_TRANSITIONS) لجدول DB — بلا requiredApprovalPolicyId (مفيش سياسة موافقة
   // مربوطة بيهم حاليًا)، وبلا تغيير في السلوك الفعلي.
+  // Product.status (وحدة 1) — كانت بلا أي انتقال محكوم خالص قبل كده (أي حد عنده Product.Edit
+  // يقدر يرجّع Verified لـDraft مباشرة بلا مراجعة، اتكشف في إعادة مراجعة وحدة 1، 7 سبتمبر بعد
+  // بناء WorkflowDefinition). بلا رجوع مباشر من Verified لـDraft عمدًا — لازم مراجعة (NeedsReview)
+  // الأول لو ظهرت مشكلة بعد التوثيق.
   const WORKFLOW_TRANSITIONS: { entityType: string; fromStage: string; toStage: string }[] = [
     { entityType: "Opportunity", fromStage: "NewLead", toStage: "Contacted" },
     { entityType: "Opportunity", fromStage: "NewLead", toStage: "Lost" },
@@ -679,6 +683,10 @@ async function main() {
     { entityType: "CAPA", fromStage: "VerificationPending", toStage: "Ineffective" },
     { entityType: "CAPA", fromStage: "Effective", toStage: "Closed" },
     { entityType: "CAPA", fromStage: "Ineffective", toStage: "Closed" },
+    { entityType: "Product", fromStage: "Draft", toStage: "Verified" },
+    { entityType: "Product", fromStage: "Draft", toStage: "NeedsReview" },
+    { entityType: "Product", fromStage: "NeedsReview", toStage: "Verified" },
+    { entityType: "Product", fromStage: "Verified", toStage: "NeedsReview" },
   ];
   for (const t of WORKFLOW_TRANSITIONS) {
     await prisma.workflowDefinition.upsert({

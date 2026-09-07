@@ -14,16 +14,21 @@ const statusLabel: Record<string, string> = { Draft: "مسودة", Verified: "م
 export default function ProductEditForm({
   productId,
   status,
+  allowedNextStatuses,
   availableMonths,
   storageTempC,
 }: {
   productId: string;
   status: string;
+  allowedNextStatuses: string[];
   availableMonths: number[];
   storageTempC: number | null;
 }) {
   const updateProductWithId = updateProduct.bind(null, productId);
   const [state, formAction, pending] = useActionState(updateProductWithId, initialState);
+  // الحالة الحالية + الانتقالات المسموحة بس (جدول WorkflowDefinition، وحدة 9) — بدل عرض
+  // الحالات التلاتة دايمًا زي الأول، عشان محدش يختار انتقال هيترفض من السيرفر أصلًا.
+  const selectableStatuses = [status, ...allowedNextStatuses.filter((s) => s !== status)];
 
   return (
     <form action={formAction} className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5">
@@ -37,9 +42,9 @@ export default function ProductEditForm({
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              {Object.entries(statusLabel).map(([value, label]) => (
+              {selectableStatuses.map((value) => (
                 <SelectItem key={value} value={value}>
-                  {label}
+                  {statusLabel[value] ?? value}
                 </SelectItem>
               ))}
             </SelectContent>

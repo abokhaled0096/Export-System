@@ -52,6 +52,14 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   });
   if (!product) notFound();
 
+  // الانتقالات المسموحة بقت في جدول WorkflowDefinition (وحدة 9) — كانت الحالة قابلة للتغيير
+  // بحرية لأي قيمة قبل كده بلا أي فحص (اتكشف في إعادة مراجعة وحدة 1، 7 سبتمبر). بتتقرا هنا
+  // وتتبعت لـProductEditForm عشان قائمة الاختيار تعرض بس الانتقالات المسموحة + الحالة الحالية.
+  const allowedNextStatuses = await prisma.workflowDefinition.findMany({
+    where: { orgId, entityType: "Product", fromStage: product.status },
+    select: { toStage: true },
+  });
+
   return (
     <main className="mx-auto max-w-3xl px-6 py-10">
       <Button nativeButton={false} variant="link" className="px-0" render={<Link href="/products">← رجوع للمنتجات</Link>} />
@@ -103,6 +111,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           <ProductEditForm
             productId={product.id}
             status={product.status}
+            allowedNextStatuses={allowedNextStatuses.map((t) => t.toStage)}
             availableMonths={product.availableMonths}
             storageTempC={product.storageTempC ? Number(product.storageTempC) : null}
           />

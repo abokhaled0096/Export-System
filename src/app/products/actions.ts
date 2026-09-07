@@ -8,7 +8,8 @@ import { requireCurrentUser } from "@/lib/session";
 import { requirePermission } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 import { parseCsv } from "@/lib/csv";
-import { logError, isNextControlFlowError } from "@/lib/errorLog";
+import { logError, isNextControlFlowError, businessRuleMessage } from "@/lib/errorLog";
+import { assertWorkflowTransitionAllowed } from "@/lib/workflow";
 
 const monthsField = z
   .array(z.string())
@@ -139,6 +140,14 @@ export async function updateProduct(
   try {
     await requirePermission(user.roleId, "Product", "Edit");
     await withScopedTransaction(async (tx) => {
+      const current = await tx.product.findUniqueOrThrow({ where: { id: productId }, select: { status: true } });
+      // انتقال حالة حقيقي بقى — بس الأزواج المسموح بيها في جدول WorkflowDefinition (وحدة 9،
+      // راجع STATUS.md 7 سبتمبر). كانت بلا أي فحص خالص قبل كده (أي حد عنده Product.Edit يقدر
+      // يرجّع Verified لـDraft مباشرة بلا مراجعة). بلا فحص لو الحالة متغيّرتش (فورم واحد بيعدّل
+      // status/availableMonths/storageTempC مع بعض).
+      if (current.status !== parsed.data.status) {
+        await assertWorkflowTransitionAllowed(tx, user.orgId, "Product", productId, current.status, parsed.data.status);
+      }
       await tx.product.update({
         where: { id: productId },
         data: { ...parsed.data, availableMonths: parsed.data.availableMonths ?? [] },
@@ -149,13 +158,14 @@ export async function updateProduct(
         action: "product.updated",
         entityType: "Product",
         entityId: productId,
+        beforeValue: { status: current.status },
         afterValue: parsed.data,
       });
     });
   } catch (e) {
     if (isNextControlFlowError(e)) throw e;
     await logError({ orgId: user.orgId, userId: user.id, action: "updateProduct", error: e });
-    return { formError: "حصل خطأ أثناء التحديث — حاول تاني." };
+    return { formError: businessRuleMessage(e, "حصل خطأ أثناء التحديث — حاول تاني.") };
   }
 
   revalidatePath(`/products/${productId}`);
