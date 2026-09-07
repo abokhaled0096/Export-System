@@ -122,6 +122,12 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
     select: { id: true, lotCode: true },
     orderBy: { createdAt: "desc" },
   });
+  const workflowDefs = await prisma.workflowDefinition.findMany({
+    where: { orgId, entityType: { in: ["Milestone", "LogisticsException", "Claim"] } },
+    select: { entityType: true, fromStage: true, toStage: true },
+  });
+  const allowedNext = (entityType: string, fromStage: string) =>
+    workflowDefs.filter((d) => d.entityType === entityType && d.fromStage === fromStage).map((d) => d.toStage);
 
   const freeTimeChargeDays = (r: (typeof shipment.freeTimeRecords)[number]) => {
     if (!r.startDate || !r.endDate) return null;
@@ -344,7 +350,13 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <Badge className={milestoneStatusStyle[m.status]}>{milestoneStatusLabel[m.status]}</Badge>
-                      <MilestoneStatusForm key={`${m.id}:${m.status}`} milestoneId={m.id} shipmentId={shipment.id} currentStatus={m.status} />
+                      <MilestoneStatusForm
+                        key={`${m.id}:${m.status}`}
+                        milestoneId={m.id}
+                        shipmentId={shipment.id}
+                        currentStatus={m.status}
+                        allowedNextStatuses={allowedNext("Milestone", m.status)}
+                      />
                     </div>
                   </TableCell>
                 </TableRow>
@@ -437,6 +449,7 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
                           exceptionId={ex.id}
                           shipmentId={shipment.id}
                           currentStatus={ex.status}
+                          allowedNextStatuses={allowedNext("LogisticsException", ex.status)}
                         />
                       </div>
                     </TableCell>
@@ -697,7 +710,13 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Badge className={claimStatusStyle[c.status]}>{claimStatusLabel[c.status]}</Badge>
-                        <ClaimStatusForm key={`${c.id}:${c.status}`} claimId={c.id} shipmentId={shipment.id} currentStatus={c.status} />
+                        <ClaimStatusForm
+                          key={`${c.id}:${c.status}`}
+                          claimId={c.id}
+                          shipmentId={shipment.id}
+                          currentStatus={c.status}
+                          allowedNextStatuses={allowedNext("Claim", c.status)}
+                        />
                       </div>
                     </TableCell>
                   </TableRow>

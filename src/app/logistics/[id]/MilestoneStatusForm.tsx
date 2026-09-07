@@ -7,19 +7,21 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const initialState: UpdateMilestoneState = {};
-const statuses = Object.keys(milestoneStatusLabel);
 
 export default function MilestoneStatusForm({
   milestoneId,
   shipmentId,
   currentStatus,
+  allowedNextStatuses,
 }: {
   milestoneId: string;
   shipmentId: string;
   currentStatus: string;
+  allowedNextStatuses: string[];
 }) {
   const action = updateMilestone.bind(null, milestoneId, shipmentId);
   const [state, formAction, pending] = useActionState(action, initialState);
+  const selectableStatuses = [currentStatus, ...allowedNextStatuses.filter((s) => s !== currentStatus)];
 
   return (
     <form action={formAction} className="flex items-center gap-2">
@@ -28,7 +30,7 @@ export default function MilestoneStatusForm({
           <SelectValue>{(value: string) => milestoneStatusLabel[value] ?? value}</SelectValue>
         </SelectTrigger>
         <SelectContent>
-          {statuses.map((s) => (
+          {selectableStatuses.map((s) => (
             <SelectItem key={s} value={s}>
               {milestoneStatusLabel[s]}
             </SelectItem>

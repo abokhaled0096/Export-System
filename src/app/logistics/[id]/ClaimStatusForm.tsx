@@ -8,19 +8,21 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const initialState: UpdateClaimStatusState = {};
-const statuses = Object.keys(claimStatusLabel);
 
 export default function ClaimStatusForm({
   claimId,
   shipmentId,
   currentStatus,
+  allowedNextStatuses,
 }: {
   claimId: string;
   shipmentId: string;
   currentStatus: string;
+  allowedNextStatuses: string[];
 }) {
   const action = updateClaimStatus.bind(null, claimId, shipmentId);
   const [state, formAction, pending] = useActionState(action, initialState);
+  const selectableStatuses = [currentStatus, ...allowedNextStatuses.filter((s) => s !== currentStatus)];
 
   return (
     <form action={formAction} className="flex items-center gap-2">
@@ -29,7 +31,7 @@ export default function ClaimStatusForm({
           <SelectValue>{(value: string) => claimStatusLabel[value] ?? value}</SelectValue>
         </SelectTrigger>
         <SelectContent>
-          {statuses.map((s) => (
+          {selectableStatuses.map((s) => (
             <SelectItem key={s} value={s}>
               {claimStatusLabel[s]}
             </SelectItem>

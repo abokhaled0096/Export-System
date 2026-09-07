@@ -11,6 +11,7 @@ import { logError, isNextControlFlowError, businessRuleMessage } from "@/lib/err
 import { requireAal2 } from "@/lib/mfa";
 import { encryptSecret, updateSecret } from "@/lib/vault";
 import { DEFAULT_MILESTONES } from "@/lib/logisticsLabels";
+import { assertWorkflowTransitionAllowed } from "@/lib/workflow";
 
 const SHIPMENT_TYPES = ["Commercial", "Sample", "Trial", "Tender", "Consolidated"] as const;
 const TRANSPORT_MODES = ["Sea", "Air", "Road", "Rail", "Multimodal", "Courier"] as const;
@@ -409,6 +410,11 @@ export async function updateMilestone(
     await requirePermission(user.roleId, "Milestone", "Edit");
     await withScopedTransaction(async (tx) => {
       const before = await tx.milestone.findUniqueOrThrow({ where: { id: milestoneId } });
+      // انتقال حقيقي بقى — بس الأزواج المسموح بيها في جدول WorkflowDefinition (وحدة 9، راجع
+      // STATUS.md 7 سبتمبر). كانت بلا أي فحص خالص قبل كده (اتكشف في إعادة مراجعة وحدة 6، 7 سبتمبر).
+      if (before.status !== status) {
+        await assertWorkflowTransitionAllowed(tx, user.orgId, "Milestone", milestoneId, before.status, status);
+      }
       await tx.milestone.update({
         where: { id: milestoneId },
         data: {
@@ -431,7 +437,7 @@ export async function updateMilestone(
   } catch (e) {
     if (isNextControlFlowError(e)) throw e;
     await logError({ orgId: user.orgId, userId: user.id, action: "updateMilestone", error: e });
-    return { formError: "حصل خطأ أثناء تحديث المعلم — حاول تاني." };
+    return { formError: businessRuleMessage(e, "حصل خطأ أثناء تحديث المعلم — حاول تاني.") };
   }
 
   revalidatePath(`/logistics/${shipmentId}`);
@@ -587,6 +593,11 @@ export async function updateLogisticsExceptionStatus(
     await requirePermission(user.roleId, "LogisticsException", "Edit");
     await withScopedTransaction(async (tx) => {
       const before = await tx.logisticsException.findUniqueOrThrow({ where: { id: exceptionId } });
+      // انتقال حقيقي بقى — بس الأزواج المسموح بيها في جدول WorkflowDefinition (وحدة 9، راجع
+      // STATUS.md 7 سبتمبر). كانت بلا أي فحص خالص قبل كده (اتكشف في إعادة مراجعة وحدة 6، 7 سبتمبر).
+      if (before.status !== parsed.data.status) {
+        await assertWorkflowTransitionAllowed(tx, user.orgId, "LogisticsException", exceptionId, before.status, parsed.data.status);
+      }
       await tx.logisticsException.update({ where: { id: exceptionId }, data: { status: parsed.data.status } });
       await logAudit(tx, {
         orgId: user.orgId,
@@ -601,7 +612,7 @@ export async function updateLogisticsExceptionStatus(
   } catch (e) {
     if (isNextControlFlowError(e)) throw e;
     await logError({ orgId: user.orgId, userId: user.id, action: "updateLogisticsExceptionStatus", error: e });
-    return { formError: "حصل خطأ أثناء تحديث حالة الاستثناء — حاول تاني." };
+    return { formError: businessRuleMessage(e, "حصل خطأ أثناء تحديث حالة الاستثناء — حاول تاني.") };
   }
 
   revalidatePath(`/logistics/${shipmentId}`);
@@ -1050,6 +1061,11 @@ export async function updateClaimStatus(
     await requirePermission(user.roleId, "Claim", "Edit");
     await withScopedTransaction(async (tx) => {
       const before = await tx.claim.findUniqueOrThrow({ where: { id: claimId } });
+      // انتقال حقيقي بقى — بس الأزواج المسموح بيها في جدول WorkflowDefinition (وحدة 9، راجع
+      // STATUS.md 7 سبتمبر). كانت بلا أي فحص خالص قبل كده (اتكشف في إعادة مراجعة وحدة 6، 7 سبتمبر).
+      if (before.status !== status) {
+        await assertWorkflowTransitionAllowed(tx, user.orgId, "Claim", claimId, before.status, status);
+      }
       await tx.claim.update({ where: { id: claimId }, data: { status, settlementAmount } });
       await logAudit(tx, {
         orgId: user.orgId,
@@ -1064,7 +1080,7 @@ export async function updateClaimStatus(
   } catch (e) {
     if (isNextControlFlowError(e)) throw e;
     await logError({ orgId: user.orgId, userId: user.id, action: "updateClaimStatus", error: e });
-    return { formError: "حصل خطأ أثناء تحديث حالة المطالبة — حاول تاني." };
+    return { formError: businessRuleMessage(e, "حصل خطأ أثناء تحديث حالة المطالبة — حاول تاني.") };
   }
 
   revalidatePath(`/logistics/${shipmentId}`);

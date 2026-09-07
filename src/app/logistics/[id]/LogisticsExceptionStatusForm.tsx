@@ -7,19 +7,21 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const initialState: UpdateLogisticsExceptionStatusState = {};
-const statuses = Object.keys(logisticsExceptionStatusLabel);
 
 export default function LogisticsExceptionStatusForm({
   exceptionId,
   shipmentId,
   currentStatus,
+  allowedNextStatuses,
 }: {
   exceptionId: string;
   shipmentId: string;
   currentStatus: string;
+  allowedNextStatuses: string[];
 }) {
   const action = updateLogisticsExceptionStatus.bind(null, exceptionId, shipmentId);
   const [state, formAction, pending] = useActionState(action, initialState);
+  const selectableStatuses = [currentStatus, ...allowedNextStatuses.filter((s) => s !== currentStatus)];
 
   return (
     <form action={formAction} className="flex items-center gap-2">
@@ -28,7 +30,7 @@ export default function LogisticsExceptionStatusForm({
           <SelectValue>{(value: string) => logisticsExceptionStatusLabel[value] ?? value}</SelectValue>
         </SelectTrigger>
         <SelectContent>
-          {statuses.map((s) => (
+          {selectableStatuses.map((s) => (
             <SelectItem key={s} value={s}>
               {logisticsExceptionStatusLabel[s]}
             </SelectItem>
