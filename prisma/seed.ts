@@ -757,6 +757,11 @@ async function main() {
     { entityType: "Claim", fromStage: "PartiallyAccepted", toStage: "Settled" },
     { entityType: "Claim", fromStage: "Rejected", toStage: "Closed" },
     { entityType: "Claim", fromStage: "Settled", toStage: "Closed" },
+    // AccountingPeriod.status (وحدة 8) — اتجاه واحد بلا رجوع، بلا قفز مراحل (نفس قاعدة الزرار
+    // الموجودة أصلًا في ClosePeriodButton.tsx — advanceAccountingPeriodStatus كانت بتقبل أي نقلة
+    // بما فيها HardClosed→Open بلا فحص خالص قبل إعادة مراجعة وحدة 8، 7 سبتمبر).
+    { entityType: "AccountingPeriod", fromStage: "Open", toStage: "SoftClosed" },
+    { entityType: "AccountingPeriod", fromStage: "SoftClosed", toStage: "HardClosed" },
   ];
   for (const t of WORKFLOW_TRANSITIONS) {
     await prisma.workflowDefinition.upsert({

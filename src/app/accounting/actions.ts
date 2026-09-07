@@ -8,7 +8,8 @@ import { requireCurrentUser } from "@/lib/session";
 import { requirePermission } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 import { createJournalEntryDraft, postJournalEntryById, reverseJournalEntry } from "@/lib/accounting";
-import { logError, isNextControlFlowError } from "@/lib/errorLog";
+import { logError, isNextControlFlowError, businessRuleMessage } from "@/lib/errorLog";
+import { assertWorkflowTransitionAllowed } from "@/lib/workflow";
 
 const ACCOUNT_TYPES = ["Asset", "Liability", "Equity", "Revenue", "COGS", "Expense"] as const;
 const NORMAL_BALANCES = ["Debit", "Credit"] as const;
@@ -121,7 +122,9 @@ export async function createAccountingPeriod(_prevState: AccountingPeriodFormSta
 const PERIOD_STATUSES = ["Open", "SoftClosed", "HardClosed"] as const;
 
 /** ترقية حالة الفترة بس (Open→SoftClosed→HardClosed) — closedBy/closedAt بيتحدّدوا تلقائيًا لما
- * الحالة توصل HardClosed. بلا مسار تراجع (نفس فلسفة إقفال الفترات المحاسبية الحقيقي). */
+ * الحالة توصل HardClosed. بلا مسار تراجع (نفس فلسفة إقفال الفترات المحاسبية الحقيقي) — كان ده نية
+ * الكود من الأول لكن بلا إنفاذ فعلي (الدالة كانت بتقبل أي نقلة بما فيها HardClosed→Open بلا فحص
+ * خالص)؛ اتصلح بـ`assertWorkflowTransitionAllowed` (مراجعة وحدة 8، 7 سبتمبر) — راجع BACKLOG.md. */
 export async function advanceAccountingPeriodStatus(periodId: string, nextStatus: (typeof PERIOD_STATUSES)[number]) {
   const parsed = z.enum(PERIOD_STATUSES).safeParse(nextStatus);
   if (!parsed.success) throw new Error("حالة فترة غير صالحة.");
@@ -131,6 +134,9 @@ export async function advanceAccountingPeriodStatus(periodId: string, nextStatus
 
   try {
     await withScopedTransaction(async (tx) => {
+      const period = await tx.accountingPeriod.findUniqueOrThrow({ where: { id: periodId } });
+      await assertWorkflowTransitionAllowed(tx, user.orgId, "AccountingPeriod", periodId, period.status, parsed.data);
+
       await tx.accountingPeriod.update({
         where: { id: periodId },
         data: {
@@ -145,13 +151,14 @@ export async function advanceAccountingPeriodStatus(periodId: string, nextStatus
         action: "accountingPeriod.statusChanged",
         entityType: "AccountingPeriod",
         entityId: periodId,
+        beforeValue: { status: period.status },
         afterValue: { status: parsed.data },
       });
     });
   } catch (e) {
     if (isNextControlFlowError(e)) throw e;
     await logError({ orgId: user.orgId, userId: user.id, action: "advanceAccountingPeriodStatus", error: e });
-    throw new Error("حصل خطأ أثناء تحديث حالة الفترة — حاول تاني.");
+    throw new Error(businessRuleMessage(e, "حصل خطأ أثناء تحديث حالة الفترة — حاول تاني."));
   }
 
   revalidatePath("/accounting/periods");
