@@ -123,6 +123,14 @@ _(فاضي دلوقتي — كل البنود اتقفلت أو اتصلحت. ر
 
 _(هنا هتتنقل البنود اللي خلصت، مع التاريخ وملخص سطر واحد وأي ملف اتغيّر)_
 
+- **[2026-09-08] الأدمن بقى يقدر يضيف مستخدم جديد بالإيميل + الدور من `/admin/users` مباشرة، ويعيد تعيين كلمة سر أي مستخدم، ويعطّل/يفعّل حساب فورًا — بدل الخطوة اليدوية (Supabase Dashboard + `prisma/link-auth-user.ts`).**
+  - **توضيح اتفق عليه مع المستخدم**: "الأدمن يشوف كلمة سر اتغيّرت بمعرفة المستخدم نفسه" مستحيل تقنيًا لأي نظام (كلمات السر مشفّرة اتجاه واحد) — مش قرار سياسة، حقيقة تشفير. البديل الفعلي: إعادة تعيين لقيمة جديدة الأدمن يعرفها، أو تعطيل فوري (أقوى لسيناريو "الموظف مشي").
+  - `src/lib/authAdmin.ts` (جديد): `createAuthUser`/`updateAuthUserPassword`/`deleteAuthUser` عبر service_role client — نفس نمط `src/lib/storage.ts`.
+  - `src/app/admin/users/actions.ts`: `createUserAction`/`resetUserPasswordAction`/`toggleUserActiveAction` جداد — بلا أي تسجيل لكلمات السر في الـAuditLog، وحماية ضد تعطيل الأدمن لنفسه.
+  - `src/lib/session.ts`: `requireCurrentUser()` بقى بيفحص `User.isActive` فعليًا (كان عمود ميت في الـSchema من الأول) ويرمي `/login?error=deactivated`.
+  - **مُختبر حيًا بالكامل في المتصفح**: إنشاء/إعادة تعيين كلمة سر/تعطيل/إعادة تفعيل — الأربعة نجحوا، والتعطيل اتأكد بسكريبت مباشر إنه بيوصل فعليًا لمنطق `requireCurrentUser()`. المستخدم التجريبي اتنضّف بالكامل بعدها.
+  - `tsc`/`eslint` نضاف، `test:rls` **178/178** بلا تغيير، `next build` ناجح. الملفات: `src/lib/authAdmin.ts`, `src/app/admin/users/{actions.ts,page.tsx,CreateUserForm.tsx,ResetPasswordForm.tsx,ToggleActiveForm.tsx}`, `src/lib/session.ts`, `src/app/login/page.tsx`.
+
 - **[2026-09-08] تقليل الحقول اللي المستخدم لازم يملاها يدويًا وقت الإنشاء عبر النظام كله — بطلب صريح من المستخدم.**
   - **الاكتشاف**: مسح شامل (3 وكلاء بحث بالتوازي) لكل الـ`create*` Server Actions في الوحدات التسعة (~75 فورم) — معظم الفورمات كانت أصلاً شحيحة الحقول، لكن نمطين اتكرروا بشكل حقيقي.
   - **النمط 1 — `status` بيتسأل صراحة رغم `@default(...)` واضح في الـSchema (بداية workflow، مش قرار حقيقي)**: اتشال من 18 فورم (`ProductSpecification`, `Document`, `DocumentPackage`, `CommissionEntry`, `CustomerServiceCase`, `Template`, `HSClassification`, `Registration`, `OriginProof`, `Booking`, `TransportTrip`, `Supplier`, `Facility`, `SupplyContract`, `PackagingMaterial`, `SupplierSample`, `CargoReadiness`, `CAPA`) وبقى بيتحط تلقائيًا في الـServer Action نفسه. `CAPA` بالذات كانت عندها اختيار مقيّد بين 3 قيم بداية (`Open`/`InProgress`/`VerificationPending`) بلا فايدة حقيقية — بقت `Open` ثابتة.

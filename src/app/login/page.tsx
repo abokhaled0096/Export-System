@@ -19,6 +19,11 @@ export default async function LoginPage({
             جلستك انتهت — سجّل دخول تاني، أي بيانات كنت بتكتبها في فورم طويل هترجع تلقائيًا.
           </p>
         )}
+        {error === "deactivated" && (
+          <p className="w-full max-w-sm rounded-lg bg-rose-50 px-3 py-2 text-center text-sm text-rose-800">
+            الحساب ده معطّل — كلّم مدير النظام.
+          </p>
+        )}
         <LoginForm next={next} />
       </div>
     </main>

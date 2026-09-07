@@ -3,6 +3,9 @@ import { requirePermission } from "@/lib/permissions";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
 import { getCurrentOrgId } from "@/lib/org";
 import RoleSelectForm from "./RoleSelectForm";
+import CreateUserForm from "./CreateUserForm";
+import ResetPasswordForm from "./ResetPasswordForm";
+import ToggleActiveForm from "./ToggleActiveForm";
 
 export const dynamic = "force-dynamic";
 
@@ -34,13 +37,19 @@ export default async function AdminUsersPage() {
         تعيين دور لكل مستخدم — الصلاحيات الفعلية لكل دور مذكورة في `prisma/seed.ts` (`ROLE_GRANTS`).
       </p>
 
-      <div className="mt-6 overflow-x-auto rounded-xl border border-neutral-200 bg-white">
+      <div className="mt-6">
+        <CreateUserForm roles={roles.map((r) => ({ id: r.id, name: r.name }))} />
+      </div>
+
+      <div className="mt-4 overflow-x-auto rounded-xl border border-neutral-200 bg-white">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-neutral-200 bg-neutral-50 text-right text-xs uppercase tracking-wide text-neutral-500">
               <th className="px-4 py-3 font-medium">الاسم</th>
               <th className="px-4 py-3 font-medium">البريد</th>
               <th className="px-4 py-3 font-medium">الدور</th>
+              <th className="px-4 py-3 font-medium">كلمة السر</th>
+              <th className="px-4 py-3 font-medium">الحالة</th>
             </tr>
           </thead>
           <tbody>
@@ -55,6 +64,16 @@ export default async function AdminUsersPage() {
                     roles={roles.map((r) => ({ id: r.id, name: r.name }))}
                     isSelf={u.id === user.id}
                   />
+                </td>
+                <td className="px-4 py-3">
+                  <ResetPasswordForm userId={u.id} />
+                </td>
+                <td className="px-4 py-3">
+                  {u.id === user.id ? (
+                    <span className="text-xs text-amber-600">ده حسابك</span>
+                  ) : (
+                    <ToggleActiveForm userId={u.id} isActive={u.isActive} />
+                  )}
                 </td>
               </tr>
             ))}

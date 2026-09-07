@@ -48,7 +48,7 @@ export async function getCurrentUser() {
  */
 export async function requireCurrentUser() {
   const user = await getCurrentUser();
-  if (!user) {
+  if (!user || !user.isActive) {
     const referer = (await headers()).get("referer");
     let next: string | null = null;
     if (referer) {
@@ -59,7 +59,8 @@ export async function requireCurrentUser() {
         // referer مش URL صالح (نادر) — نتجاهل ونرمي بلا next.
       }
     }
-    redirect(next ? `/login?error=unlinked&next=${encodeURIComponent(next)}` : "/login?error=unlinked");
+    const error = user ? "deactivated" : "unlinked";
+    redirect(next ? `/login?error=${error}&next=${encodeURIComponent(next)}` : `/login?error=${error}`);
   }
   return user;
 }
