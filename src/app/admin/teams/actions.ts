@@ -87,6 +87,12 @@ export async function createTeam(
     const scopedPrisma = await getScopedPrisma();
     const department = await scopedPrisma.department.findFirst({ where: { id: departmentId } });
     if (!department) return { formError: "القسم غير موجود." };
+    // managerId اختياري جاي من الفورم — لازم يتأكد إنه فعلًا بتاع نفس المنظمة قبل الإنشاء
+    // (اتكشف في إعادة مراجعة وحدة 9، 7 سبتمبر).
+    if (managerId) {
+      const manager = await scopedPrisma.user.findFirst({ where: { id: managerId } });
+      if (!manager) return { formError: "المدير غير موجود." };
+    }
     await withScopedTransaction(async (tx) => {
       const team = await tx.team.create({
         data: { orgId: user.orgId, name, departmentId, managerId: managerId || undefined },
@@ -141,6 +147,15 @@ export async function assignUserTeam(
   if (!target) return { formError: "المستخدم غير موجود." };
 
   const teamId = parsed.data.teamId || null;
+  // teamId اختياري جاي من الفورم — لازم يتأكد إنه فعلًا بتاع نفس المنظمة قبل التعيين. `User.teamId`
+  // بيتستخدم بعدين في `scopedOwnerIdFilter` (src/lib/permissions.ts) عبر الـprisma الخام (بلا فلترة
+  // orgId خالص) عشان يجيب كل أعضاء نفس الفريق — teamId عابر للمنظمة كان هيرجّع ids مستخدمين من
+  // منظمة تانية في نتيجة الفلترة دي (بلا تسريب بيانات فعلي لأن كل استعلام لاحق بيتفلتر بـorgId
+  // المستخدم الحالي أصلًا، لكن لسه تلوّث بيانات مش مقصود — اتكشف في إعادة مراجعة وحدة 9، 7 سبتمبر).
+  if (teamId) {
+    const team = await prisma.team.findFirst({ where: { id: teamId } });
+    if (!team) return { formError: "الفريق غير موجود." };
+  }
 
   try {
     await withScopedTransaction(async (tx) => {
