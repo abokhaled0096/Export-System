@@ -63,6 +63,13 @@ export async function createShipment(
     const scopedPrisma = await getScopedPrisma();
     const deal = await scopedPrisma.deal.findUniqueOrThrow({ where: { id: dealId } });
 
+    // complianceCaseId اختياري جاي من الباراميتر — لازم يتأكد إنه فعلًا بتاع نفس المنظمة قبل
+    // الربط (اتكشف في إعادة مراجعة وحدة 6، 7 سبتمبر — نفس فئة فحوصات FK المُضافة في وحدة 5).
+    if (complianceCaseId) {
+      const kase = await scopedPrisma.complianceCase.findFirst({ where: { id: complianceCaseId } });
+      if (!kase) return { formError: "ملف الامتثال غير موجود." };
+    }
+
     shipmentId = await withScopedTransaction(async (tx) => {
       const shipment = await tx.shipment.create({
         data: {
@@ -188,6 +195,12 @@ export async function addShipmentParty(
   const user = await requireCurrentUser();
   try {
     await requirePermission(user.roleId, "Shipment", "Edit");
+    // companyId إلزامي وبيتعرض بلا `?.` في `/logistics/[id]` (`p.company.legalName`) — لازم
+    // يتأكد إنه فعلًا بتاع نفس المنظمة قبل الإنشاء، وإلا كسر صفحة الشحنة بالكامل لأي حد في
+    // المنظمة (اتكشف في إعادة مراجعة وحدة 6، 7 سبتمبر — نفس فئة باگ Competitor الأصلي).
+    const scopedPrisma = await getScopedPrisma();
+    const company = await scopedPrisma.company.findFirst({ where: { id: parsed.data.companyId, deletedAt: null } });
+    if (!company) return { formError: "الشركة غير موجودة." };
     await withScopedTransaction(async (tx) => {
       const party = await tx.shipmentParty.create({
         data: { orgId: user.orgId, shipmentId, ...parsed.data },
@@ -254,6 +267,17 @@ export async function createBooking(
   const { bookingNumber, vessel, voyage, etd, eta, documentationCutoff, vgmDeadline, portClosingDate, providerId, freightQuoteId, ...rest } = parsed.data;
   try {
     await requirePermission(user.roleId, "Booking", "Create");
+    // providerId/freightQuoteId اختياريين جايين من الفورم — لازم يتأكدوا إنهم بتوع نفس المنظمة
+    // قبل الإنشاء (اتكشف في إعادة مراجعة وحدة 6، 7 سبتمبر). ⚠️ مش Promise.all — راجع BACKLOG.md (P2028).
+    const scopedPrisma = await getScopedPrisma();
+    if (providerId) {
+      const provider = await scopedPrisma.serviceProvider.findFirst({ where: { id: providerId } });
+      if (!provider) return { formError: "مزوّد الخدمة غير موجود." };
+    }
+    if (freightQuoteId) {
+      const freightQuote = await scopedPrisma.freightQuote.findFirst({ where: { id: freightQuoteId } });
+      if (!freightQuote) return { formError: "عرض سعر الشحن غير موجود." };
+    }
     await withScopedTransaction(async (tx) => {
       const booking = await tx.booking.create({
         data: {
@@ -624,6 +648,13 @@ export async function createFreeTimeRecord(
   const { containerId, startDate, endDate, currency, responsibleParty, ...rest } = parsed.data;
   try {
     await requirePermission(user.roleId, "FreeTimeRecord", "Create");
+    // containerId اختياري جاي من الفورم — لازم يتأكد إنه فعلًا بتاع نفس المنظمة قبل الإنشاء
+    // (اتكشف في إعادة مراجعة وحدة 6، 7 سبتمبر).
+    if (containerId) {
+      const scopedPrisma = await getScopedPrisma();
+      const container = await scopedPrisma.container.findFirst({ where: { id: containerId } });
+      if (!container) return { formError: "الحاوية غير موجودة." };
+    }
     await withScopedTransaction(async (tx) => {
       const record = await tx.freeTimeRecord.create({
         data: {
@@ -747,6 +778,13 @@ export async function addTemperatureLog(
   const { containerId, recordedAt, source, deviceId, ...rest } = parsed.data;
   try {
     await requirePermission(user.roleId, "TemperatureLog", "Create");
+    // containerId اختياري جاي من الفورم — لازم يتأكد إنه فعلًا بتاع نفس المنظمة قبل الإنشاء
+    // (اتكشف في إعادة مراجعة وحدة 6، 7 سبتمبر).
+    if (containerId) {
+      const scopedPrisma = await getScopedPrisma();
+      const container = await scopedPrisma.container.findFirst({ where: { id: containerId } });
+      if (!container) return { formError: "الحاوية غير موجودة." };
+    }
     await withScopedTransaction(async (tx) => {
       const log = await tx.temperatureLog.create({
         data: {

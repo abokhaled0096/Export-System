@@ -124,6 +124,18 @@ _(فاضي دلوقتي — كل البنود اتقفلت أو اتصلحت. ر
 
 _(هنا هتتنقل البنود اللي خلصت، مع التاريخ وملخص سطر واحد وأي ملف اتغيّر)_
 
+- **[2026-09-07] إعادة مراجعة وحدة 6 (اللوجستيات ELCTIS) — حقن FK عابر للمنظمات في 5 دوال، واحدة منها بخطر كسر صفحة فعلي.**
+  - **`addShipmentParty` — الأخطر**: `companyId` **إلزامي** (`z.string().uuid("اختر شركة")`) جاي من الفورم بلا أي فحص عضوية منظمة. `/logistics/[id]` بتجيب `shipment.parties` بـ`include: { company: true }` وبتعرض `p.company.legalName` **بلا `?.`** — بالظبط نفس فئة باگ `Competitor`/`addShipmentLot` الأصلي: أي `companyId` عابر للمنظمة كان هيسجَّل بنجاح (الـFK بيتحقق بس من وجود الصف، مش من `orgId`)، وبعدين `include` هيرجّع `company: null` (RLS بيحجب الصف وقت الـjoin) → `Cannot read properties of null` تكسر صفحة الشحنة كلها لأي حد في المنظمة. اتصلح بفحص `scopedPrisma.company.findFirst({where:{id, deletedAt:null}})` قبل الإنشاء.
+  - **الأربعة الباقيين — بلا خطر كسر صفحة** (الحقول دي بتتعرض بـ`?.` في `/logistics/[id]` أو مش بتتعرض بعلاقة خالص):
+    - `createShipment`: `complianceCaseId` (اختياري).
+    - `createBooking`: `providerId`/`freightQuoteId` (اختياريين — `b.provider?.name` بيستخدم `?.` من الأساس).
+    - `createFreeTimeRecord`: `containerId` (اختياري — العلاقة مش متعرَّضة في جدول سجلات أيام السماح أصلًا).
+    - `addTemperatureLog`: `containerId` (اختياري — `t.container?.containerNumber` بيستخدم `?.` من الأساس).
+  - اتصلحت الأربعة بنفس نمط `findFirst` سكوبد للاتساق مع باقي الوحدات، رغم غياب خطر الكسر (نفس القرار المتّخذ في Module 4/5 لتلوّث البيانات).
+  - **فحص شامل بلا عيوب جديدة تانية**: `createFreightQuote` (`routeId`/`providerId`)، `createRoute`، `createServiceProvider`، `addFreightQuoteLine`، و`addShipmentLot` (`lotId`) اتفحصوا من جديد بالكامل — كل الفحوصات من المراجعة الأولى (6 سبتمبر) لسه شغّالة صح، ومفيش FKs إضافية ناقصة فيهم. صلاحيات `LogisticsOfficer` اتأكدت لسه **Org scope بس** (`LOGISTICS_RESOURCES` في `prisma/seed.ts`) — مفيش دور Team-scoped يقدر يستغل أي فجوة `assertOwnScope` هنا، فمفيش داعي لإضافتها.
+  - **مُختبر بسكريبت مباشر ضد بيانات حقيقية**: شركة ومزوّد خدمة اتعملوا مؤقتًا، اتفحصوا بشرط `orgId` حقيقي (بيرجّع الصف) ووهمي (بيرجّع `null`)، اتنضّفوا بعد الاختبار.
+  - `tsc`/`eslint` نضاف، `test:rls` **178/178** بلا تغيير (إصلاح تطبيقي بس)، `next build` ناجح. الملف: `src/app/logistics/actions.ts`.
+
 - **[2026-09-07] إعادة مراجعة وحدة 5 (الامتثال والجمارك ECCDC) — أكبر تجمّع حقن FK عابر للمنظمات لقيته في جلسة واحدة، 7 من 13 دالة في `compliance/actions.ts`.**
   - مراجعة وحدة 5 الأولى (6 سبتمبر) ركّزت على فئة تصعيد الصلاحيات (`assertOwnScope`/`assertComplianceCaseOwnScope`) ولقتها فعلًا سليمة بعد إصلاحها وقتها. لكن نفس الدوال محتاجة فحص منفصل تمامًا (فئة حقن FK) كان لسه ناقص في 7 دوال:
     - `createComplianceCase`: `supplierId` (اختياري).
