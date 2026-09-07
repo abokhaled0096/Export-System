@@ -8,6 +8,7 @@ import { requireCurrentUser } from "@/lib/session";
 import { requirePermission, getPermissionScope } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 import { logError, isNextControlFlowError, businessRuleMessage } from "@/lib/errorLog";
+import { assertWorkflowTransitionAllowed } from "@/lib/workflow";
 import { NEW_ENTITY_SENTINEL } from "@/lib/masterDataChangeRequest";
 import { CompanySchema } from "@/lib/companySchema";
 import { SupplierSchema } from "@/lib/supplierSchema";
@@ -254,8 +255,11 @@ export async function updateRiskStatusAction(riskId: string, status: "Open" | "M
 
   try {
     await withScopedTransaction(async (tx) => {
+      const risk = await tx.riskRegisterItem.findUniqueOrThrow({ where: { id: riskId } });
+      await assertWorkflowTransitionAllowed(tx, user.orgId, "RiskRegisterItem", riskId, risk.status, status);
+
       await tx.riskRegisterItem.update({ where: { id: riskId }, data: { status } });
-      await logAudit(tx, { orgId: user.orgId, userId: user.id, action: "riskRegisterItem.statusChanged", entityType: "RiskRegisterItem", entityId: riskId, afterValue: { status } });
+      await logAudit(tx, { orgId: user.orgId, userId: user.id, action: "riskRegisterItem.statusChanged", entityType: "RiskRegisterItem", entityId: riskId, beforeValue: { status: risk.status }, afterValue: { status } });
     });
   } catch (e) {
     if (isNextControlFlowError(e)) throw e;

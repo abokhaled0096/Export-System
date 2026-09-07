@@ -762,6 +762,11 @@ async function main() {
     // بما فيها HardClosed→Open بلا فحص خالص قبل إعادة مراجعة وحدة 8، 7 سبتمبر).
     { entityType: "AccountingPeriod", fromStage: "Open", toStage: "SoftClosed" },
     { entityType: "AccountingPeriod", fromStage: "SoftClosed", toStage: "HardClosed" },
+    // RiskRegisterItem.status (وحدة 9) — اتجاه واحد بلا رجوع (نفس قاعدة الزرار الموجودة أصلًا في
+    // StatusButtons.tsx — updateRiskStatusAction كانت بتقبل أي نقلة بلا فحص خالص قبل إعادة
+    // مراجعة وحدة 9، 7 سبتمبر).
+    { entityType: "RiskRegisterItem", fromStage: "Open", toStage: "Mitigated" },
+    { entityType: "RiskRegisterItem", fromStage: "Mitigated", toStage: "Closed" },
   ];
   for (const t of WORKFLOW_TRANSITIONS) {
     await prisma.workflowDefinition.upsert({
