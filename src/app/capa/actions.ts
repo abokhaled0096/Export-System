@@ -7,7 +7,8 @@ import { requireCurrentUser } from "@/lib/session";
 import { requirePermission } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 import { logError, isNextControlFlowError, businessRuleMessage } from "@/lib/errorLog";
-import { CAPA_STATUS_TRANSITIONS, CAPA_ALL_STATUSES } from "@/lib/capaLabels";
+import { CAPA_ALL_STATUSES } from "@/lib/capaLabels";
+import { assertWorkflowTransitionAllowed } from "@/lib/workflow";
 
 const CAPA_ROOT_CAUSE_METHODS = ["FiveWhys", "Fishbone", "Other"] as const;
 // ⚠️ الإنشاء مقصور على حالات البداية بس. Overdue محسوبة من dueDate وقت العرض (src/lib/capaLabels.ts
@@ -76,10 +77,11 @@ export async function createCAPA(_prevState: CAPAFormState, formData: FormData):
   return {};
 }
 
-/** انتقال حالة حقيقي — بس الانتقالات المسموح بيها في CAPA_STATUS_TRANSITIONS (نفس فلسفة زرار
- * "ترحيل"/"عكس" في الدفتر: مش تعديل حر لأي قيمة). verifiedBy بيتسجّل تلقائيًا بالمستخدم الحالي
- * لحظة الانتقال لـEffective/Ineffective — الـTrigger enforce_capa_verification برضه بيرفض أي
- * محاولة توصل لحالة نهائية بلاه، فمفيش مسار يلتف حول القاعدة حتى لو حصل خطأ هنا. */
+/** انتقال حالة حقيقي — بس الانتقالات المسموح بيها في جدول WorkflowDefinition (وحدة 9، بدل
+ * خريطة TS ثابتة، راجع STATUS.md 7 سبتمبر — نفس فلسفة زرار "ترحيل"/"عكس" في الدفتر: مش تعديل
+ * حر لأي قيمة). verifiedBy بيتسجّل تلقائيًا بالمستخدم الحالي لحظة الانتقال لـEffective/Ineffective
+ * — الـTrigger enforce_capa_verification برضه بيرفض أي محاولة توصل لحالة نهائية بلاه، فمفيش
+ * مسار يلتف حول القاعدة حتى لو حصل خطأ هنا. */
 export async function updateCAPAStatusAction(capaId: string, newStatus: (typeof CAPA_ALL_STATUSES)[number]) {
   const user = await requireCurrentUser();
   await requirePermission(user.roleId, "CAPA", "Edit");
@@ -87,10 +89,7 @@ export async function updateCAPAStatusAction(capaId: string, newStatus: (typeof 
   try {
     await withScopedTransaction(async (tx) => {
       const capa = await tx.cAPA.findUniqueOrThrow({ where: { id: capaId } });
-      const allowed = CAPA_STATUS_TRANSITIONS[capa.status] ?? [];
-      if (!allowed.includes(newStatus)) {
-        throw new Error(`مينفعش الانتقال من "${capa.status}" لـ"${newStatus}" مباشرة.`);
-      }
+      await assertWorkflowTransitionAllowed(tx, user.orgId, "CAPA", capaId, capa.status, newStatus);
 
       const needsVerification = newStatus === "Effective" || newStatus === "Ineffective";
       await tx.cAPA.update({

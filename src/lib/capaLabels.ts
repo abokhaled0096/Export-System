@@ -28,15 +28,8 @@ export const capaStatusStyle: Record<string, string> = {
   Overdue: "bg-rose-100 text-rose-700 hover:bg-rose-100",
 };
 
-/** الأزواج المسموح بيها بس — تدفّق حقيقي بدل تعديل حالة حر. */
-export const CAPA_STATUS_TRANSITIONS: Record<string, string[]> = {
-  Open: ["InProgress", "VerificationPending"],
-  InProgress: ["VerificationPending"],
-  VerificationPending: ["Effective", "Ineffective"],
-  Effective: ["Closed"],
-  Ineffective: ["Closed"],
-  Closed: [],
-};
+// الأزواج المسموح بيها بقت مُخزَّنة في جدول WorkflowDefinition (وحدة 9، راجع STATUS.md 7 سبتمبر)
+// بدل خريطة TS ثابتة هنا — راجع src/lib/workflow.ts وprisma/seed.ts للقيم المزروعة الافتراضية.
 
 /** "متأخر" محسوب من dueDate وقت العرض — مش status مخزَّن (نفس علاج Invoice.Overdue/
  * LoanInstallment.Overdue، ومفروض كمان بـTrigger enforce_capa_verification على مستوى القاعدة). */

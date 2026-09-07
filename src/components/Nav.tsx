@@ -49,6 +49,8 @@ const links = [
   { href: "/governance/risks", label: "سجل المخاطر" },
   { href: "/governance/kpis", label: "مؤشرات الأداء" },
   { href: "/governance/change-requests", label: "طلبات تعديل البيانات" },
+  { href: "/governance/field-permissions", label: "صلاحيات الحقول" },
+  { href: "/governance/workflow-definitions", label: "انتقالات المراحل" },
   { href: "/notifications", label: "الإشعارات" },
 ];
 

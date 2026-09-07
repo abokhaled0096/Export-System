@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
 import { requireCurrentUser } from "@/lib/session";
-import { getPermissionScope, scopedOwnerIdFilter } from "@/lib/permissions";
+import { getPermissionScope, scopedOwnerIdFilter, getFieldAccess } from "@/lib/permissions";
 import AcceptQuoteButton from "./AcceptQuoteButton";
 import SendQuoteEmailButton from "./SendQuoteEmailButton";
 import ConfirmSalesOrderForm from "./ConfirmSalesOrderForm";
@@ -60,14 +60,13 @@ export default async function DealDetailPage({ params }: { params: Promise<{ id:
   const prisma = await getScopedPrisma();
   // فصل مهام حقيقي: SalesRep (Own scope) بيشوف السعر النهائي/المستهدف بس، مش الحد الأدنى/نقطة
   // التعادل (بيانات تسعير داخلية) — المفاوض مايشوفش الحد اللي يقدر يرفض تحته، نفس فلسفة عزل
-  // معلومات التفاوض الحساسة عن اللي بيتفاوض فعليًا. SalesManager (Team) وAdmin/CompanyOwner (Org)
-  // يشوفوها كاملة. ⚠️ Allowlist صريح (Team/Org بس) مش `!== "Own"` — لو دور مستقبلي اتضاف بلا
-  // صلاحية Deal.View خالص (null)، لازم يتحجب افتراضيًا (fail closed)، مش يشوف بيانات حساسة
-  // بالغلط لمجرد إنه مش "Own" بالحرف (fail open).
-  const dealViewScope = await getPermissionScope(user.roleId, "Deal", "View");
-  const canSeeInternalPricing = dealViewScope === "Team" || dealViewScope === "Org";
+  // معلومات التفاوض الحساسة عن اللي بيتفاوض فعليًا. بقى مبني على جدول FieldPermission (وحدة 9،
+  // راجع STATUS.md 7 سبتمبر) بدل إعادة استخدام Deal.View scope كـproxy — الحقول الخمسة
+  // (walkAwayPrice/breakEvenPrice/الربح والهامش) بتتخفى مع بعض دايمًا، فحقل واحد ممثّل كافي.
+  const canSeeInternalPricing = (await getFieldAccess(user.roleId, "DealScenario", "walkAwayPrice")) !== "Hidden";
   // ⚠️ IDOR — نفس الفحص المطبَّق في /deals (القائمة) كان ناقص هنا، يعني SalesRep (Own scope)
   // كان يقدر يفتح أي صفقة في المنظمة برابط مباشر (اتكشف في إعادة مراجعة وحدة 2، 7 سبتمبر).
+  const dealViewScope = await getPermissionScope(user.roleId, "Deal", "View");
   const scopedOwnerId = await scopedOwnerIdFilter(dealViewScope, user);
   const ownerWhere = scopedOwnerId !== undefined ? { opportunity: { ownerId: scopedOwnerId } } : {};
 

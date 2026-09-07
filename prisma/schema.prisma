@@ -135,12 +135,13 @@ model Organization {
   notifications            Notification[]
   masterDataChangeRequests MasterDataChangeRequest[]
   quoteBundles             QuoteBundle[]
+  workflowDefinitions      WorkflowDefinition[]
 }
 
-// ==================== الوحدة 9 — الحوكمة والإدارة (شريحة أولى فقط، ERD v4 §12) ====================
-// نطاق هذه الشريحة: Role/Permission/RolePermission/Department/Team بس — باقي الـ8 كيانات
-// (FieldPermission, WorkflowDefinition, SegregationOfDutyRule, MasterDataChangeRequest,
-// RiskRegisterItem, DecisionLogEntry, KPI, Notification) مؤجَّلة عن قصد، راجع STATUS.md.
+// ==================== الوحدة 9 — الحوكمة والإدارة (13/13 كيان، ERD v4 §12) ====================
+// اكتملت بالكامل (7 سبتمبر) — آخر كيانين (FieldPermission, WorkflowDefinition) اتبنوا استباقيًا
+// كبنية تحتية عامة بطلب صريح من المستخدم، بعد ما كانوا مؤجَّلين لغياب حالة استخدام تانية غير
+// الحالة الوحيدة الموجودة وقتها. راجع STATUS.md/BACKLOG.md للتفاصيل الكاملة.
 
 enum PermissionAction {
   View
@@ -169,10 +170,11 @@ model Role {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  organization        Organization     @relation(fields: [orgId], references: [id])
+  organization        Organization      @relation(fields: [orgId], references: [id])
   users               User[]
   rolePermissions     RolePermission[]
-  requiredForPolicies ApprovalPolicy[] @relation("ApprovalPolicyRequiredRole")
+  fieldPermissions    FieldPermission[]
+  requiredForPolicies ApprovalPolicy[]  @relation("ApprovalPolicyRequiredRole")
 
   @@unique([orgId, name])
   @@index([orgId])
@@ -201,6 +203,55 @@ model RolePermission {
 
   @@unique([roleId, permissionId])
   @@index([roleId])
+}
+
+enum FieldAccessLevel {
+  Hidden
+  ReadOnly
+  ReadWrite
+}
+
+/// صلاحية عرض/تعديل على مستوى الحقل — طبقة تضييق إضافية فوق RolePermission (اللي بيتحكم في
+/// الوصول للمورد كله)، مش بديل عنها. الغياب (مفيش صف) = ReadWrite افتراضيًا (بلا تقييد إضافي)،
+/// عشان إضافة حقل جديد للنظام متطلبش تسجيل صف لكل دور موجود. أول استخدام حقيقي: إخفاء
+/// walkAwayPrice/breakEvenPrice/expectedProfit/expectedMarginPct/expectedMarkupPct (DealScenario)
+/// عن الأدوار بـOwn scope على Deal.View — كان بيتعمل بإعادة استخدام Deal.View scope كـproxy
+/// (راجع BACKLOG.md، إعادة مراجعة وحدة 9، 7 سبتمبر).
+model FieldPermission {
+  id          String           @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  roleId      String           @db.Uuid
+  entityType  String
+  fieldName   String
+  accessLevel FieldAccessLevel
+  createdAt   DateTime         @default(now())
+
+  role Role @relation(fields: [roleId], references: [id])
+
+  @@unique([roleId, entityType, fieldName])
+  @@index([roleId])
+}
+
+/// خريطة انتقالات مسموحة لكل (entityType, fromStage) — بتحل محل خرائط TS ثابتة كانت متكررة
+/// (OPPORTUNITY_STAGE_TRANSITIONS, CAPA_STATUS_TRANSITIONS)، وبتفتح قدرة جديدة: كل منظمة تقدر
+/// تخصّص انتقالاتها من الواجهة بلا تعديل كود. requiredConditions (jsonb لشروط حرة، موثّق في
+/// docs/ERD.md §12) مؤجَّل عمدًا — الشروط الحقيقية الوحيدة الموجودة (RFQAnalysis قبل QuoteSent،
+/// verifiedBy قبل إقفال CAPA) مفروضة بالفعل بـTriggers مخصّصة على مستوى القاعدة
+/// (enforce_opportunity_rfq_before_quote، enforce_capa_verification) ومش هتتلغى ولا هتتكرر هنا —
+/// مفسّر شروط عام حقيقي هيتبنى لما تظهر حالة تانية محتاجاه فعليًا بدل تريجر مخصّص.
+model WorkflowDefinition {
+  id                       String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId                    String   @db.Uuid
+  entityType               String
+  fromStage                String
+  toStage                  String
+  requiredApprovalPolicyId String?  @db.Uuid
+  createdAt                DateTime @default(now())
+
+  organization           Organization    @relation(fields: [orgId], references: [id])
+  requiredApprovalPolicy ApprovalPolicy? @relation(fields: [requiredApprovalPolicyId], references: [id])
+
+  @@unique([orgId, entityType, fromStage, toStage])
+  @@index([orgId])
 }
 
 model Department {
@@ -1099,9 +1150,10 @@ model ApprovalPolicy {
   isActive         Boolean          @default(true)
   createdAt        DateTime         @default(now())
 
-  organization Organization @relation(fields: [orgId], references: [id])
-  requiredRole Role         @relation("ApprovalPolicyRequiredRole", fields: [requiredRoleId], references: [id])
-  approvals    Approval[]
+  organization        Organization         @relation(fields: [orgId], references: [id])
+  requiredRole        Role                 @relation("ApprovalPolicyRequiredRole", fields: [requiredRoleId], references: [id])
+  approvals           Approval[]
+  workflowDefinitions WorkflowDefinition[]
 
   @@index([orgId])
 }

@@ -2,16 +2,23 @@
 
 import { useState, useTransition } from "react";
 import { updateCAPAStatusAction } from "../actions";
-import { CAPA_ALL_STATUSES } from "@/lib/capaLabels";
-import { capaStatusLabel, CAPA_STATUS_TRANSITIONS } from "@/lib/capaLabels";
+import { CAPA_ALL_STATUSES, capaStatusLabel } from "@/lib/capaLabels";
 import { Button } from "@/components/ui/button";
 
 type Status = (typeof CAPA_ALL_STATUSES)[number];
 
-export default function StatusTransitionButtons({ capaId, status }: { capaId: string; status: string }) {
+/** allowedStatuses بيوصل جاهز من الصفحة (Server Component) — بقى مصدره جدول WorkflowDefinition
+ * (وحدة 9) بدل خريطة TS ثابتة، وde client component مايقدرش يستعلم القاعدة مباشرة. */
+export default function StatusTransitionButtons({
+  capaId,
+  allowedStatuses,
+}: {
+  capaId: string;
+  allowedStatuses: string[];
+}) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const allowed = (CAPA_STATUS_TRANSITIONS[status] ?? []) as Status[];
+  const allowed = allowedStatuses as Status[];
 
   if (allowed.length === 0) return null;
 

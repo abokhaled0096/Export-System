@@ -226,6 +226,14 @@ const PERMISSIONS: { resource: string; action: "View" | "Create" | "Edit" | "Del
   { resource: "SupplierSample", action: "Create" },
   { resource: "SupplierPerformance", action: "Create" },
   { resource: "CargoReadiness", action: "Create" },
+  // وحدة 9 — إكمال 13/13 (FieldPermission/WorkflowDefinition، 7 سبتمبر). Admin/CompanyOwner
+  // بس (Org scope عبر FULL_ACCESS_RESOURCES تحت) — إدارة صلاحيات/انتقالات على مستوى المنظمة.
+  { resource: "FieldPermission", action: "View" },
+  { resource: "FieldPermission", action: "Create" },
+  { resource: "FieldPermission", action: "Delete" },
+  { resource: "WorkflowDefinition", action: "View" },
+  { resource: "WorkflowDefinition", action: "Create" },
+  { resource: "WorkflowDefinition", action: "Delete" },
 ];
 
 /** كل الصلاحيات الفوق، Org scope — Admin وCompanyOwner بيمسكوا كل حاجة. */
@@ -628,6 +636,58 @@ async function main() {
     }
   }
   console.log(`✓ صلاحيات الأدوار موجودة (${grantCount} منحة)`);
+
+  // ============ FieldPermission (وحدة 9 — 7 سبتمبر) ============
+  // ترحيل حالة إخفاء بيانات التسعير الداخلية (walkAwayPrice/breakEvenPrice/الربح والهامش) عن
+  // SalesRep — كان بيتعمل بإعادة استخدام Deal.View scope كـproxy (canSeeInternalPricing).
+  // بيتحسب ديناميكيًا من ROLE_GRANTS (مش اسم دور مكتوب يدويًا زي "SalesRep") عشان أي دور
+  // مستقبلي بـOwn scope على Deal.View يتغطّى تلقائيًا — نفس فلسفة "fail closed" الأصلية.
+  const HIDDEN_DEAL_SCENARIO_FIELDS = ["walkAwayPrice", "breakEvenPrice", "expectedProfit", "expectedMarginPct", "expectedMarkupPct"];
+  let fieldPermissionCount = 0;
+  for (const [roleName, grant] of Object.entries(ROLE_GRANTS)) {
+    if (grant.scope !== "Own" || !grant.resources.includes("Deal.View")) continue;
+    const roleId = roleByName.get(roleName);
+    if (!roleId) continue;
+    for (const fieldName of HIDDEN_DEAL_SCENARIO_FIELDS) {
+      await prisma.fieldPermission.upsert({
+        where: { roleId_entityType_fieldName: { roleId, entityType: "DealScenario", fieldName } },
+        create: { roleId, entityType: "DealScenario", fieldName, accessLevel: "Hidden" },
+        update: { accessLevel: "Hidden" },
+      });
+      fieldPermissionCount++;
+    }
+  }
+  console.log(`✓ صلاحيات الحقول موجودة (${fieldPermissionCount} صلاحية)`);
+
+  // ============ WorkflowDefinition (وحدة 9 — 7 سبتمبر) ============
+  // ترحيل الانتقالات المسموحة اللي كانت خرائط TS ثابتة (OPPORTUNITY_STAGE_TRANSITIONS،
+  // CAPA_STATUS_TRANSITIONS) لجدول DB — بلا requiredApprovalPolicyId (مفيش سياسة موافقة
+  // مربوطة بيهم حاليًا)، وبلا تغيير في السلوك الفعلي.
+  const WORKFLOW_TRANSITIONS: { entityType: string; fromStage: string; toStage: string }[] = [
+    { entityType: "Opportunity", fromStage: "NewLead", toStage: "Contacted" },
+    { entityType: "Opportunity", fromStage: "NewLead", toStage: "Lost" },
+    { entityType: "Opportunity", fromStage: "Contacted", toStage: "Qualified" },
+    { entityType: "Opportunity", fromStage: "Contacted", toStage: "Lost" },
+    { entityType: "Opportunity", fromStage: "Qualified", toStage: "QuoteSent" },
+    { entityType: "Opportunity", fromStage: "Qualified", toStage: "Lost" },
+    { entityType: "Opportunity", fromStage: "QuoteSent", toStage: "Won" },
+    { entityType: "Opportunity", fromStage: "QuoteSent", toStage: "Lost" },
+    { entityType: "CAPA", fromStage: "Open", toStage: "InProgress" },
+    { entityType: "CAPA", fromStage: "Open", toStage: "VerificationPending" },
+    { entityType: "CAPA", fromStage: "InProgress", toStage: "VerificationPending" },
+    { entityType: "CAPA", fromStage: "VerificationPending", toStage: "Effective" },
+    { entityType: "CAPA", fromStage: "VerificationPending", toStage: "Ineffective" },
+    { entityType: "CAPA", fromStage: "Effective", toStage: "Closed" },
+    { entityType: "CAPA", fromStage: "Ineffective", toStage: "Closed" },
+  ];
+  for (const t of WORKFLOW_TRANSITIONS) {
+    await prisma.workflowDefinition.upsert({
+      where: { orgId_entityType_fromStage_toStage: { orgId: org.id, ...t } },
+      create: { orgId: org.id, ...t },
+      update: {},
+    });
+  }
+  console.log(`✓ انتقالات المراحل المسموحة موجودة (${WORKFLOW_TRANSITIONS.length} انتقال)`);
 
   const accountCodeToId = new Map<string, string>();
   let accountCount = 0;

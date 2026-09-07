@@ -1,5 +1,5 @@
 import { prisma } from "./prisma";
-import type { PermissionAction, PermissionScope } from "@/generated/prisma/enums";
+import type { PermissionAction, PermissionScope, FieldAccessLevel } from "@/generated/prisma/enums";
 
 /**
  * فحص صلاحية مستخدم على مورد معيّن (وحدة 9، شريحة RBAC الأولى — راجع STATUS.md).
@@ -98,4 +98,21 @@ export async function ownerScopeWhere(
 ): Promise<{ ownerId?: string | { in: string[] } }> {
   const value = await scopedOwnerIdFilter(scope, user);
   return value === undefined ? {} : { ownerId: value };
+}
+
+/**
+ * صلاحية عرض/تعديل على مستوى الحقل (وحدة 9، FieldPermission — راجع STATUS.md، 7 سبتمبر).
+ * طبقة تضييق إضافية فوق RolePermission (اللي بيتحكم في الوصول للمورد كله)، مش بديل عنها.
+ * الغياب (مفيش صف) = "ReadWrite" افتراضيًا (بلا تقييد إضافي) — إضافة حقل جديد للنظام
+ * متطلبش تسجيل صف لكل دور موجود.
+ */
+export async function getFieldAccess(
+  roleId: string,
+  entityType: string,
+  fieldName: string
+): Promise<FieldAccessLevel> {
+  const fieldPermission = await prisma.fieldPermission.findUnique({
+    where: { roleId_entityType_fieldName: { roleId, entityType, fieldName } },
+  });
+  return fieldPermission?.accessLevel ?? "ReadWrite";
 }

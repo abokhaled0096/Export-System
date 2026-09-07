@@ -47,6 +47,14 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
   });
   if (!opportunity) notFound();
 
+  // الانتقالات المسموحة بقت في جدول WorkflowDefinition (وحدة 9) بدل خريطة TS ثابتة —
+  // بتتقرا هنا (Server Component) وتتبعت كـprop لـStageTransitionButtons (client component
+  // مايقدرش يستعلم القاعدة مباشرة).
+  const allowedTransitions = await prisma.workflowDefinition.findMany({
+    where: { orgId, entityType: "Opportunity", fromStage: opportunity.stage },
+    select: { toStage: true },
+  });
+
   // ⚠️ مش Promise.all — راجع BACKLOG.md (P2028).
   const batches = await prisma.batch.findMany({
     where: { orgId },
@@ -73,7 +81,10 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
       </div>
 
       <div className="mt-3">
-        <StageTransitionButtons opportunityId={opportunity.id} stage={opportunity.stage} />
+        <StageTransitionButtons
+          opportunityId={opportunity.id}
+          allowedStages={allowedTransitions.map((t) => t.toStage)}
+        />
       </div>
 
       <section className="mt-8">

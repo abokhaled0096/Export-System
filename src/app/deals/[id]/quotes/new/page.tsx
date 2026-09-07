@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
 import { requireCurrentUser } from "@/lib/session";
-import { getPermissionScope, scopedOwnerIdFilter } from "@/lib/permissions";
+import { getPermissionScope, scopedOwnerIdFilter, getFieldAccess } from "@/lib/permissions";
 import QuoteForm from "./QuoteForm";
 import { Button } from "@/components/ui/button";
 
@@ -23,9 +23,9 @@ export default async function NewQuotePage({
   // ⚠️ نفس القيد في /deals/[id] و/deals/[id]/scenarios/[scenarioId] — أهم مكان فعليًا، لأن ده
   // بالظبط الفورم اللي SalesRep بيدخل عليه عادةً عشان ينشئ عرض سعر (عنده Quote.Create أصلًا).
   // بلا القيد ده، إخفاء walkAwayPrice في الصفحات التانية كان هيبقى بلا معنى.
-  const dealViewScope = await getPermissionScope(user.roleId, "Deal", "View");
-  const canSeeInternalPricing = dealViewScope === "Team" || dealViewScope === "Org";
+  const canSeeInternalPricing = (await getFieldAccess(user.roleId, "DealScenario", "walkAwayPrice")) !== "Hidden";
   // ⚠️ نفس فجوة IDOR في /deals/[id] — اتكشف هنا كمان في إعادة مراجعة وحدة 2 (7 سبتمبر).
+  const dealViewScope = await getPermissionScope(user.roleId, "Deal", "View");
   const scopedOwnerId = await scopedOwnerIdFilter(dealViewScope, user);
   const ownerWhere = scopedOwnerId !== undefined ? { opportunity: { ownerId: scopedOwnerId } } : {};
 

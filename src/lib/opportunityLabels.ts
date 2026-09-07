@@ -18,15 +18,7 @@ export const opportunityStageStyle: Record<string, string> = {
   Lost: "bg-rose-100 text-rose-700 hover:bg-rose-100",
 };
 
-/** الأزواج المسموح بيها بس — تدفّق حقيقي بدل تعديل حالة حر (نفس فلسفة CAPA_STATUS_TRANSITIONS).
- * Won بس من QuoteSent (لازم عرض سعر يتبعت الأول)، Lost ممكنة من أي مرحلة نشطة (صفقة ممكن
- * تتخسر في أي وقت). الانتقال لـQuoteSent نفسه ليه Trigger على مستوى القاعدة
- * (enforce_opportunity_rfq_before_quote) بيمنعه بلا RFQAnalysis واحد على الأقل مسجَّل. */
-export const OPPORTUNITY_STAGE_TRANSITIONS: Record<string, string[]> = {
-  NewLead: ["Contacted", "Lost"],
-  Contacted: ["Qualified", "Lost"],
-  Qualified: ["QuoteSent", "Lost"],
-  QuoteSent: ["Won", "Lost"],
-  Won: [],
-  Lost: [],
-};
+// الأزواج المسموح بيها بقت مُخزَّنة في جدول WorkflowDefinition (وحدة 9، راجع STATUS.md 7 سبتمبر)
+// بدل خريطة TS ثابتة هنا — راجع src/lib/workflow.ts وprisma/seed.ts للقيم المزروعة الافتراضية.
+// الانتقال لـQuoteSent نفسه ليه كمان Trigger على مستوى القاعدة (enforce_opportunity_rfq_before_quote)
+// بيمنعه بلا RFQAnalysis واحد على الأقل مسجَّل — فاضل زي ما هو بلا تغيير.

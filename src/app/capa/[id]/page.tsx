@@ -41,6 +41,15 @@ export default async function CAPADetailPage({ params }: { params: Promise<{ id:
     canEdit = false;
   }
 
+  // الانتقالات المسموحة بقت في جدول WorkflowDefinition (وحدة 9) بدل خريطة TS ثابتة — بتتقرا
+  // هنا (Server Component) وتتبعت كـprop لـStatusTransitionButtons (client component).
+  const allowedTransitions = canEdit
+    ? await prisma.workflowDefinition.findMany({
+        where: { orgId: user.orgId, entityType: "CAPA", fromStage: capa.status },
+        select: { toStage: true },
+      })
+    : [];
+
   return (
     <main className="mx-auto max-w-3xl px-6 py-10">
       <Link href="/capa" className="text-sm text-muted-foreground hover:underline">
@@ -82,7 +91,7 @@ export default async function CAPADetailPage({ params }: { params: Promise<{ id:
 
       {canEdit && (
         <div className="mt-5">
-          <StatusTransitionButtons capaId={capa.id} status={capa.status} />
+          <StatusTransitionButtons capaId={capa.id} allowedStatuses={allowedTransitions.map((t) => t.toStage)} />
         </div>
       )}
       <p className="mt-3 text-xs text-muted-foreground">

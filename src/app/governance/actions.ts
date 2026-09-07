@@ -449,3 +449,165 @@ export async function decideMasterDataChangeRequestAction(requestId: string, sta
   revalidatePath("/suppliers");
   revalidatePath("/accounting/bank-accounts");
 }
+
+// ==================== FieldPermission (وحدة 9 — 7 سبتمبر) ====================
+
+const FIELD_ACCESS_LEVELS = ["Hidden", "ReadOnly", "ReadWrite"] as const;
+
+const FieldPermissionSchema = z.object({
+  roleId: z.string().uuid("اختر دور"),
+  entityType: z.string().trim().min(1, "اسم الكيان مطلوب"),
+  fieldName: z.string().trim().min(1, "اسم الحقل مطلوب"),
+  accessLevel: z.enum(FIELD_ACCESS_LEVELS),
+});
+
+export type FieldPermissionFormState = { errors?: Record<string, string[]>; formError?: string };
+
+export async function createFieldPermissionAction(_prevState: FieldPermissionFormState, formData: FormData): Promise<FieldPermissionFormState> {
+  const parsed = FieldPermissionSchema.safeParse({
+    roleId: formData.get("roleId"),
+    entityType: formData.get("entityType"),
+    fieldName: formData.get("fieldName"),
+    accessLevel: formData.get("accessLevel"),
+  });
+  if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
+
+  const user = await requireCurrentUser();
+  try {
+    await requirePermission(user.roleId, "FieldPermission", "Create");
+    // roleId جاي من الفورم — لازم يتأكد إنه فعلًا بتاع نفس المنظمة قبل الإنشاء (نفس فئة فحوصات
+    // FK اللي اتصلحت في كل الوحدات التانية طول الجلسة).
+    const scopedPrisma = await getScopedPrisma();
+    const role = await scopedPrisma.role.findFirst({ where: { id: parsed.data.roleId } });
+    if (!role) return { formError: "الدور غير موجود." };
+    await withScopedTransaction(async (tx) => {
+      const fieldPermission = await tx.fieldPermission.upsert({
+        where: { roleId_entityType_fieldName: { roleId: parsed.data.roleId, entityType: parsed.data.entityType, fieldName: parsed.data.fieldName } },
+        create: parsed.data,
+        update: { accessLevel: parsed.data.accessLevel },
+      });
+      await logAudit(tx, {
+        orgId: user.orgId,
+        userId: user.id,
+        action: "fieldPermission.created",
+        entityType: "FieldPermission",
+        entityId: fieldPermission.id,
+        afterValue: parsed.data,
+      });
+    });
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "createFieldPermissionAction", error: e });
+    return { formError: businessRuleMessage(e, "حصل خطأ أثناء إضافة صلاحية الحقل — حاول تاني.") };
+  }
+
+  revalidatePath("/governance/field-permissions");
+  return {};
+}
+
+export async function deleteFieldPermissionAction(fieldPermissionId: string) {
+  const user = await requireCurrentUser();
+  try {
+    await requirePermission(user.roleId, "FieldPermission", "Delete");
+    await withScopedTransaction(async (tx) => {
+      await tx.fieldPermission.delete({ where: { id: fieldPermissionId } });
+      await logAudit(tx, {
+        orgId: user.orgId,
+        userId: user.id,
+        action: "fieldPermission.deleted",
+        entityType: "FieldPermission",
+        entityId: fieldPermissionId,
+      });
+    });
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "deleteFieldPermissionAction", error: e });
+    throw new Error(businessRuleMessage(e, "حصل خطأ أثناء حذف صلاحية الحقل."));
+  }
+
+  revalidatePath("/governance/field-permissions");
+}
+
+// ==================== WorkflowDefinition (وحدة 9 — 7 سبتمبر) ====================
+
+const WorkflowDefinitionSchema = z.object({
+  entityType: z.string().trim().min(1, "اسم الكيان مطلوب"),
+  fromStage: z.string().trim().min(1, "المرحلة الحالية مطلوبة"),
+  toStage: z.string().trim().min(1, "المرحلة المستهدفة مطلوبة"),
+  requiredApprovalPolicyId: z.string().uuid().optional().or(z.literal("")),
+});
+
+export type WorkflowDefinitionFormState = { errors?: Record<string, string[]>; formError?: string };
+
+/** بيضيف انتقال مسموح جديد لكيان — لو الزوج (entityType, fromStage, toStage) مش موجود هنا،
+ * assertWorkflowTransitionAllowed (src/lib/workflow.ts) بيرفضه. requiredApprovalPolicyId
+ * اختياري — لو موجود، الانتقال محتاج Approval معتمَد بـsubjectType `${entityType}.stageTransition`
+ * قبل ما ينفَّذ. */
+export async function createWorkflowDefinitionAction(_prevState: WorkflowDefinitionFormState, formData: FormData): Promise<WorkflowDefinitionFormState> {
+  const rawPolicyId = formData.get("requiredApprovalPolicyId");
+  const parsed = WorkflowDefinitionSchema.safeParse({
+    entityType: formData.get("entityType"),
+    fromStage: formData.get("fromStage"),
+    toStage: formData.get("toStage"),
+    // "__none__" = sentinel القيمة "بلا سياسة" من WorkflowDefinitionForm (Base UI Select مايقبلش
+    // value فاضية) — نفس نمط assignUserTeam بالحرف.
+    requiredApprovalPolicyId: rawPolicyId === "__none__" ? undefined : rawPolicyId || undefined,
+  });
+  if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
+
+  const user = await requireCurrentUser();
+  const { requiredApprovalPolicyId, ...rest } = parsed.data;
+  try {
+    await requirePermission(user.roleId, "WorkflowDefinition", "Create");
+    const scopedPrisma = await getScopedPrisma();
+    if (requiredApprovalPolicyId) {
+      const policy = await scopedPrisma.approvalPolicy.findFirst({ where: { id: requiredApprovalPolicyId } });
+      if (!policy) return { formError: "سياسة الموافقة غير موجودة." };
+    }
+    await withScopedTransaction(async (tx) => {
+      const definition = await tx.workflowDefinition.upsert({
+        where: { orgId_entityType_fromStage_toStage: { orgId: user.orgId, ...rest } },
+        create: { orgId: user.orgId, requiredApprovalPolicyId: requiredApprovalPolicyId || undefined, ...rest },
+        update: { requiredApprovalPolicyId: requiredApprovalPolicyId || null },
+      });
+      await logAudit(tx, {
+        orgId: user.orgId,
+        userId: user.id,
+        action: "workflowDefinition.created",
+        entityType: "WorkflowDefinition",
+        entityId: definition.id,
+        afterValue: { ...rest, requiredApprovalPolicyId: requiredApprovalPolicyId || null },
+      });
+    });
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "createWorkflowDefinitionAction", error: e });
+    return { formError: businessRuleMessage(e, "حصل خطأ أثناء إضافة الانتقال — حاول تاني.") };
+  }
+
+  revalidatePath("/governance/workflow-definitions");
+  return {};
+}
+
+export async function deleteWorkflowDefinitionAction(workflowDefinitionId: string) {
+  const user = await requireCurrentUser();
+  try {
+    await requirePermission(user.roleId, "WorkflowDefinition", "Delete");
+    await withScopedTransaction(async (tx) => {
+      await tx.workflowDefinition.delete({ where: { id: workflowDefinitionId } });
+      await logAudit(tx, {
+        orgId: user.orgId,
+        userId: user.id,
+        action: "workflowDefinition.deleted",
+        entityType: "WorkflowDefinition",
+        entityId: workflowDefinitionId,
+      });
+    });
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "deleteWorkflowDefinitionAction", error: e });
+    throw new Error(businessRuleMessage(e, "حصل خطأ أثناء حذف الانتقال."));
+  }
+
+  revalidatePath("/governance/workflow-definitions");
+}

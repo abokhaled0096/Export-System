@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
 import { requireCurrentUser } from "@/lib/session";
-import { getPermissionScope, scopedOwnerIdFilter } from "@/lib/permissions";
+import { getPermissionScope, scopedOwnerIdFilter, getFieldAccess } from "@/lib/permissions";
 import CostItemForm from "./CostItemForm";
 import RiskItemForm from "./RiskItemForm";
 import FinalPriceForm from "./FinalPriceForm";
@@ -55,11 +55,11 @@ export default async function ScenarioDetailPage({
   // المحجوبة هنا بس الخمسة "قرار استراتيجي" (walkAwayPrice/breakEvenPrice/الربح/الهامش/الماركاپ)
   // — إجمالي التكاليف وبنود التكلفة/المخاطر الفردية فاضلة ظاهرة عمدًا لأنها بيانات إدخال تشغيلي
   // (SalesRep نفسه بيدخّلها) ومجاميع مشتقة من أرقام ظاهرة أصلًا، مش قرار حساس مستقل.
-  const dealViewScope = await getPermissionScope(user.roleId, "Deal", "View");
-  const canSeeInternalPricing = dealViewScope === "Team" || dealViewScope === "Org";
+  const canSeeInternalPricing = (await getFieldAccess(user.roleId, "DealScenario", "walkAwayPrice")) !== "Hidden";
   // ⚠️ نفس فجوة IDOR في /deals/[id] و/deals/[id]/compare — اتكشف هنا كمان في إعادة مراجعة
   // وحدة 2 (7 سبتمبر). لازم يتفحص عبر deal.opportunity.ownerId لأن DealScenario ملهوش
   // ownerId مباشر.
+  const dealViewScope = await getPermissionScope(user.roleId, "Deal", "View");
   const scopedOwnerId = await scopedOwnerIdFilter(dealViewScope, user);
   const ownerWhere = scopedOwnerId !== undefined ? { deal: { opportunity: { ownerId: scopedOwnerId } } } : {};
 

@@ -8,7 +8,8 @@ import { requireCurrentUser } from "@/lib/session";
 import { requirePermission, assertOwnScope } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 import { logError, isNextControlFlowError, businessRuleMessage } from "@/lib/errorLog";
-import { OPPORTUNITY_STAGE_TRANSITIONS, OPPORTUNITY_ALL_STAGES } from "@/lib/opportunityLabels";
+import { OPPORTUNITY_ALL_STAGES } from "@/lib/opportunityLabels";
+import { assertWorkflowTransitionAllowed } from "@/lib/workflow";
 
 const OpportunitySchema = z.object({
   companyId: z.string().uuid("اختر شركة"),
@@ -133,10 +134,11 @@ export async function archiveOpportunity(opportunityId: string) {
   revalidatePath("/opportunities/archived");
 }
 
-/** انتقال مرحلة حقيقي — بس الأزواج المسموح بيها في OPPORTUNITY_STAGE_TRANSITIONS (نفس فلسفة
- * updateCAPAStatusAction: مش تعديل حر لأي قيمة). `createOpportunity` بيثبّت stage=NewLead
- * دايمًا، وده أول مسار تعديل حقيقي له — أول ما اتبنى، Trigger enforce_opportunity_rfq_before_quote
- * على مستوى القاعدة بقى قابل للانتهاك فعليًا (كان مؤجَّل عمدًا لغياب المسار ده، راجع BACKLOG.md). */
+/** انتقال مرحلة حقيقي — بس الأزواج المسموح بيها في جدول WorkflowDefinition (وحدة 9، بدل
+ * خريطة TS ثابتة كانت هنا، راجع STATUS.md 7 سبتمبر — نفس فلسفة updateCAPAStatusAction: مش
+ * تعديل حر لأي قيمة). `createOpportunity` بيثبّت stage=NewLead دايمًا، وده أول مسار تعديل
+ * حقيقي له — أول ما اتبنى، Trigger enforce_opportunity_rfq_before_quote على مستوى القاعدة
+ * بقى قابل للانتهاك فعليًا (كان مؤجَّل عمدًا لغياب المسار ده، راجع BACKLOG.md). */
 export async function updateOpportunityStageAction(opportunityId: string, newStage: (typeof OPPORTUNITY_ALL_STAGES)[number]) {
   const user = await requireCurrentUser();
   const scope = await requirePermission(user.roleId, "Opportunity", "Edit");
@@ -146,10 +148,7 @@ export async function updateOpportunityStageAction(opportunityId: string, newSta
       const opportunity = await tx.opportunity.findUniqueOrThrow({ where: { id: opportunityId } });
       await assertOwnScope(scope, opportunity.ownerId, user);
 
-      const allowed = OPPORTUNITY_STAGE_TRANSITIONS[opportunity.stage] ?? [];
-      if (!allowed.includes(newStage)) {
-        throw new Error(`مينفعش الانتقال من "${opportunity.stage}" لـ"${newStage}" مباشرة.`);
-      }
+      await assertWorkflowTransitionAllowed(tx, user.orgId, "Opportunity", opportunityId, opportunity.stage, newStage);
 
       await tx.opportunity.update({ where: { id: opportunityId }, data: { stage: newStage } });
       await logAudit(tx, {

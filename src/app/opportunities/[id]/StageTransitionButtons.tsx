@@ -2,15 +2,23 @@
 
 import { useState, useTransition } from "react";
 import { updateOpportunityStageAction } from "../actions";
-import { opportunityStageLabel, OPPORTUNITY_STAGE_TRANSITIONS, OPPORTUNITY_ALL_STAGES } from "@/lib/opportunityLabels";
+import { opportunityStageLabel, OPPORTUNITY_ALL_STAGES } from "@/lib/opportunityLabels";
 import { Button } from "@/components/ui/button";
 
 type Stage = (typeof OPPORTUNITY_ALL_STAGES)[number];
 
-export default function StageTransitionButtons({ opportunityId, stage }: { opportunityId: string; stage: string }) {
+/** allowedStages بيوصل جاهز من الصفحة (Server Component) — بقى مصدره جدول WorkflowDefinition
+ * (وحدة 9) بدل خريطة TS ثابتة، وde client component مايقدرش يستعلم القاعدة مباشرة. */
+export default function StageTransitionButtons({
+  opportunityId,
+  allowedStages,
+}: {
+  opportunityId: string;
+  allowedStages: string[];
+}) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const allowed = (OPPORTUNITY_STAGE_TRANSITIONS[stage] ?? []) as Stage[];
+  const allowed = allowedStages as Stage[];
 
   if (allowed.length === 0) return null;
 
