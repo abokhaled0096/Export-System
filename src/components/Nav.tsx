@@ -151,6 +151,14 @@ export default async function Nav() {
                   الأخطاء
                 </Link>
               )}
+              {isRoleAdmin && (
+                <Link
+                  href="/admin/ai-settings"
+                  className="rounded-lg px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  إعدادات AI
+                </Link>
+              )}
             </nav>
           )}
           {user && (

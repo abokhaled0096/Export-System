@@ -1,5 +1,7 @@
-import OpenAI from "openai";
+import type OpenAI from "openai";
 import { z } from "zod";
+import { getAiClientForOrg } from "./client";
+import { parseJsonBlock, extractSources, describeOpenAiError } from "./openaiHelpers";
 
 const CompetitorResultSchema = z.object({
   countryName: z.string().min(1),
@@ -21,9 +23,6 @@ export type AiCompetitor = z.infer<typeof CompetitorResultSchema> & {
 
 type ProductInput = { nameAr: string; nameEn: string; hsCode: string; category: string; originCountry: string; availableMonths: number[] };
 type MarketInput = { countryNameAr: string; countryNameEn: string; countryCode: string; currency: string };
-
-/** نفس موديل analyzeMarket.ts بالحرف — أرخص عائلة gpt-4o بتدعم web_search. */
-const MODEL = "gpt-4o-mini";
 
 const SYSTEM_PROMPT = `أنت محلل استخبارات تنافسية لتصدير منتجات زراعية/غذائية. مهمتك تحديد **الدول المصدّرة المنافسة الحقيقية** لمنتج مصري معيّن في سوق دولة مستوردة معيّنة، بالاعتماد على بحث حقيقي وحديث في الإنترنت (بيانات تجارة، مواسم حصاد، أسعار تصدير فعلية) — مش تخمين عام ولا قائمة نظرية.
 
@@ -54,69 +53,8 @@ const SYSTEM_PROMPT = `أنت محلل استخبارات تنافسية لتص�
 
 القاعدة: أي منافس بلا سبب واضح في reasoning غير مقبول — لازم يبان في التبرير إيه اللي أكّد إن الدولة دي منافس حقيقي فعلي.`;
 
-function parseCompetitorsJson(text: string) {
-  const matches = [...text.matchAll(/```json\s*([\s\S]*?)```/g)];
-  if (matches.length === 0) {
-    throw new Error("رد الذكاء الاصطناعي ما فيهوش JSON بالصيغة المتوقعة.");
-  }
-  const lastMatch = matches[matches.length - 1][1];
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(lastMatch);
-  } catch {
-    throw new Error("رد الذكاء الاصطناعي فيه JSON غير صالح.");
-  }
-  const result = AnalysisResultSchema.safeParse(parsed);
-  if (!result.success) {
-    throw new Error("رد الذكاء الاصطناعي ما طابقش الصيغة المطلوبة: " + result.error.message);
-  }
-  return result.data;
-}
-
-/** نفس منطق analyzeMarket.ts بالحرف — مصادر حقيقية من url_citation annotations بس. */
-function extractSources(response: OpenAI.Responses.Response) {
-  const sources: { title: string; url: string }[] = [];
-  for (const item of response.output) {
-    if (item.type !== "message") continue;
-    for (const content of item.content) {
-      if (content.type !== "output_text") continue;
-      for (const annotation of content.annotations) {
-        if (annotation.type === "url_citation") {
-          sources.push({ title: annotation.title || annotation.url, url: annotation.url });
-        }
-      }
-    }
-  }
-  const seen = new Set<string>();
-  return sources.filter((s) => (seen.has(s.url) ? false : (seen.add(s.url), true)));
-}
-
-function describeOpenAiError(e: unknown): string {
-  if (e instanceof OpenAI.AuthenticationError) {
-    return "مفتاح OPENAI_API_KEY غير صحيح — تأكد إنه منسوخ صح من platform.openai.com في ملف .env.";
-  }
-  if (e instanceof OpenAI.RateLimitError) {
-    const message = e.message ?? "";
-    if (message.toLowerCase().includes("quota")) {
-      return `الحساب ده مفيهوش رصيد فعلي كفاية (insufficient_quota) — لازم تضيف وسيلة دفع/رصيد على platform.openai.com → Billing. رسالة OpenAI الكاملة: ${message}`;
-    }
-    return `تم تجاوز الحد المسموح من الطلبات لحساب OpenAI ده مؤقتًا — حاول تاني بعد شوية. رسالة OpenAI الكاملة: ${message}`;
-  }
-  if (e instanceof OpenAI.BadRequestError) {
-    return `طلب غير صالح لـOpenAI API: ${e.message}`;
-  }
-  if (e instanceof OpenAI.APIError) {
-    return `خطأ من OpenAI API (${e.status}): ${e.message}`;
-  }
-  return e instanceof Error ? e.message : "حصل خطأ غير متوقع أثناء الاتصال بالذكاء الاصطناعي.";
-}
-
-export async function analyzeCompetitorsWithAI(product: ProductInput, market: MarketInput): Promise<AiCompetitor[]> {
-  if (!process.env.OPENAI_API_KEY) {
-    throw new Error("محتاج تضيف OPENAI_API_KEY في ملف .env الأول (احصل عليه من platform.openai.com) وتعيد تشغيل السيرفر.");
-  }
-
-  const client = new OpenAI();
+export async function analyzeCompetitorsWithAI(product: ProductInput, market: MarketInput, orgId: string): Promise<AiCompetitor[]> {
+  const { client, model, usingCustomSettings } = await getAiClientForOrg(orgId);
 
   const userMessage = `ابحث عن المنافسين الحقيقيين لتصدير المنتج ده لسوق الدولة دي:
 
@@ -129,20 +67,20 @@ ${product.availableMonths.length > 0 ? `مواسم توفّر المنتج عن�
   let response: OpenAI.Responses.Response;
   try {
     response = await client.responses.create({
-      model: MODEL,
+      model,
       instructions: SYSTEM_PROMPT,
       input: userMessage,
       tools: [{ type: "web_search" }],
     });
   } catch (e) {
-    throw new Error(describeOpenAiError(e));
+    throw new Error(describeOpenAiError(e, usingCustomSettings));
   }
 
   if (response.status === "incomplete") {
     throw new Error("الرد اتقطع قبل ما يخلص — جرب تاني.");
   }
 
-  const parsed = parseCompetitorsJson(response.output_text);
+  const parsed = parseJsonBlock(response.output_text, AnalysisResultSchema);
   const sources = extractSources(response);
 
   // نفس المصادر بتتنسب لكل المنافسين اللي رجعوا في نفس الرد — البحث كان واحد شامل، مش بحث منفصل لكل دولة.

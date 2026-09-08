@@ -151,7 +151,7 @@ export async function createAiAnalysis(
     const market = await prisma.market.findFirst({ where: { id: parsed.data.marketId, deletedAt: null } });
     if (!product || !market) return { formError: "المنتج أو السوق غير موجودين." };
 
-    const result = await analyzeMarketWithAI(product, market);
+    const result = await analyzeMarketWithAI(product, market, user.orgId);
 
     analysisId = await withScopedTransaction(async (tx) => {
       const analysis = await tx.productMarketAnalysis.create({

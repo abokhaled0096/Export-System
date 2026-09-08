@@ -117,7 +117,7 @@ export async function createAiCompetitors(_prevState: AiCompetitorsFormState, fo
     const market = await prisma.market.findFirst({ where: { id: parsed.data.marketId, deletedAt: null } });
     if (!product || !market) return { formError: "المنتج أو السوق غير موجودين." };
 
-    const results = await analyzeCompetitorsWithAI(product, market);
+    const results = await analyzeCompetitorsWithAI(product, market, user.orgId);
     if (results.length === 0) {
       return { formError: "الذكاء الاصطناعي بحث فعليًا ومالقاش منافسين حقيقيين مؤكَّدين لهذا المنتج/السوق — جرّب منتج أو سوق تاني، أو سجّل منافس معروف يدويًا." };
     }

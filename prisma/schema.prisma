@@ -31,6 +31,15 @@ model Organization {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /// إعدادات الذكاء الاصطناعي — قابلة للتعديل من /admin/ai-settings بدل ما تكون مثبَّتة في الكود.
+  /// aiApiKeySecretId مشفّر عبر Vault (نفس نمط xxxSecretId في Supplier/BankAccount) — فاضي يعني
+  /// استخدم OPENAI_API_KEY من .env. aiBaseUrl فاضي يعني endpoint OpenAI الافتراضي — أي مزوّد تاني
+  /// بيدعم نفس صيغة OpenAI (chat/responses API) بيشتغل بمجرد تغيير الـBase URL + المفتاح + الموديل،
+  /// بلا أي تعديل كود (راجع src/lib/ai/client.ts). aiModel فاضي يعني الموديل الافتراضي gpt-4o-mini.
+  aiApiKeySecretId String? @db.Uuid
+  aiBaseUrl        String?
+  aiModel          String?
+
   users                    User[]
   products                 Product[]
   markets                  Market[]
