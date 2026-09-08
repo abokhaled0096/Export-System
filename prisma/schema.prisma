@@ -36,9 +36,13 @@ model Organization {
   /// استخدم OPENAI_API_KEY من .env. aiBaseUrl فاضي يعني endpoint OpenAI الافتراضي — أي مزوّد تاني
   /// بيدعم نفس صيغة OpenAI (chat/responses API) بيشتغل بمجرد تغيير الـBase URL + المفتاح + الموديل،
   /// بلا أي تعديل كود (راجع src/lib/ai/client.ts). aiModel فاضي يعني الموديل الافتراضي gpt-4o-mini.
-  aiApiKeySecretId String? @db.Uuid
-  aiBaseUrl        String?
-  aiModel          String?
+  /// tavilyApiKeySecretId (مشفّر عبر Vault برضه) مفتاح خدمة بحث Tavily — لازم لو aiBaseUrl/aiApiKeySecretId
+  /// مضبوطين على مزوّد غير OpenAI، عشان نضمن بحث حقيقي بدل ما الموديل يخترع نتيجة "بحث" وهمية
+  /// (راجع src/lib/ai/tavilySearch.ts).
+  aiApiKeySecretId     String? @db.Uuid
+  aiBaseUrl            String?
+  aiModel              String?
+  tavilyApiKeySecretId String? @db.Uuid
 
   users                    User[]
   products                 Product[]

@@ -23,7 +23,7 @@ export default async function AiSettingsPage() {
   const scopedPrisma = await getScopedPrisma();
   const org = await scopedPrisma.organization.findUniqueOrThrow({
     where: { id: user.orgId },
-    select: { aiApiKeySecretId: true, aiBaseUrl: true, aiModel: true },
+    select: { aiApiKeySecretId: true, aiBaseUrl: true, aiModel: true, tavilyApiKeySecretId: true },
   });
 
   return (
@@ -39,12 +39,19 @@ export default async function AiSettingsPage() {
         تلقائيًا بلا أي تعديل كود. لو المزوّد مش بيدعم نفس الصيغة، هيظهر خطأ واضح وقت أول تحليل بدل
         فشل صامت.
       </p>
+      <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+        مزوّدين كتير بيقبلوا أداة البحث شكليًا لكن بيرجّعوا نتيجة &quot;بحث&quot; وهمية بلا أي تحذير — اتأكدنا
+        من ده فعليًا مع موديل خارجي جُرّب. عشان كده، لو هتستخدم موديل غير OpenAI، **لازم** كمان تسجّل
+        مفتاح Tavily (خدمة بحث حقيقي مستقلة، تحت) — بلاه، أي تحليل هيرفض يشتغل بدل ما يرجّع نتيجة
+        مبنية على بحث وهمي.
+      </p>
 
       <div className="mt-6">
         <AiSettingsForm
           hasCustomApiKey={Boolean(org.aiApiKeySecretId)}
           currentBaseUrl={org.aiBaseUrl}
           currentModel={org.aiModel}
+          hasTavilyKey={Boolean(org.tavilyApiKeySecretId)}
         />
       </div>
     </main>

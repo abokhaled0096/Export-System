@@ -61,7 +61,7 @@ export function describeOpenAiError(e: unknown, usingCustomSettings: boolean): s
     return `طلب غير صالح لـAPI الذكاء الاصطناعي: ${e.message}`;
   }
   if (e instanceof OpenAI.APIError) {
-    return `خطأ من API الذكاء الاصطناعي (${e.status}): ${e.message} — ${usingCustomSettings ? "لو ده مزوّد مخصّص، تأكد إنه بيدعم نفس صيغة OpenAI (responses API + web_search)." : ""}`;
+    return `خطأ من API الذكاء الاصطناعي (${e.status}): ${e.message} — ${usingCustomSettings ? "لو ده مزوّد مخصّص، تأكد إنه بيدعم نفس صيغة OpenAI (chat/completions API)." : ""}`;
   }
   return e instanceof Error ? e.message : "حصل خطأ غير متوقع أثناء الاتصال بالذكاء الاصطناعي.";
 }

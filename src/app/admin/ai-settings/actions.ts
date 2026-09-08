@@ -14,6 +14,7 @@ const AiSettingsSchema = z.object({
   apiKey: z.string().trim().optional().or(z.literal("")),
   baseUrl: z.string().trim().optional().or(z.literal("")),
   model: z.string().trim().optional().or(z.literal("")),
+  tavilyApiKey: z.string().trim().optional().or(z.literal("")),
 });
 
 export type AiSettingsFormState = { errors?: Record<string, string[]>; formError?: string; mfaRequired?: boolean; success?: boolean };
@@ -30,11 +31,12 @@ export async function updateAiSettingsAction(
     apiKey: formData.get("apiKey") || undefined,
     baseUrl: formData.get("baseUrl") || undefined,
     model: formData.get("model") || undefined,
+    tavilyApiKey: formData.get("tavilyApiKey") || undefined,
   });
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
 
-  const { apiKey, baseUrl, model } = parsed.data;
-  if (!apiKey && baseUrl === undefined && model === undefined) return { formError: "دخّل قيمة واحدة على الأقل." };
+  const { apiKey, baseUrl, model, tavilyApiKey } = parsed.data;
+  if (!apiKey && baseUrl === undefined && model === undefined && !tavilyApiKey) return { formError: "دخّل قيمة واحدة على الأقل." };
 
   const user = await requireCurrentUser();
   try {
@@ -54,7 +56,12 @@ export async function updateAiSettingsAction(
 
     // التشفير برّه الـtransaction عمدًا — vault.* بيفتح transaction منفصلة لكل نداء (راجع
     // src/lib/vault.ts)، فمفيش فايدة من لفّها في نفس transaction تحديث الصف.
-    const updates: { aiApiKeySecretId?: string; aiBaseUrl?: string | null; aiModel?: string | null } = {};
+    const updates: {
+      aiApiKeySecretId?: string;
+      aiBaseUrl?: string | null;
+      aiModel?: string | null;
+      tavilyApiKeySecretId?: string;
+    } = {};
     if (apiKey) {
       updates.aiApiKeySecretId = org.aiApiKeySecretId
         ? await updateSecret(org.aiApiKeySecretId, apiKey).then(() => org.aiApiKeySecretId!)
@@ -62,6 +69,11 @@ export async function updateAiSettingsAction(
     }
     if (baseUrl !== undefined) updates.aiBaseUrl = baseUrl || null;
     if (model !== undefined) updates.aiModel = model || null;
+    if (tavilyApiKey) {
+      updates.tavilyApiKeySecretId = org.tavilyApiKeySecretId
+        ? await updateSecret(org.tavilyApiKeySecretId, tavilyApiKey).then(() => org.tavilyApiKeySecretId!)
+        : await encryptSecret(tavilyApiKey, `Organization ${user.orgId} tavilyApiKey`);
+    }
 
     await withScopedTransaction(async (tx) => {
       await tx.organization.update({ where: { id: user.orgId }, data: updates });
@@ -124,6 +136,49 @@ export async function clearAiApiKeyAction(): Promise<ClearAiKeyState> {
   } catch (e) {
     if (isNextControlFlowError(e)) throw e;
     await logError({ orgId: user.orgId, userId: user.id, action: "clearAiApiKeyAction", error: e });
+    return { formError: businessRuleMessage(e, "حصل خطأ أثناء مسح المفتاح — حاول تاني.") };
+  }
+
+  revalidatePath("/admin/ai-settings");
+  return { success: true };
+}
+
+/** بيمسح مفتاح Tavily بس (إعدادات الموديل نفسه، لو مخصّصة، بتفضل زي ما هي) — نفس نمط
+ * clearAiApiKeyAction بالحرف. لو المزوّد مزال مخصّص (usingCustomSettings=true) بعد المسح، أي
+ * تحليل جديد هيرفض يشتغل بدل بحث وهمي صامت (راجع getAiClientForOrg/analyzeMarket.ts). */
+export async function clearTavilyApiKeyAction(): Promise<ClearAiKeyState> {
+  const user = await requireCurrentUser();
+  try {
+    await requirePermission(user.roleId, "User", "Edit");
+  } catch {
+    return { formError: "معندكش صلاحية تعديل إعدادات الذكاء الاصطناعي." };
+  }
+  try {
+    await requireAal2();
+  } catch {
+    return { formError: "مسح مفتاح Tavily محتاج تحقق بخطوتين (MFA) الأول.", mfaRequired: true };
+  }
+
+  try {
+    const scopedPrisma = await getScopedPrisma();
+    const org = await scopedPrisma.organization.findUniqueOrThrow({ where: { id: user.orgId } });
+    if (!org.tavilyApiKeySecretId) return { success: true };
+
+    const secretId = org.tavilyApiKeySecretId;
+    await withScopedTransaction(async (tx) => {
+      await tx.organization.update({ where: { id: user.orgId }, data: { tavilyApiKeySecretId: null } });
+      await logAudit(tx, {
+        orgId: user.orgId,
+        userId: user.id,
+        action: "organization.tavilyApiKeyCleared",
+        entityType: "Organization",
+        entityId: user.orgId,
+      });
+    });
+    await deleteSecret(secretId).catch(() => {});
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "clearTavilyApiKeyAction", error: e });
     return { formError: businessRuleMessage(e, "حصل خطأ أثناء مسح المفتاح — حاول تاني.") };
   }
 
