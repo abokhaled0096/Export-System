@@ -13,10 +13,10 @@ const CLAUSE_RISK_LEVELS = ["Low", "Medium", "High"] as const;
 
 const ClauseSchema = z.object({
   title: z.string().trim().min(1, "العنوان مطلوب"),
-  category: z.enum(CLAUSE_CATEGORIES),
+  category: z.enum(CLAUSE_CATEGORIES, "اختار فئة بند صحيحة"),
   textAr: z.string().trim().optional().or(z.literal("")),
   textEn: z.string().trim().optional().or(z.literal("")),
-  riskLevel: z.enum(CLAUSE_RISK_LEVELS),
+  riskLevel: z.enum(CLAUSE_RISK_LEVELS, "اختار مستوى مخاطرة صحيح"),
   approvalRequired: z.coerce.boolean().optional(),
 });
 

@@ -152,7 +152,7 @@ export default async function ScenarioDetailPage({
         {canSeeInternalPricing && (
           <Card className="border-rose-200 bg-rose-50">
             <CardContent>
-              <p className="text-xs text-rose-700">الحد الأدنى (walkAwayPrice)</p>
+              <p className="text-xs text-rose-700">الحد الأدنى للسعر</p>
               <p className="mt-1 font-mono text-lg text-rose-900">
                 {scenario.walkAwayPrice.toString()} {scenario.currency}
               </p>

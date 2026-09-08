@@ -404,7 +404,7 @@ const RED_FLAG_SEVERITIES = ["Low", "Medium", "High", "Critical"] as const;
 
 const RedFlagSchema = z.object({
   flagType: z.string().trim().min(1, "نوع العلم مطلوب"),
-  severity: z.enum(RED_FLAG_SEVERITIES),
+  severity: z.enum(RED_FLAG_SEVERITIES, "اختار درجة خطورة صحيحة"),
   description: z.string().trim().optional().or(z.literal("")),
   blocksDealing: z.coerce.boolean().optional(),
 });
@@ -455,12 +455,12 @@ export async function createRedFlag(companyId: string, _prevState: RedFlagFormSt
 
 const CUSTOMER_SERVICE_CASE_TYPES = ["Complaint", "Claim", "QualityIssue", "Shortage", "Damage", "LateShipment", "WrongDocumentation"] as const;
 const CustomerServiceCaseSchema = z.object({
-  caseType: z.enum(CUSTOMER_SERVICE_CASE_TYPES),
+  caseType: z.enum(CUSTOMER_SERVICE_CASE_TYPES, "اختار نوع حالة صحيح"),
   slaDeadline: z.string().trim().optional().or(z.literal("")),
   rootCause: z.string().trim().optional().or(z.literal("")),
   capaId: z.string().uuid().optional().or(z.literal("")),
-  compensationAmount: z.coerce.number().min(0).optional(),
-  currency: z.string().trim().length(3).toUpperCase().optional().or(z.literal("")),
+  compensationAmount: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
+  currency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase().optional().or(z.literal("")),
 });
 
 export type CustomerServiceCaseFormState = { errors?: Record<string, string[]>; formError?: string };

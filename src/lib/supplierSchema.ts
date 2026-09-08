@@ -15,5 +15,5 @@ export const SupplierSchema = z.object({
   city: z.string().trim().optional().or(z.literal("")),
   taxId: z.string().trim().optional().or(z.literal("")),
   commercialRegNo: z.string().trim().optional().or(z.literal("")),
-  supplierType: z.array(z.enum(SUPPLIER_TYPES)).optional(),
+  supplierType: z.array(z.enum(SUPPLIER_TYPES, "اختار نوع مورّد صحيح")).optional(),
 });

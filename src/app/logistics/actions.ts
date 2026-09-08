@@ -19,10 +19,10 @@ const LOAD_TYPES = ["FCL", "LCL"] as const;
 const INCOTERMS = ["EXW", "FCA", "FAS", "FOB", "CFR", "CIF", "CPT", "CIP", "DAP", "DPU", "DDP"] as const;
 
 const ShipmentSchema = z.object({
-  shipmentType: z.enum(SHIPMENT_TYPES),
-  transportMode: z.enum(TRANSPORT_MODES),
-  loadType: z.enum(LOAD_TYPES).optional().or(z.literal("")),
-  incoterm: z.enum(INCOTERMS),
+  shipmentType: z.enum(SHIPMENT_TYPES, "اختار نوع شحنة صحيح"),
+  transportMode: z.enum(TRANSPORT_MODES, "اختار وسيلة نقل صحيحة"),
+  loadType: z.enum(LOAD_TYPES, "اختار نوع تحميل صحيح").optional().or(z.literal("")),
+  incoterm: z.enum(INCOTERMS, "اختار Incoterm صحيح"),
   originPort: z.string().trim().min(1, "ميناء المنشأ مطلوب"),
   destinationPort: z.string().trim().min(1, "ميناء الوصول مطلوب"),
   finalDestination: z.string().trim().optional().or(z.literal("")),
@@ -119,7 +119,7 @@ const ACI_STATUSES = ["NotRequired", "Pending", "Submitted", "Approved", "Reject
 
 const ShipmentAciSchema = z.object({
   acidNumber: z.string().trim().optional().or(z.literal("")),
-  aciStatus: z.enum(ACI_STATUSES),
+  aciStatus: z.enum(ACI_STATUSES, "اختار حالة ACI صحيحة"),
   aciSubmittedAt: z.string().trim().optional().or(z.literal("")),
 });
 
@@ -176,7 +176,7 @@ export async function updateShipmentAci(
 
 const PARTY_ROLES = ["Buyer", "Consignee", "NotifyParty", "ImporterOfRecord", "CustomsBroker"] as const;
 const ShipmentPartySchema = z.object({
-  partyRole: z.enum(PARTY_ROLES),
+  partyRole: z.enum(PARTY_ROLES, "اختار دور صحيح"),
   companyId: z.string().uuid("اختر شركة"),
 });
 
@@ -234,7 +234,7 @@ const BookingSchema = z.object({
   documentationCutoff: z.string().trim().optional().or(z.literal("")),
   vgmDeadline: z.string().trim().optional().or(z.literal("")),
   portClosingDate: z.string().trim().optional().or(z.literal("")),
-  freeTimeDays: z.coerce.number().int().min(0).optional(),
+  freeTimeDays: z.coerce.number().int().min(0, "لازم يكون 0 أو أكتر").optional(),
   providerId: z.string().uuid().optional().or(z.literal("")),
   freightQuoteId: z.string().uuid().optional().or(z.literal("")),
 });
@@ -317,13 +317,13 @@ export async function createBooking(
 const CONTAINER_TYPES = ["GP20", "GP40", "HC40", "RF20", "RF40", "HCRF40", "OpenTop", "FlatRack", "Tank"] as const;
 const ContainerSchema = z.object({
   containerNumber: z.string().trim().optional().or(z.literal("")),
-  containerType: z.enum(CONTAINER_TYPES),
+  containerType: z.enum(CONTAINER_TYPES, "اختار نوع حاوية صحيح"),
   sealNumber: z.string().trim().optional().or(z.literal("")),
-  maxPayload: z.coerce.number().min(0).optional(),
-  netWeight: z.coerce.number().min(0).optional(),
-  grossWeight: z.coerce.number().min(0).optional(),
-  usedVolume: z.coerce.number().min(0).optional(),
-  availableVolume: z.coerce.number().min(0).optional(),
+  maxPayload: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
+  netWeight: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
+  grossWeight: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
+  usedVolume: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
+  availableVolume: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
   setPointTempC: z.coerce.number().optional(),
 });
 
@@ -382,7 +382,7 @@ export async function addContainer(
 
 const MILESTONE_STATUSES = ["NotStarted", "Planned", "InProgress", "Completed", "Delayed", "Missed", "Blocked", "NotApplicable"] as const;
 const UpdateMilestoneSchema = z.object({
-  status: z.enum(MILESTONE_STATUSES),
+  status: z.enum(MILESTONE_STATUSES, "اختار حالة معلم صحيحة"),
   actualDate: z.string().trim().optional().or(z.literal("")),
   delayReason: z.string().trim().optional().or(z.literal("")),
 });
@@ -449,8 +449,8 @@ const ShipmentEventSchema = z.object({
   eventType: z.string().trim().min(1, "نوع الحدث مطلوب"),
   occurredAt: z.string().trim().min(1, "تاريخ الحدث مطلوب"),
   location: z.string().trim().optional().or(z.literal("")),
-  source: z.enum(SHIPMENT_EVENT_SOURCES),
-  reliability: z.coerce.number().int().min(0).max(100).optional(),
+  source: z.enum(SHIPMENT_EVENT_SOURCES, "اختار مصدر حدث صحيح"),
+  reliability: z.coerce.number().int().min(0, "لازم يكون 0 أو أكتر").max(100, "لازم يكون 100 أو أقل").optional(),
 });
 
 export type ShipmentEventFormState = { errors?: Record<string, string[]>; formError?: string };
@@ -512,12 +512,12 @@ const LOGISTICS_EXCEPTION_SEVERITIES = ["Informational", "Low", "Medium", "High"
 const LOGISTICS_EXCEPTION_STATUSES = ["Open", "InProgress", "Resolved", "Closed"] as const;
 
 const LogisticsExceptionSchema = z.object({
-  exceptionType: z.enum(LOGISTICS_EXCEPTION_TYPES),
-  severity: z.enum(LOGISTICS_EXCEPTION_SEVERITIES),
+  exceptionType: z.enum(LOGISTICS_EXCEPTION_TYPES, "اختار نوع استثناء صحيح"),
+  severity: z.enum(LOGISTICS_EXCEPTION_SEVERITIES, "اختار درجة خطورة صحيحة"),
   detectedAt: z.string().trim().min(1, "تاريخ الاكتشاف مطلوب"),
   rootCause: z.string().trim().optional().or(z.literal("")),
-  financialExposure: z.coerce.number().min(0).optional(),
-  scheduleImpactDays: z.coerce.number().int().min(0).optional(),
+  financialExposure: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
+  scheduleImpactDays: z.coerce.number().int().min(0, "لازم يكون 0 أو أكتر").optional(),
   recoveryPlan: z.string().trim().optional().or(z.literal("")),
 });
 
@@ -573,7 +573,7 @@ export async function createLogisticsException(
   return {};
 }
 
-const UpdateLogisticsExceptionStatusSchema = z.object({ status: z.enum(LOGISTICS_EXCEPTION_STATUSES) });
+const UpdateLogisticsExceptionStatusSchema = z.object({ status: z.enum(LOGISTICS_EXCEPTION_STATUSES, "اختار حالة استثناء صحيحة") });
 
 export type UpdateLogisticsExceptionStatusState = { formError?: string };
 
@@ -621,13 +621,13 @@ const FREE_TIME_CHARGE_TYPES = ["Demurrage", "Detention"] as const;
 const FREE_TIME_LOCATIONS = ["Origin", "Destination"] as const;
 const FreeTimeRecordSchema = z.object({
   containerId: z.string().uuid().optional().or(z.literal("")),
-  chargeType: z.enum(FREE_TIME_CHARGE_TYPES),
-  location: z.enum(FREE_TIME_LOCATIONS),
-  freeDays: z.coerce.number().int().min(0).optional(),
+  chargeType: z.enum(FREE_TIME_CHARGE_TYPES, "اختار نوع رسوم صحيح"),
+  location: z.enum(FREE_TIME_LOCATIONS, "اختار موقع صحيح"),
+  freeDays: z.coerce.number().int().min(0, "لازم يكون 0 أو أكتر").optional(),
   startDate: z.string().trim().optional().or(z.literal("")),
   endDate: z.string().trim().optional().or(z.literal("")),
-  estimatedCost: z.coerce.number().min(0).optional(),
-  actualCost: z.coerce.number().min(0).optional(),
+  estimatedCost: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
+  actualCost: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
   currency: z.string().trim().optional().or(z.literal("")),
   responsibleParty: z.string().trim().optional().or(z.literal("")),
 });
@@ -698,8 +698,8 @@ export async function createFreeTimeRecord(
 
 const ActualLogisticsCostSchema = z.object({
   costType: z.string().trim().min(1, "نوع التكلفة مطلوب"),
-  expectedAmount: z.coerce.number().min(0).optional(),
-  actualAmount: z.coerce.number().min(0).optional(),
+  expectedAmount: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
+  actualAmount: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
   currency: z.string().trim().optional().or(z.literal("")),
   invoiceReference: z.string().trim().optional().or(z.literal("")),
 });
@@ -759,7 +759,7 @@ const TemperatureLogSchema = z.object({
   containerId: z.string().uuid().optional().or(z.literal("")),
   recordedAt: z.string().trim().min(1, "تاريخ القراءة مطلوب"),
   temperatureC: z.coerce.number(),
-  humidityPct: z.coerce.number().min(0).max(100).optional(),
+  humidityPct: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").max(100, "لازم يكون 100 أو أقل").optional(),
   source: z.string().trim().optional().or(z.literal("")),
   deviceId: z.string().trim().optional().or(z.literal("")),
   isExcursion: z.coerce.boolean().optional(),
@@ -835,7 +835,7 @@ const TransportTripSchema = z.object({
   loadingFinish: z.string().trim().optional().or(z.literal("")),
   gateInAt: z.string().trim().optional().or(z.literal("")),
   emptyReturnAt: z.string().trim().optional().or(z.literal("")),
-  cost: z.coerce.number().min(0).optional(),
+  cost: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
   currency: z.string().trim().optional().or(z.literal("")),
 });
 
@@ -973,12 +973,12 @@ const CLAIM_STATUSES = [
 ] as const;
 
 const ClaimSchema = z.object({
-  claimType: z.enum(CLAIM_TYPES),
+  claimType: z.enum(CLAIM_TYPES, "اختار نوع مطالبة صحيح"),
   claimedAgainst: z.string().trim().optional().or(z.literal("")),
   incidentDate: z.string().trim().optional().or(z.literal("")),
   notificationDate: z.string().trim().optional().or(z.literal("")),
   claimDeadline: z.string().trim().optional().or(z.literal("")),
-  claimedAmount: z.coerce.number().min(0).optional(),
+  claimedAmount: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
   currency: z.string().trim().optional().or(z.literal("")),
 });
 
@@ -1033,8 +1033,8 @@ export async function createClaim(shipmentId: string, _prevState: ClaimFormState
 }
 
 const UpdateClaimStatusSchema = z.object({
-  status: z.enum(CLAIM_STATUSES),
-  settlementAmount: z.coerce.number().min(0).optional(),
+  status: z.enum(CLAIM_STATUSES, "اختار حالة مطالبة صحيحة"),
+  settlementAmount: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
 });
 
 export type UpdateClaimStatusState = { formError?: string };
@@ -1085,10 +1085,10 @@ export async function updateClaimStatus(
 
 const ShipmentLotSchema = z.object({
   lotId: z.string().uuid("اختر دفعة (Lot)"),
-  quantity: z.coerce.number().min(0).optional(),
-  cartons: z.coerce.number().int().min(0).optional(),
-  netWeight: z.coerce.number().min(0).optional(),
-  grossWeight: z.coerce.number().min(0).optional(),
+  quantity: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
+  cartons: z.coerce.number().int().min(0, "لازم يكون 0 أو أكتر").optional(),
+  netWeight: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
+  grossWeight: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
 });
 
 export type ShipmentLotFormState = { errors?: Record<string, string[]>; formError?: string };

@@ -1,5 +1,17 @@
 import type { ScopedTx } from "./scoped-prisma";
 import type { PermissionAction } from "@/generated/prisma/enums";
+import { entityTypeLabel } from "./changeRequestLabels";
+
+/** تسمية عربية لنوع الإشعار (Notification.notificationType) — للعرض في /notifications بدل
+ * القيمة الداخلية الخام (زي "approval.requested"). */
+export const notificationTypeLabel: Record<string, string> = {
+  "approval.requested": "طلب موافقة استثنائية",
+  "approval.decided": "قرار موافقة",
+  "changeRequest.requested": "طلب اعتماد بيانات أساسية",
+  "changeRequest.decided": "قرار اعتماد بيانات",
+  "budget.exceeded": "تجاوز موازنة",
+  "sod.violationAttempted": "محاولة تخالف فصل مهام",
+};
 
 /** إشعار مباشر لمستخدم واحد معروف (زي "تم اعتماد طلبك"). بيتخطّى حساب معطّل بصمت (isActive) —
  * مقدّم الطلب ممكن يتعطّل حسابه بعد التقديم وقبل القرار، وإشعار حساب معطّل صف ميت محدش هيشوفه
@@ -110,7 +122,7 @@ export async function notifyChangeRequestApprovers(
     excludeUserId: params.requesterId,
     notificationType: "changeRequest.requested",
     title: "طلب اعتماد بيانات أساسية جديد",
-    body: `نوع الكيان: ${params.entityType}`,
+    body: `نوع الكيان: ${entityTypeLabel[params.entityType] ?? params.entityType}`,
     relatedEntityType: "MasterDataChangeRequest",
     relatedEntityId: params.requestId,
   });

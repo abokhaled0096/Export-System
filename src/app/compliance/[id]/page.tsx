@@ -208,7 +208,7 @@ export default async function ComplianceCaseDetailPage({ params }: { params: Pro
         </div>
         {kase.requirements.some((r) => r.status !== "Met" && r.status !== "NotApplicable") && (
           <p className="mt-2 text-xs text-amber-700">
-            بعض المتطلبات لسه مش {requirementStatusLabel.Met}/{requirementStatusLabel.NotApplicable} — أي بوابة بتحاجبهم مش هتقدر تعدّي.
+            فيه متطلبات لسه معلّقة (مش {requirementStatusLabel.Met} ولا {requirementStatusLabel.NotApplicable}) — أي بوابة بتعتمد عليها هتفضل مقفولة لحد ما تتحل.
           </p>
         )}
       </section>

@@ -91,12 +91,12 @@ const FACILITY_TYPES = [
   "Farm", "Field", "CollectionCenter", "PackingHouse", "Factory", "FreezingFacility", "DryingFacility", "ProcessingFacility", "Warehouse", "ColdStore", "Laboratory",
 ] as const;
 const FacilitySchema = z.object({
-  facilityType: z.enum(FACILITY_TYPES),
+  facilityType: z.enum(FACILITY_TYPES, "اختار نوع منشأة صحيح"),
   name: z.string().trim().min(1, "اسم المنشأة مطلوب"),
   address: z.string().trim().optional().or(z.literal("")),
-  capacityDaily: z.coerce.number().min(0).optional(),
-  productionLines: z.coerce.number().int().min(0).optional(),
-  shifts: z.coerce.number().int().min(0).optional(),
+  capacityDaily: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
+  productionLines: z.coerce.number().int().min(0, "لازم يكون 0 أو أكتر").optional(),
+  shifts: z.coerce.number().int().min(0, "لازم يكون 0 أو أكتر").optional(),
   hasTraceabilitySystem: z.coerce.boolean().optional(),
 });
 
@@ -149,10 +149,10 @@ const NCR_SEVERITIES = ["Observation", "Minor", "Major", "Critical"] as const;
 const NCRSchema = z.object({
   facilityId: z.string().uuid("اختر منشأة"),
   capaId: z.string().uuid().optional().or(z.literal("")),
-  ncrType: z.enum(NCR_TYPES),
-  severity: z.enum(NCR_SEVERITIES),
-  quantityAffected: z.coerce.number().min(0).optional(),
-  financialExposure: z.coerce.number().min(0).optional(),
+  ncrType: z.enum(NCR_TYPES, "اختار نوع مخالفة صحيح"),
+  severity: z.enum(NCR_SEVERITIES, "اختار درجة خطورة صحيحة"),
+  quantityAffected: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
+  financialExposure: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
   currency: z.string().trim().optional().or(z.literal("")),
   immediateContainment: z.string().trim().optional().or(z.literal("")),
 });
@@ -224,11 +224,11 @@ const SupplierAuditSchema = z.object({
   facilityId: z.string().uuid().optional().or(z.literal("")),
   auditDate: z.string().trim().optional().or(z.literal("")),
   auditor: z.string().trim().optional().or(z.literal("")),
-  totalScore: z.coerce.number().min(0).max(100).optional(),
-  criticalFindings: z.coerce.number().int().min(0).optional(),
-  majorFindings: z.coerce.number().int().min(0).optional(),
-  minorFindings: z.coerce.number().int().min(0).optional(),
-  decision: z.enum(SUPPLIER_AUDIT_DECISIONS),
+  totalScore: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").max(100, "لازم يكون 100 أو أقل").optional(),
+  criticalFindings: z.coerce.number().int().min(0, "لازم يكون 0 أو أكتر").optional(),
+  majorFindings: z.coerce.number().int().min(0, "لازم يكون 0 أو أكتر").optional(),
+  minorFindings: z.coerce.number().int().min(0, "لازم يكون 0 أو أكتر").optional(),
+  decision: z.enum(SUPPLIER_AUDIT_DECISIONS, "اختار قرار تدقيق صحيح"),
   followUpDate: z.string().trim().optional().or(z.literal("")),
 });
 
@@ -292,7 +292,7 @@ export async function createSupplierAudit(supplierId: string, _prevState: Suppli
 
 const SUPPLY_CONTRACT_TYPES = ["Framework", "TollProcessing", "FarmingContract", "ExclusiveSupply", "SeasonalContract", "SpotAgreement"] as const;
 const SupplyContractSchema = z.object({
-  contractType: z.enum(SUPPLY_CONTRACT_TYPES),
+  contractType: z.enum(SUPPLY_CONTRACT_TYPES, "اختار نوع عقد توريد صحيح"),
   documentId: z.string().uuid().optional().or(z.literal("")),
   startDate: z.string().trim().optional().or(z.literal("")),
   endDate: z.string().trim().optional().or(z.literal("")),
@@ -363,17 +363,17 @@ export async function createSupplyContract(supplierId: string, _prevState: Suppl
 const PACKAGING_MATERIAL_TYPES = ["Carton", "Bag", "Label", "Jar", "Bottle", "Pallet", "StretchFilm", "Strap", "InnerLiner", "Divider"] as const;
 
 const PackagingMaterialSchema = z.object({
-  materialType: z.enum(PACKAGING_MATERIAL_TYPES),
+  materialType: z.enum(PACKAGING_MATERIAL_TYPES, "اختار نوع مادة تغليف صحيح"),
   specification: z.string().trim().optional().or(z.literal("")),
   dimensions: z.string().trim().optional().or(z.literal("")),
   artworkVersion: z.string().trim().optional().or(z.literal("")),
   artworkApproved: z.coerce.boolean().optional(),
-  minimumOrder: z.coerce.number().min(0).optional(),
-  leadTimeDays: z.coerce.number().int().min(0).optional(),
-  quantityOrdered: z.coerce.number().min(0).optional(),
-  quantityReceived: z.coerce.number().min(0).optional(),
-  quantityAccepted: z.coerce.number().min(0).optional(),
-  unitCost: z.coerce.number().min(0).optional(),
+  minimumOrder: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
+  leadTimeDays: z.coerce.number().int().min(0, "لازم يكون 0 أو أكتر").optional(),
+  quantityOrdered: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
+  quantityReceived: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
+  quantityAccepted: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
+  unitCost: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
   currency: z.string().trim().optional().or(z.literal("")),
 });
 
@@ -437,11 +437,11 @@ const SUPPLIER_SAMPLE_RESULTS = ["Pending", "Approved", "Conditional", "Rejected
 const SupplierSampleSchema = z.object({
   productId: z.string().uuid("اختر منتج"),
   batchId: z.string().uuid().optional().or(z.literal("")),
-  purpose: z.enum(SUPPLIER_SAMPLE_PURPOSES),
-  quantity: z.coerce.number().min(0).optional(),
-  cost: z.coerce.number().min(0).optional(),
+  purpose: z.enum(SUPPLIER_SAMPLE_PURPOSES, "اختار غرض عيّنة صحيح"),
+  quantity: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
+  cost: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
   currency: z.string().trim().optional().or(z.literal("")),
-  result: z.enum(SUPPLIER_SAMPLE_RESULTS),
+  result: z.enum(SUPPLIER_SAMPLE_RESULTS, "اختار نتيجة عيّنة صحيحة"),
 });
 
 export type SupplierSampleFormState = { errors?: Record<string, string[]>; formError?: string };
@@ -508,13 +508,13 @@ const SUPPLIER_PERFORMANCE_CLASSIFICATIONS = ["Strategic", "Preferred", "Approve
 const SupplierPerformanceSchema = z.object({
   periodStart: z.string().trim().min(1, "بداية الفترة مطلوبة"),
   periodEnd: z.string().trim().min(1, "نهاية الفترة مطلوبة"),
-  qualityPassRate: z.coerce.number().min(0).max(100).optional(),
-  rejectionRate: z.coerce.number().min(0).max(100).optional(),
-  onTimeDeliveryRate: z.coerce.number().min(0).max(100).optional(),
-  yieldAccuracy: z.coerce.number().min(0).max(100).optional(),
-  priceAccuracy: z.coerce.number().min(0).max(100).optional(),
-  overallScore: z.coerce.number().min(0).max(100).optional(),
-  classification: z.enum(SUPPLIER_PERFORMANCE_CLASSIFICATIONS).optional().or(z.literal("")),
+  qualityPassRate: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").max(100, "لازم يكون 100 أو أقل").optional(),
+  rejectionRate: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").max(100, "لازم يكون 100 أو أقل").optional(),
+  onTimeDeliveryRate: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").max(100, "لازم يكون 100 أو أقل").optional(),
+  yieldAccuracy: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").max(100, "لازم يكون 100 أو أقل").optional(),
+  priceAccuracy: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").max(100, "لازم يكون 100 أو أقل").optional(),
+  overallScore: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").max(100, "لازم يكون 100 أو أقل").optional(),
+  classification: z.enum(SUPPLIER_PERFORMANCE_CLASSIFICATIONS, "اختار تصنيف أداء صحيح").optional().or(z.literal("")),
 });
 
 export type SupplierPerformanceFormState = { errors?: Record<string, string[]>; formError?: string };
@@ -649,14 +649,14 @@ const FARM_RISK_LEVELS = ["Low", "Medium", "High"] as const;
 const FarmSchema = z.object({
   farmerName: z.string().trim().optional().or(z.literal("")),
   location: z.string().trim().optional().or(z.literal("")),
-  areaFeddan: z.coerce.number().min(0).optional(),
+  areaFeddan: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
   crop: z.string().trim().optional().or(z.literal("")),
   variety: z.string().trim().optional().or(z.literal("")),
   plantingDate: z.string().trim().optional().or(z.literal("")),
   expectedHarvestStart: z.string().trim().optional().or(z.literal("")),
   expectedHarvestEnd: z.string().trim().optional().or(z.literal("")),
-  expectedQuantity: z.coerce.number().min(0).optional(),
-  riskLevel: z.enum(FARM_RISK_LEVELS),
+  expectedQuantity: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
+  riskLevel: z.enum(FARM_RISK_LEVELS, "اختار مستوى مخاطرة صحيح"),
 });
 
 export type FarmFormState = { errors?: Record<string, string[]>; formError?: string };

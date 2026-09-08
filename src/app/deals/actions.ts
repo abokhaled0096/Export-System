@@ -18,14 +18,10 @@ import { postCommissionPayment } from "@/lib/accounting";
 
 const DealSchema = z.object({
   opportunityId: z.string().uuid("اختر فرصة"),
-  dealObjective: z.enum([
-    "MaximizeProfit",
-    "NewMarketEntry",
-    "WinCustomer",
-    "ProtectAccount",
-    "ClearInventory",
-    "TestMarket",
-  ]),
+  dealObjective: z.enum(
+    ["MaximizeProfit", "NewMarketEntry", "WinCustomer", "ProtectAccount", "ClearInventory", "TestMarket"],
+    "اختار هدف صفقة صحيح"
+  ),
 });
 
 export type DealFormState = { errors?: Record<string, string[]>; formError?: string };
@@ -86,15 +82,15 @@ export async function createDeal(
 const ScenarioSchema = z.object({
   scenarioName: z.string().trim().min(1, "اسم السيناريو مطلوب"),
   quantityRaw: z.coerce.number().positive("الكمية لازم تكون أكبر من صفر"),
-  yieldRate: z.coerce.number().positive().max(1).optional(),
-  incoterm: z.enum(["EXW", "FCA", "FAS", "FOB", "CFR", "CIF", "CPT", "CIP", "DAP", "DPU", "DDP"]),
+  yieldRate: z.coerce.number().positive("لازم يكون أكبر من صفر").max(1, "نسبة بين 0 و1 (مثال: 0.85 يعني 85%)").optional(),
+  incoterm: z.enum(["EXW", "FCA", "FAS", "FOB", "CFR", "CIF", "CPT", "CIP", "DAP", "DPU", "DDP"], "اختار Incoterm صحيح"),
   namedPlace: z.string().trim().optional().or(z.literal("")),
   currency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase(),
   walkAwayPrice: z.coerce.number().positive("الحد الأدنى للسعر مطلوب"),
-  openingPrice: z.coerce.number().positive().optional(),
-  targetPrice: z.coerce.number().positive().optional(),
-  financeCost: z.coerce.number().nonnegative().optional(),
-  riskReserve: z.coerce.number().nonnegative().optional(),
+  openingPrice: z.coerce.number().positive("لازم يكون أكبر من صفر").optional(),
+  targetPrice: z.coerce.number().positive("لازم يكون أكبر من صفر").optional(),
+  financeCost: z.coerce.number().nonnegative("لازم يكون 0 أو أكتر").optional(),
+  riskReserve: z.coerce.number().nonnegative("لازم يكون 0 أو أكتر").optional(),
   // شروط الدفع — اختيارية، راجع BACKLOG.md § خلصان (30 أغسطس): كانت موجودة في الـschema بلا واجهة إدخال.
   paymentTerms: z.string().trim().optional().or(z.literal("")),
   advanceRatePct: z.coerce.number().min(0, "لازم بين 0 و100").max(100, "لازم بين 0 و100").optional(),
@@ -207,32 +203,31 @@ export async function createScenario(
 }
 
 const CostItemSchema = z.object({
-  category: z.enum([
-    "Product",
-    "Processing",
-    "Packaging",
-    "Quality",
-    "ExportLogistics",
-    "InternationalFreight",
-    "DestinationCharges",
-    "SellingAdmin",
-    "Finance",
-    "RiskReserve",
-  ]),
+  category: z.enum(
+    [
+      "Product",
+      "Processing",
+      "Packaging",
+      "Quality",
+      "ExportLogistics",
+      "InternationalFreight",
+      "DestinationCharges",
+      "SellingAdmin",
+      "Finance",
+      "RiskReserve",
+    ],
+    "اختار فئة بند تكلفة صحيحة"
+  ),
   subcategory: z.string().trim().optional().or(z.literal("")),
   amount: z.coerce.number().positive("المبلغ لازم يكون أكبر من صفر"),
   currency: z.string().trim().length(3, "العملة لازم تكون 3 حروف (زي USD)").toUpperCase(),
   // لازم بس لو currency مختلفة عن عملة السيناريو — بيتحقق منه يدويًا تحت (مش هنا) لأن
   // Zod مش عارف عملة السيناريو وقت التحقق.
   fxRate: z.coerce.number().positive("سعر الصرف لازم يكون أكبر من صفر").optional(),
-  confidenceLevel: z.enum([
-    "Contract100",
-    "OfficialQuote90",
-    "ExpiringQuote75",
-    "HistoricalAvg60",
-    "InternalEstimate40",
-    "Assumption20",
-  ]),
+  confidenceLevel: z.enum(
+    ["Contract100", "OfficialQuote90", "ExpiringQuote75", "HistoricalAvg60", "InternalEstimate40", "Assumption20"],
+    "اختار مستوى ثقة صحيح"
+  ),
 });
 
 export type CostItemFormState = { errors?: Record<string, string[]>; formError?: string };
@@ -367,7 +362,7 @@ export async function createCostItem(
 }
 
 const RiskItemSchema = z.object({
-  riskType: z.enum(["FX", "Freight", "Supplier", "Quality", "Credit", "Compliance", "Weather", "Political"]),
+  riskType: z.enum(["FX", "Freight", "Supplier", "Quality", "Credit", "Compliance", "Weather", "Political"], "اختار نوع مخاطرة صحيح"),
   probability: z.coerce.number().min(0, "لازم بين 0 و1").max(1, "لازم بين 0 و1"),
   financialImpact: z.coerce.number().positive("الأثر المالي لازم يكون أكبر من صفر"),
   mitigation: z.string().trim().optional().or(z.literal("")),
@@ -584,7 +579,7 @@ export async function lockScenario(
     if (isNextControlFlowError(e)) throw e;
     // ⚠️ عمدًا مش بنسجّل logError هنا — الرسالة الحقيقية بتتعرض للمستخدم مباشرة أصلًا (مش بلع صامت)،
     // وأغلب الحالات validation متوقعة (زي "محتاج بند تكلفة أول") مش باگ حقيقي يستاهل تسجيل.
-    return { formError: e instanceof Error ? e.message : "حصل خطأ أثناء قفل السيناريو — حاول تاني." };
+    return { formError: businessRuleMessage(e, "حصل خطأ أثناء قفل السيناريو — حاول تاني.") };
   }
 
   return {};
@@ -730,7 +725,7 @@ export async function createQuote(
     if (isNextControlFlowError(e)) throw e;
     if (e && typeof e === "object" && "message" in e && String(e.message).includes("walkAwayPrice")) {
       return {
-        formError: "السعر ده أقل من الحد الأدنى المسموح (walkAwayPrice) — لازم موافقة استثنائية.",
+        formError: "السعر ده أقل من الحد الأدنى المسموح لهذا السيناريو — لازم موافقة استثنائية.",
       };
     }
     await logError({ orgId: user.orgId, userId: user.id, action: "createQuote", error: e });
@@ -1003,14 +998,14 @@ const DOCUMENT_LANGUAGES = ["Arabic", "English", "Bilingual"] as const;
 const DOCUMENT_ETA_STATUSES = ["NotApplicable", "Pending", "Submitted", "Validated", "Rejected"] as const;
 
 const DocumentSchema = z.object({
-  documentType: z.enum(DOCUMENT_TYPES),
+  documentType: z.enum(DOCUMENT_TYPES, "اختار نوع مستند صحيح"),
   documentNumber: z.string().trim().min(1, "رقم المستند مطلوب"),
-  version: z.coerce.number().int().positive().optional(),
-  language: z.enum(DOCUMENT_LANGUAGES),
+  version: z.coerce.number().int().positive("لازم يكون أكبر من صفر").optional(),
+  language: z.enum(DOCUMENT_LANGUAGES, "اختار لغة مستند صحيحة"),
   confidentiality: z.string().trim().optional().or(z.literal("")),
   expiryDate: z.string().trim().optional().or(z.literal("")),
   etaUuid: z.string().trim().optional().or(z.literal("")),
-  etaStatus: z.enum(DOCUMENT_ETA_STATUSES),
+  etaStatus: z.enum(DOCUMENT_ETA_STATUSES, "اختار حالة ETA صحيحة"),
   etaSubmittedAt: z.string().trim().optional().or(z.literal("")),
 });
 
@@ -1091,7 +1086,7 @@ export async function createDocument(dealId: string, _prevState: DocumentFormSta
 
 const DOCUMENT_PACKAGE_TYPES = ["QuotationPack", "FirstOrderPack", "ShipmentPack", "SamplePack", "TenderPack"] as const;
 const DocumentPackageSchema = z.object({
-  packageType: z.enum(DOCUMENT_PACKAGE_TYPES),
+  packageType: z.enum(DOCUMENT_PACKAGE_TYPES, "اختار نوع حزمة مستندات صحيح"),
 });
 
 export type DocumentPackageFormState = { errors?: Record<string, string[]>; formError?: string };
@@ -1140,7 +1135,7 @@ export async function createDocumentPackage(dealId: string, _prevState: Document
 
 const DocumentVersionSchema = z.object({
   documentId: z.string().uuid("اختر مستند"),
-  versionNumber: z.coerce.number().int().positive(),
+  versionNumber: z.coerce.number().int().positive("لازم يكون أكبر من صفر"),
   changeReason: z.string().trim().optional().or(z.literal("")),
 });
 
@@ -1211,7 +1206,7 @@ const CommissionEntrySchema = z.object({
   userId: z.string().uuid("اختر مستخدم"),
   salesOrderId: z.string().uuid().optional().or(z.literal("")),
   amount: z.coerce.number().positive("المبلغ مطلوب"),
-  currency: z.string().trim().length(3).toUpperCase().optional().or(z.literal("")),
+  currency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase().optional().or(z.literal("")),
 });
 
 export type CommissionEntryFormState = { errors?: Record<string, string[]>; formError?: string };

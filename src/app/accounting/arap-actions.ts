@@ -233,15 +233,15 @@ export async function updateBankAccountBankInfoAction(
 const INVOICE_TYPES = ["SalesInvoice", "PurchaseInvoice", "CreditNote", "DebitNote", "ProformaInvoice"] as const;
 
 const InvoiceSchema = z.object({
-  invoiceType: z.enum(INVOICE_TYPES),
+  invoiceType: z.enum(INVOICE_TYPES, "اختار نوع فاتورة صحيح"),
   salesOrderId: z.string().uuid().optional().or(z.literal("")),
   purchaseOrderId: z.string().uuid().optional().or(z.literal("")),
   companyId: z.string().uuid().optional().or(z.literal("")),
   supplierId: z.string().uuid().optional().or(z.literal("")),
   documentId: z.string().uuid().optional().or(z.literal("")),
-  currency: z.string().trim().length(3).toUpperCase(),
+  currency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase(),
   subtotal: z.coerce.number().min(0, "الصافي مطلوب"),
-  taxAmount: z.coerce.number().min(0).optional(),
+  taxAmount: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
   issueDate: z.string().trim().min(1, "تاريخ الإصدار مطلوب"),
   dueDate: z.string().trim().min(1, "تاريخ الاستحقاق مطلوب"),
   notes: z.string().trim().optional().or(z.literal("")),
@@ -459,13 +459,13 @@ const PAYMENT_DIRECTIONS = ["Inbound", "Outbound"] as const;
 const PAYMENT_METHODS = ["BankTransfer", "Check", "Cash", "LC", "Card"] as const;
 
 const PaymentSchema = z.object({
-  direction: z.enum(PAYMENT_DIRECTIONS),
+  direction: z.enum(PAYMENT_DIRECTIONS, "اختار اتجاه دفعة صحيح"),
   companyId: z.string().uuid().optional().or(z.literal("")),
   supplierId: z.string().uuid().optional().or(z.literal("")),
   bankAccountId: z.string().uuid("اختر حساب بنكي"),
   amount: z.coerce.number().positive("المبلغ مطلوب"),
-  currency: z.string().trim().length(3).toUpperCase(),
-  paymentMethod: z.enum(PAYMENT_METHODS),
+  currency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase(),
+  paymentMethod: z.enum(PAYMENT_METHODS, "اختار طريقة دفع صحيحة"),
   paymentDate: z.string().trim().min(1, "تاريخ الدفعة مطلوب"),
   reference: z.string().trim().optional().or(z.literal("")),
   idempotencyKey: z.string().uuid().optional().or(z.literal("")),

@@ -9,16 +9,16 @@ import { requirePermission } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 import { analyzeMarketWithAI } from "@/lib/ai/analyzeMarket";
 import { computeOpportunityRiskSuggestion, type ScoringResult } from "@/lib/opportunityScoring";
-import { logError, isNextControlFlowError } from "@/lib/errorLog";
+import { logError, isNextControlFlowError, businessRuleMessage } from "@/lib/errorLog";
 
 const AnalysisSchema = z.object({
   productId: z.string().uuid("اختر منتج"),
   marketId: z.string().uuid("اختر سوق"),
-  year: z.coerce.number().int().min(2020).max(2100),
-  opportunityScore: z.coerce.number().int().min(0).max(100),
-  riskScore: z.coerce.number().int().min(0).max(100),
-  confidenceLevel: z.coerce.number().int().min(0).max(100).optional(),
-  recommendation: z.enum(["Start", "Study", "Monitor", "Avoid"]),
+  year: z.coerce.number().int().min(2020, "السنة لازم تكون 2020 أو بعدها").max(2100, "السنة لازم تكون منطقية"),
+  opportunityScore: z.coerce.number().int().min(0, "لازم يكون 0 أو أكتر").max(100, "لازم يكون 100 أو أقل"),
+  riskScore: z.coerce.number().int().min(0, "لازم يكون 0 أو أكتر").max(100, "لازم يكون 100 أو أقل"),
+  confidenceLevel: z.coerce.number().int().min(0, "لازم يكون 0 أو أكتر").max(100, "لازم يكون 100 أو أقل").optional(),
+  recommendation: z.enum(["Start", "Study", "Monitor", "Avoid"], "اختار توصية صحيحة"),
 });
 
 export type AnalysisFormState = {
@@ -119,7 +119,7 @@ export async function computeAnalysisSuggestionAction(productId: string, marketI
 const AiAnalysisSchema = z.object({
   productId: z.string().uuid("اختر منتج"),
   marketId: z.string().uuid("اختر سوق"),
-  year: z.coerce.number().int().min(2020).max(2100),
+  year: z.coerce.number().int().min(2020, "السنة لازم تكون 2020 أو بعدها").max(2100, "السنة لازم تكون منطقية"),
 });
 
 export type AiAnalysisFormState = {
@@ -187,7 +187,7 @@ export async function createAiAnalysis(
   } catch (e) {
     if (isNextControlFlowError(e)) throw e;
     await logError({ orgId: user.orgId, userId: user.id, action: "createAiAnalysis", error: e });
-    return { formError: e instanceof Error ? e.message : "حصل خطأ أثناء التحليل — حاول تاني." };
+    return { formError: businessRuleMessage(e, "حصل خطأ أثناء التحليل — حاول تاني.") };
   }
 
   revalidatePath("/analysis");

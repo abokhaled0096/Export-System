@@ -14,7 +14,7 @@ const CAPA_ROOT_CAUSE_METHODS = ["FiveWhys", "Fishbone", "Other"] as const;
 
 const CAPASchema = z.object({
   rootCause: z.string().trim().optional().or(z.literal("")),
-  rootCauseMethod: z.enum(CAPA_ROOT_CAUSE_METHODS).optional().or(z.literal("")),
+  rootCauseMethod: z.enum(CAPA_ROOT_CAUSE_METHODS, "اختار طريقة تحليل صحيحة").optional().or(z.literal("")),
   correctiveAction: z.string().trim().optional().or(z.literal("")),
   preventiveAction: z.string().trim().optional().or(z.literal("")),
   dueDate: z.string().trim().optional().or(z.literal("")),

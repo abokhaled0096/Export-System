@@ -8,7 +8,7 @@ import { requirePermission } from "@/lib/permissions";
 import { requireAal2 } from "@/lib/mfa";
 import { withScopedTransaction } from "@/lib/scoped-prisma";
 import { logAudit } from "@/lib/audit";
-import { logError, isNextControlFlowError } from "@/lib/errorLog";
+import { logError, isNextControlFlowError, businessRuleMessage } from "@/lib/errorLog";
 import { generatePoNumber } from "@/lib/purchaseOrder";
 import { notifyUser } from "@/lib/notification";
 
@@ -17,7 +17,7 @@ const QuoteOverridePayload = z.object({
   dealId: z.string().uuid(),
   customerId: z.string().uuid(),
   currency: z.string(),
-  incoterm: z.enum(["EXW", "FCA", "FAS", "FOB", "CFR", "CIF", "CPT", "CIP", "DAP", "DPU", "DDP"]),
+  incoterm: z.enum(["EXW", "FCA", "FAS", "FOB", "CFR", "CIF", "CPT", "CIP", "DAP", "DPU", "DDP"], "اختار Incoterm صحيح"),
   namedPlace: z.string().nullable(),
   unitPrice: z.number(),
   priceUnit: z.string(),
@@ -184,7 +184,7 @@ export async function approveRequest(
   } catch (e) {
     if (isNextControlFlowError(e)) throw e;
     await logError({ orgId: user.orgId, userId: user.id, action: "approveRequest", error: e });
-    return { formError: e instanceof Error ? e.message : "حصل خطأ أثناء اعتماد الطلب — حاول تاني." };
+    return { formError: businessRuleMessage(e, "حصل خطأ أثناء اعتماد الطلب — حاول تاني.") };
   }
 
   revalidatePath("/approvals");
@@ -244,7 +244,7 @@ export async function rejectRequest(
   } catch (e) {
     if (isNextControlFlowError(e)) throw e;
     await logError({ orgId: user.orgId, userId: user.id, action: "rejectRequest", error: e });
-    return { formError: e instanceof Error ? e.message : "حصل خطأ أثناء رفض الطلب — حاول تاني." };
+    return { formError: businessRuleMessage(e, "حصل خطأ أثناء رفض الطلب — حاول تاني.") };
   }
 
   revalidatePath("/approvals");

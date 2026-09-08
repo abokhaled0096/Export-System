@@ -32,7 +32,7 @@ async function assertComplianceCaseOwnScope(scope: Awaited<ReturnType<typeof req
 const OPERATION_TYPES = ["CommercialExport", "Sample", "Tender", "TrialShipment", "AnnualContract", "PrivateLabel"] as const;
 
 const ComplianceCaseSchema = z.object({
-  operationType: z.enum(OPERATION_TYPES),
+  operationType: z.enum(OPERATION_TYPES, "اختار نوع عملية صحيح"),
   supplierId: z.string().uuid().optional().or(z.literal("")),
 });
 
@@ -111,14 +111,14 @@ const RequirementSchema = z
     complianceCaseId: z.string().uuid().optional().or(z.literal("")),
     productId: z.string().uuid().optional().or(z.literal("")),
     marketId: z.string().uuid().optional().or(z.literal("")),
-    category: z.enum(REQUIREMENT_CATEGORIES),
+    category: z.enum(REQUIREMENT_CATEGORIES, "اختار فئة متطلب صحيحة"),
     name: z.string().trim().min(2, "اسم المتطلب مطلوب"),
     mandatory: z.coerce.boolean().optional(),
     responsibleParty: z.string().trim().optional().or(z.literal("")),
     issuingAuthority: z.string().trim().optional().or(z.literal("")),
   })
   .refine((v) => Boolean(v.complianceCaseId) || (Boolean(v.productId) && Boolean(v.marketId)), {
-    message: "لازم إما ملف امتثال، أو منتج+سوق (بحث مبكر) — راجع docs/ERD.md §8.",
+    message: "لازم تختار إما ملف امتثال، أو منتج وسوق معًا (لو ده بحث مبكر قبل وجود صفقة).",
     path: ["complianceCaseId"],
   });
 
@@ -195,7 +195,7 @@ export async function createRequirement(
   return {};
 }
 
-const UpdateRequirementStatusSchema = z.object({ status: z.enum(REQUIREMENT_STATUSES) });
+const UpdateRequirementStatusSchema = z.object({ status: z.enum(REQUIREMENT_STATUSES, "اختار حالة متطلب صحيحة") });
 
 export type UpdateRequirementStatusState = { formError?: string };
 
@@ -310,7 +310,7 @@ export async function createGate(
 }
 
 const DIRECT_GATE_STATUSES = ["Passed", "PassedWithConditions", "Failed", "NotApplicable"] as const;
-const DecideGateSchema = z.object({ status: z.enum(DIRECT_GATE_STATUSES) });
+const DecideGateSchema = z.object({ status: z.enum(DIRECT_GATE_STATUSES, "اختار حالة بوابة صحيحة") });
 
 export type DecideGateState = { formError?: string };
 
@@ -452,7 +452,7 @@ const HSClassificationSchema = z.object({
   productId: z.string().uuid("اختر منتج"),
   marketId: z.string().uuid("اختر سوق"),
   hsCode: z.string().trim().min(4, "HS Code غير صالح"),
-  dutyRatePct: z.coerce.number().min(0).max(100).optional(),
+  dutyRatePct: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").max(100, "لازم يكون 100 أو أقل").optional(),
   rulingReference: z.string().trim().optional().or(z.literal("")),
 });
 
@@ -518,12 +518,12 @@ const CertificateSchema = z.object({
   productId: z.string().uuid().optional().or(z.literal("")),
   supplierId: z.string().uuid().optional().or(z.literal("")),
   facilityId: z.string().uuid().optional().or(z.literal("")),
-  certificateType: z.enum(CERTIFICATE_TYPES),
+  certificateType: z.enum(CERTIFICATE_TYPES, "اختار نوع شهادة صحيح"),
   certificateNumber: z.string().trim().min(1, "رقم الشهادة مطلوب"),
   issuingAuthority: z.string().trim().min(1, "الجهة المُصدرة مطلوبة"),
   issueDate: z.string().trim().min(1, "تاريخ الإصدار مطلوب"),
   expiryDate: z.string().trim().optional().or(z.literal("")),
-  status: z.enum(CERTIFICATE_STATUSES),
+  status: z.enum(CERTIFICATE_STATUSES, "اختار حالة شهادة صحيحة"),
 });
 
 export type CertificateFormState = { errors?: Record<string, string[]>; formError?: string };
@@ -607,7 +607,7 @@ const REGISTRATION_TYPES = [
   "FacilityRegistration", "ProductRegistration", "ExporterRegistration", "ImporterRegistration", "LabelRegistration",
 ] as const;
 const RegistrationSchema = z.object({
-  registrationType: z.enum(REGISTRATION_TYPES),
+  registrationType: z.enum(REGISTRATION_TYPES, "اختار نوع تسجيل صحيح"),
   country: z.string().trim().min(1, "الدولة مطلوبة"),
   authority: z.string().trim().min(1, "الجهة المختصة مطلوبة"),
   productId: z.string().uuid().optional().or(z.literal("")),
@@ -698,11 +698,11 @@ const ORIGIN_PROOF_CUMULATION_TYPES = ["None", "Bilateral", "Diagonal", "Full"] 
 const ORIGIN_PROOF_STATUSES = ["Draft", "Issued", "Verified", "Rejected", "Expired"] as const;
 
 const OriginProofSchema = z.object({
-  proofType: z.enum(ORIGIN_PROOF_TYPES),
+  proofType: z.enum(ORIGIN_PROOF_TYPES, "اختار نوع إثبات منشأ صحيح"),
   shipmentId: z.string().uuid().optional().or(z.literal("")),
   usesRevisedPemRules: z.coerce.boolean().optional(),
   revisedRulesWordingVerified: z.coerce.boolean().optional(),
-  cumulationType: z.enum(ORIGIN_PROOF_CUMULATION_TYPES).optional().or(z.literal("")),
+  cumulationType: z.enum(ORIGIN_PROOF_CUMULATION_TYPES, "اختار نوع تراكم صحيح").optional().or(z.literal("")),
   certificateNumber: z.string().trim().optional().or(z.literal("")),
   issuedDate: z.string().trim().optional().or(z.literal("")),
   issuingAuthority: z.string().trim().optional().or(z.literal("")),
@@ -775,11 +775,11 @@ export async function createOriginProof(
 
 const OriginProofUpdateSchema = z.object({
   revisedRulesWordingVerified: z.coerce.boolean().optional(),
-  cumulationType: z.enum(ORIGIN_PROOF_CUMULATION_TYPES).optional().or(z.literal("")),
+  cumulationType: z.enum(ORIGIN_PROOF_CUMULATION_TYPES, "اختار نوع تراكم صحيح").optional().or(z.literal("")),
   certificateNumber: z.string().trim().optional().or(z.literal("")),
   issuedDate: z.string().trim().optional().or(z.literal("")),
   issuingAuthority: z.string().trim().optional().or(z.literal("")),
-  status: z.enum(ORIGIN_PROOF_STATUSES),
+  status: z.enum(ORIGIN_PROOF_STATUSES, "اختار حالة إثبات منشأ صحيحة"),
 });
 
 export type OriginProofUpdateFormState = { errors?: Record<string, string[]>; formError?: string };
@@ -857,12 +857,12 @@ const REJECTION_TYPES = [
 const REJECTION_SEVERITIES = ["Low", "Medium", "High", "Critical"] as const;
 
 const RejectionCaseSchema = z.object({
-  rejectionType: z.enum(REJECTION_TYPES),
+  rejectionType: z.enum(REJECTION_TYPES, "اختار نوع رفض صحيح"),
   capaId: z.string().uuid().optional().or(z.literal("")),
   shipmentId: z.string().uuid().optional().or(z.literal("")),
   authority: z.string().trim().min(1, "الجهة مطلوبة"),
-  severity: z.enum(REJECTION_SEVERITIES),
-  financialExposure: z.coerce.number().min(0).optional(),
+  severity: z.enum(REJECTION_SEVERITIES, "اختار درجة خطورة صحيحة"),
+  financialExposure: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
   currency: z.string().trim().optional().or(z.literal("")),
   finalResult: z.string().trim().optional().or(z.literal("")),
 });
@@ -940,8 +940,8 @@ const LCRequirementSchema = z.object({
   currency: z.string().trim().min(1, "العملة مطلوبة"),
   expiryDate: z.string().trim().min(1, "تاريخ الانتهاء مطلوب"),
   latestShipmentDate: z.string().trim().optional().or(z.literal("")),
-  presentationPeriodDays: z.coerce.number().int().min(0).optional(),
-  requiredDocuments: z.array(z.string().trim().min(1)).optional(),
+  presentationPeriodDays: z.coerce.number().int().min(0, "لازم يكون 0 أو أكتر").optional(),
+  requiredDocuments: z.array(z.string().trim().min(1, "اسم المستند مطلوب")).optional(),
   requiredWording: z.string().trim().optional().or(z.literal("")),
   partialShipmentAllowed: z.coerce.boolean().optional(),
   transshipmentAllowed: z.coerce.boolean().optional(),

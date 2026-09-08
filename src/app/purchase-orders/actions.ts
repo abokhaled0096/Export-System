@@ -15,7 +15,7 @@ const BatchSchema = z
     productionDate: z.string().trim().optional().or(z.literal("")),
     expiryDate: z.string().trim().optional().or(z.literal("")),
     quantityInput: z.coerce.number().positive("الكمية المدخلة مطلوبة"),
-    quantityOutput: z.coerce.number().min(0).optional(),
+    quantityOutput: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
   })
   // ⚠️ باگ اتلقط في مراجعة وحدة 7: مفيش تحقق قبل كده يمنع الكمية المخرجة تتجاوز الكمية
   // المدخلة — ده كان بيسمح بنسبة استخلاص فوق 100% وهدر سالب في العرض المحسوب (⚙️).
@@ -87,9 +87,9 @@ const PRODUCTION_PROCESSES = [
 
 const ProductionPlanSchema = z.object({
   facilityId: z.string().uuid("اختر منشأة"),
-  process: z.enum(PRODUCTION_PROCESSES),
-  rawQuantity: z.coerce.number().min(0).optional(),
-  targetYield: z.coerce.number().min(0).max(1).optional(),
+  process: z.enum(PRODUCTION_PROCESSES, "اختار عملية إنتاج صحيحة"),
+  rawQuantity: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
+  targetYield: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").max(1, "نسبة بين 0 و1 (مثال: 0.85 يعني 85%)").optional(),
   startDate: z.string().trim().optional().or(z.literal("")),
   endDate: z.string().trim().optional().or(z.literal("")),
   cargoReadyDate: z.string().trim().optional().or(z.literal("")),
@@ -153,7 +153,7 @@ export async function createProductionPlan(
 
 const CargoReadinessSchema = z.object({
   shipmentId: z.string().uuid("اختر شحنة"),
-  readinessScore: z.coerce.number().min(0).max(100).optional(),
+  readinessScore: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").max(100, "لازم يكون 100 أو أقل").optional(),
   readyDate: z.string().trim().optional().or(z.literal("")),
   pickupLocation: z.string().trim().optional().or(z.literal("")),
 });

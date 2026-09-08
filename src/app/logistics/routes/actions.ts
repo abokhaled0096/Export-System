@@ -14,13 +14,13 @@ const TRANSPORT_MODES = ["Sea", "Air", "Road", "Rail", "Multimodal", "Courier"] 
 const RouteSchema = z.object({
   originPort: z.string().trim().min(1, "ميناء المنشأ مطلوب"),
   destinationPort: z.string().trim().min(1, "ميناء الوصول مطلوب"),
-  transportModes: z.array(z.enum(TRANSPORT_MODES)).optional(),
+  transportModes: z.array(z.enum(TRANSPORT_MODES, "اختار وسيلة نقل صحيحة")).optional(),
   transitPorts: z.string().trim().optional().or(z.literal("")),
-  transshipmentCount: z.coerce.number().int().min(0).optional(),
-  typicalTransitDays: z.coerce.number().int().min(0).optional(),
-  worstTransitDays: z.coerce.number().int().min(0).optional(),
-  weeklySailings: z.coerce.number().int().min(0).optional(),
-  classification: z.enum(ROUTE_CLASSIFICATIONS),
+  transshipmentCount: z.coerce.number().int().min(0, "لازم يكون 0 أو أكتر").optional(),
+  typicalTransitDays: z.coerce.number().int().min(0, "لازم يكون 0 أو أكتر").optional(),
+  worstTransitDays: z.coerce.number().int().min(0, "لازم يكون 0 أو أكتر").optional(),
+  weeklySailings: z.coerce.number().int().min(0, "لازم يكون 0 أو أكتر").optional(),
+  classification: z.enum(ROUTE_CLASSIFICATIONS, "اختار تصنيف خط شحن صحيح"),
 });
 
 export type RouteFormState = { errors?: Record<string, string[]>; formError?: string };

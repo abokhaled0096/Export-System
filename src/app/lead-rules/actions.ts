@@ -11,7 +11,7 @@ import { logError, isNextControlFlowError } from "@/lib/errorLog";
 const LeadAssignmentRuleSchema = z.object({
   assignToUserId: z.string().uuid().optional().or(z.literal("")),
   assignToTeamId: z.string().uuid().optional().or(z.literal("")),
-  priority: z.coerce.number().int().min(0).optional(),
+  priority: z.coerce.number().int().min(0, "لازم يكون 0 أو أكتر").optional(),
 });
 
 export type LeadAssignmentRuleFormState = { errors?: Record<string, string[]>; formError?: string };

@@ -11,6 +11,7 @@ import { notifyUser, notifyChangeRequestApprovers } from "@/lib/notification";
 import { logError, isNextControlFlowError, businessRuleMessage } from "@/lib/errorLog";
 import { assertWorkflowTransitionAllowed } from "@/lib/workflow";
 import { NEW_ENTITY_SENTINEL } from "@/lib/masterDataChangeRequest";
+import { entityTypeLabel } from "@/lib/changeRequestLabels";
 import { CompanySchema } from "@/lib/companySchema";
 import { SupplierSchema } from "@/lib/supplierSchema";
 import { BankAccountSchema } from "@/lib/bankAccountSchema";
@@ -265,7 +266,7 @@ const RiskSchema = z.object({
   category: z.string().trim().min(1, "الفئة مطلوبة"),
   probability: z.coerce.number().int().min(0, "من 0 لـ100").max(100, "من 0 لـ100"),
   financialImpact: z.coerce.number().min(0, "الأثر المالي مطلوب"),
-  currency: z.string().trim().length(3).toUpperCase(),
+  currency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase(),
   ownerId: z.string().uuid("اختر المسؤول"),
   mitigation: z.string().trim().optional().or(z.literal("")),
 });
@@ -498,7 +499,7 @@ export async function decideMasterDataChangeRequestAction(requestId: string, sta
       // لنوع الكيان، كان هيقدر "يمنح نفسه" صلاحية إنشاء ماكانتلوش أصلًا — تصعيد صلاحيات صريح.
       const isCreationRequest = status === "Approved" && request.entityId === NEW_ENTITY_SENTINEL;
       if (isCreationRequest && !(await getPermissionScope(user.roleId, request.entityType, "Create"))) {
-        throw new Error(`معندكش صلاحية ${request.entityType}.Create — مينفعش تعتمد طلب إنشاء ${request.entityType} من غيرها.`);
+        throw new Error(`معندكش صلاحية إنشاء ${entityTypeLabel[request.entityType] ?? request.entityType} — مينفعش تعتمد طلب إنشاء من غيرها.`);
       }
       const createdEntityId = isCreationRequest
         ? await createEntityFromChangeRequest(tx, user.orgId, request.requestedBy, user.id, request.entityType, request.proposedChanges)
@@ -547,7 +548,7 @@ const FieldPermissionSchema = z.object({
   roleId: z.string().uuid("اختر دور"),
   entityType: z.string().trim().min(1, "اسم الكيان مطلوب"),
   fieldName: z.string().trim().min(1, "اسم الحقل مطلوب"),
-  accessLevel: z.enum(FIELD_ACCESS_LEVELS),
+  accessLevel: z.enum(FIELD_ACCESS_LEVELS, "اختار مستوى صلاحية صحيح"),
 });
 
 export type FieldPermissionFormState = { errors?: Record<string, string[]>; formError?: string };

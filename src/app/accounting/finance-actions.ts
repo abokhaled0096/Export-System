@@ -17,10 +17,10 @@ const BUDGET_TYPES = ["Sales", "Purchase", "OPEX", "CAPEX", "Cash"] as const;
 
 const BudgetSchema = z.object({
   periodId: z.string().uuid("اختر فترة محاسبية"),
-  budgetType: z.enum(BUDGET_TYPES),
+  budgetType: z.enum(BUDGET_TYPES, "اختار نوع موازنة صحيح"),
   costCenterId: z.string().uuid().optional().or(z.literal("")),
   amount: z.coerce.number().positive("المبلغ مطلوب"),
-  currency: z.string().trim().length(3).toUpperCase(),
+  currency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase(),
 });
 
 export type BudgetFormState = { errors?: Record<string, string[]>; formError?: string };
@@ -79,11 +79,11 @@ const FIXED_ASSET_CATEGORIES = ["Equipment", "Vehicle", "Furniture", "Building",
 const FixedAssetSchema = z.object({
   nameAr: z.string().trim().min(1, "اسم الأصل مطلوب"),
   nameEn: z.string().trim().min(1, "الاسم الإنجليزي مطلوب"),
-  category: z.enum(FIXED_ASSET_CATEGORIES),
+  category: z.enum(FIXED_ASSET_CATEGORIES, "اختار فئة أصل صحيحة"),
   costCenterId: z.string().uuid().optional().or(z.literal("")),
   purchaseDate: z.string().trim().min(1, "تاريخ الشراء مطلوب"),
   purchaseValue: z.coerce.number().positive("قيمة الشراء مطلوبة"),
-  currency: z.string().trim().length(3).toUpperCase(),
+  currency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase(),
   usefulLifeMonths: z.coerce.number().int().positive("العمر الإنتاجي مطلوب (بالشهور)"),
 });
 
@@ -260,10 +260,10 @@ export async function runDepreciationAction(periodId: string) {
 const TAX_TYPES = ["VATOutput", "VATInput", "WithholdingTax", "PayrollTax"] as const;
 
 const TaxRecordSchema = z.object({
-  taxType: z.enum(TAX_TYPES),
+  taxType: z.enum(TAX_TYPES, "اختار نوع ضريبة صحيح"),
   periodId: z.string().uuid("اختر فترة محاسبية"),
   amount: z.coerce.number().positive("المبلغ مطلوب"),
-  currency: z.string().trim().length(3).toUpperCase(),
+  currency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase(),
   etaReference: z.string().trim().optional().or(z.literal("")),
 });
 

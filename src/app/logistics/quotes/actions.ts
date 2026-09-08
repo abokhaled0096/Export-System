@@ -15,17 +15,17 @@ const FREIGHT_QUOTE_STATUSES = ["Draft", "Approved", "Expired"] as const;
 const FreightQuoteSchema = z.object({
   routeId: z.string().uuid("اختر خط شحن"),
   providerId: z.string().uuid("اختر مزوّد خدمة"),
-  containerType: z.enum(CONTAINER_TYPES).optional().or(z.literal("")),
-  originCharges: z.coerce.number().min(0).optional(),
-  mainFreight: z.coerce.number().min(0).optional(),
-  destinationCharges: z.coerce.number().min(0).optional(),
-  insurance: z.coerce.number().min(0).optional(),
+  containerType: z.enum(CONTAINER_TYPES, "اختار نوع حاوية صحيح").optional().or(z.literal("")),
+  originCharges: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
+  mainFreight: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
+  destinationCharges: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
+  insurance: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
   currency: z.string().trim().optional().or(z.literal("")),
-  transitDays: z.coerce.number().int().min(0).optional(),
-  freeTimeDays: z.coerce.number().int().min(0).optional(),
+  transitDays: z.coerce.number().int().min(0, "لازم يكون 0 أو أكتر").optional(),
+  freeTimeDays: z.coerce.number().int().min(0, "لازم يكون 0 أو أكتر").optional(),
   validFrom: z.string().trim().optional().or(z.literal("")),
   validUntil: z.string().trim().optional().or(z.literal("")),
-  status: z.enum(FREIGHT_QUOTE_STATUSES),
+  status: z.enum(FREIGHT_QUOTE_STATUSES, "اختار حالة عرض سعر شحن صحيحة"),
 });
 
 export type FreightQuoteFormState = { errors?: Record<string, string[]>; formError?: string };
@@ -95,7 +95,7 @@ export async function createFreightQuote(_prevState: FreightQuoteFormState, form
 const LINE_CATEGORIES = ["Origin", "Freight", "Destination", "Insurance", "Other"] as const;
 const FreightQuoteLineSchema = z.object({
   chargeCode: z.string().trim().min(1, "كود البند مطلوب"),
-  category: z.enum(LINE_CATEGORIES),
+  category: z.enum(LINE_CATEGORIES, "اختار فئة بند صحيحة"),
   amount: z.coerce.number().min(0, "المبلغ مطلوب"),
   currency: z.string().trim().optional().or(z.literal("")),
 });

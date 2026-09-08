@@ -8,7 +8,7 @@ import { requireCurrentUser } from "@/lib/session";
 import { requirePermission } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 import { analyzeCompetitorsWithAI } from "@/lib/ai/analyzeCompetitors";
-import { logError, isNextControlFlowError } from "@/lib/errorLog";
+import { logError, isNextControlFlowError, businessRuleMessage } from "@/lib/errorLog";
 
 const monthsField = z
   .array(z.string())
@@ -25,7 +25,7 @@ const CompetitorSchema = z
     weaknessMonths: monthsField,
     priceRangeMin: z.coerce.number().min(0, "السعر لازم يكون موجب").optional(),
     priceRangeMax: z.coerce.number().min(0, "السعر لازم يكون موجب").optional(),
-    currency: z.string().trim().length(3).toUpperCase(),
+    currency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase(),
   })
   .refine((data) => data.priceRangeMin === undefined || data.priceRangeMax === undefined || data.priceRangeMin <= data.priceRangeMax, {
     message: "أقل سعر لازم يكون أصغر من أو يساوي أعلى سعر",
@@ -153,7 +153,7 @@ export async function createAiCompetitors(_prevState: AiCompetitorsFormState, fo
   } catch (e) {
     if (isNextControlFlowError(e)) throw e;
     await logError({ orgId: user.orgId, userId: user.id, action: "createAiCompetitors", error: e });
-    return { formError: e instanceof Error ? e.message : "حصل خطأ أثناء البحث — حاول تاني." };
+    return { formError: businessRuleMessage(e, "حصل خطأ أثناء البحث — حاول تاني.") };
   }
 
   revalidatePath("/competitors");

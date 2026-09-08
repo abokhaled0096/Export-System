@@ -14,10 +14,10 @@ const INSPECTION_STAGES = [
 const INSPECTION_RESULTS = ["Pass", "ConditionalPass", "Fail"] as const;
 
 const InspectionSchema = z.object({
-  stage: z.enum(INSPECTION_STAGES),
+  stage: z.enum(INSPECTION_STAGES, "اختار مرحلة فحص صحيحة"),
   samplingMethod: z.string().trim().optional().or(z.literal("")),
-  sampleSize: z.coerce.number().min(0).optional(),
-  result: z.enum(INSPECTION_RESULTS),
+  sampleSize: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
+  result: z.enum(INSPECTION_RESULTS, "اختار نتيجة فحص صحيحة"),
 });
 
 export type InspectionFormState = { errors?: Record<string, string[]>; formError?: string };
@@ -72,9 +72,9 @@ export async function createInspection(batchId: string, _prevState: InspectionFo
 const QUALITY_RELEASE_STATUSES = ["Released", "PartialRelease", "ConditionalRelease", "Held", "Rejected"] as const;
 
 const QualityReleaseSchema = z.object({
-  releasedQuantity: z.coerce.number().min(0).optional(),
-  rejectedQuantity: z.coerce.number().min(0).optional(),
-  status: z.enum(QUALITY_RELEASE_STATUSES),
+  releasedQuantity: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
+  rejectedQuantity: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
+  status: z.enum(QUALITY_RELEASE_STATUSES, "اختار حالة إفراج صحيحة"),
 });
 
 export type QualityReleaseFormState = { errors?: Record<string, string[]>; formError?: string };
@@ -134,12 +134,12 @@ const BATCH_QUALITY_STATUSES = ["Pending", "Released", "Held", "Rejected"] as co
 const LotSchema = z.object({
   lotCode: z.string().trim().min(1, "كود الدفعة مطلوب"),
   packingDate: z.string().trim().optional().or(z.literal("")),
-  quantity: z.coerce.number().min(0).optional(),
-  cartons: z.coerce.number().int().min(0).optional(),
-  pallets: z.coerce.number().int().min(0).optional(),
-  netWeight: z.coerce.number().min(0).optional(),
-  grossWeight: z.coerce.number().min(0).optional(),
-  qualityStatus: z.enum(BATCH_QUALITY_STATUSES),
+  quantity: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
+  cartons: z.coerce.number().int().min(0, "لازم يكون 0 أو أكتر").optional(),
+  pallets: z.coerce.number().int().min(0, "لازم يكون 0 أو أكتر").optional(),
+  netWeight: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
+  grossWeight: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
+  qualityStatus: z.enum(BATCH_QUALITY_STATUSES, "اختار حالة جودة صحيحة"),
 });
 
 export type LotFormState = { errors?: Record<string, string[]>; formError?: string };
@@ -199,7 +199,7 @@ const LAB_TEST_PASS_FAIL = ["Pass", "Fail"] as const;
 const LabTestSchema = z.object({
   inspectionId: z.string().uuid().optional().or(z.literal("")),
   supplierSampleId: z.string().uuid().optional().or(z.literal("")),
-  testType: z.enum(LAB_TEST_TYPES),
+  testType: z.enum(LAB_TEST_TYPES, "اختار نوع اختبار معملي صحيح"),
   parameter: z.string().trim().optional().or(z.literal("")),
   unit: z.string().trim().optional().or(z.literal("")),
   minLimit: z.coerce.number().optional(),
@@ -207,7 +207,7 @@ const LabTestSchema = z.object({
   actualResult: z.coerce.number().optional(),
   laboratory: z.string().trim().optional().or(z.literal("")),
   isAccredited: z.coerce.boolean().optional(),
-  passFail: z.enum(LAB_TEST_PASS_FAIL),
+  passFail: z.enum(LAB_TEST_PASS_FAIL, "اختار نتيجة صحيحة"),
 });
 
 export type LabTestFormState = { errors?: Record<string, string[]>; formError?: string };
@@ -280,10 +280,10 @@ const BATCH_RAW_MATERIAL_SOURCE_TYPES = ["Farm", "IncomingInventory"] as const;
 
 const BatchRawMaterialLineSchema = z
   .object({
-    sourceType: z.enum(BATCH_RAW_MATERIAL_SOURCE_TYPES),
+    sourceType: z.enum(BATCH_RAW_MATERIAL_SOURCE_TYPES, "اختار نوع مصدر صحيح"),
     farmId: z.string().uuid().optional().or(z.literal("")),
     inventoryId: z.string().uuid().optional().or(z.literal("")),
-    quantity: z.coerce.number().min(0).optional(),
+    quantity: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
   })
   // ⚠️ superRefine مش refine — الرسالة لازم تتعلّق بالحقل الناقص الفعلي (farmId أو inventoryId)،
   // مش farmId دايمًا (باگ اتلقط: كان بيظهر تحت المزرعة حتى لو الناقص فعليًا سجل المخزون).
@@ -359,7 +359,7 @@ const BATCH_MARKET_ELIGIBILITY_STATUSES = ["Eligible", "Conditional", "NotEligib
 
 const BatchMarketEligibilitySchema = z.object({
   marketId: z.string().uuid("اختر سوق"),
-  status: z.enum(BATCH_MARKET_ELIGIBILITY_STATUSES),
+  status: z.enum(BATCH_MARKET_ELIGIBILITY_STATUSES, "اختار حالة أهلية صحيحة"),
   reason: z.string().trim().optional().or(z.literal("")),
 });
 

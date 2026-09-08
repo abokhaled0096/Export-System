@@ -20,7 +20,7 @@ const TRANSACTION_TYPES = ["Deposit", "Withdrawal", "TransferIn", "TransferOut",
 const BankTransactionSchema = z.object({
   transactionDate: z.string().trim().min(1, "تاريخ الحركة مطلوب"),
   amount: z.coerce.number().positive("المبلغ لازم يكون أكبر من صفر"),
-  transactionType: z.enum(TRANSACTION_TYPES),
+  transactionType: z.enum(TRANSACTION_TYPES, "اختار نوع حركة صحيح"),
   reference: z.string().trim().optional().or(z.literal("")),
   description: z.string().trim().optional().or(z.literal("")),
   idempotencyKey: z.string().uuid().optional().or(z.literal("")),
@@ -186,8 +186,8 @@ type ConfirmableRow = {
 
 const ConfirmableRowSchema = z.object({
   transactionDate: z.string().trim().refine((v) => !Number.isNaN(new Date(v).getTime())),
-  amount: z.coerce.number().positive(),
-  transactionType: z.enum(TRANSACTION_TYPES),
+  amount: z.coerce.number().positive("لازم يكون أكبر من صفر"),
+  transactionType: z.enum(TRANSACTION_TYPES, "اختار نوع حركة صحيح"),
   reference: z.string().trim().optional(),
   description: z.string().trim().optional(),
   idempotencyKey: z.string().uuid(),
@@ -751,7 +751,7 @@ const LoanSchema = z.object({
   lenderName: z.string().trim().min(1, "اسم الجهة المقرضة مطلوب"),
   bankAccountId: z.string().uuid("اختر الحساب اللي القرض هينزل فيه"),
   principal: z.coerce.number().positive("أصل القرض مطلوب"),
-  interestRatePct: z.coerce.number().min(0).optional(),
+  interestRatePct: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
   startDate: z.string().trim().min(1, "تاريخ البداية مطلوب"),
   maturityDate: z.string().trim().min(1, "تاريخ الاستحقاق مطلوب"),
   collateral: z.string().trim().optional().or(z.literal("")),
@@ -909,7 +909,7 @@ export async function markLoanDefaultedAction(loanId: string) {
 const InstallmentSchema = z.object({
   dueDate: z.string().trim().min(1, "تاريخ الاستحقاق مطلوب"),
   principalPortion: z.coerce.number().min(0, "حصة الأصل مطلوبة"),
-  interestPortion: z.coerce.number().min(0).optional(),
+  interestPortion: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
 });
 
 export type InstallmentFormState = { errors?: Record<string, string[]>; formError?: string };
@@ -1073,9 +1073,9 @@ const CASH_FLOW_CATEGORIES = [
 
 const CashFlowLineSchema = z.object({
   weekStartDate: z.string().trim().min(1, "الأسبوع مطلوب"),
-  category: z.enum(CASH_FLOW_CATEGORIES),
+  category: z.enum(CASH_FLOW_CATEGORIES, "اختار فئة تدفّق نقدي صحيحة"),
   amount: z.coerce.number(),
-  currency: z.string().trim().length(3).toUpperCase(),
+  currency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase(),
   notes: z.string().trim().optional().or(z.literal("")),
 });
 

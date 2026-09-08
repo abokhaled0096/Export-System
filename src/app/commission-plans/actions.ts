@@ -13,9 +13,9 @@ const COMMISSION_TRIGGER_EVENTS = ["OnWon", "OnInvoice", "OnCollection"] as cons
 
 const CommissionPlanSchema = z.object({
   name: z.string().trim().min(1, "اسم الخطة مطلوب"),
-  basis: z.enum(COMMISSION_BASES),
-  ratePct: z.coerce.number().min(0).max(100).optional(),
-  triggerEvent: z.enum(COMMISSION_TRIGGER_EVENTS),
+  basis: z.enum(COMMISSION_BASES, "اختار أساس عمولة صحيح"),
+  ratePct: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").max(100, "لازم يكون 100 أو أقل").optional(),
+  triggerEvent: z.enum(COMMISSION_TRIGGER_EVENTS, "اختار حدث استحقاق صحيح"),
 });
 
 export type CommissionPlanFormState = { errors?: Record<string, string[]>; formError?: string };

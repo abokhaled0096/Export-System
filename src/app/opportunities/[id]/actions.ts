@@ -26,8 +26,8 @@ const COMMUNICATION_DIRECTIONS = ["Inbound", "Outbound"] as const;
 const CommunicationSchema = z.object({
   companyId: z.string().uuid(),
   contactId: z.string().uuid().optional().or(z.literal("")),
-  channel: z.enum(COMMUNICATION_CHANNELS),
-  direction: z.enum(COMMUNICATION_DIRECTIONS),
+  channel: z.enum(COMMUNICATION_CHANNELS, "اختار قناة تواصل صحيحة"),
+  direction: z.enum(COMMUNICATION_DIRECTIONS, "اختار اتجاه تواصل صحيح"),
   subject: z.string().trim().optional().or(z.literal("")),
   summary: z.string().trim().optional().or(z.literal("")),
   occurredAt: z.string().trim().min(1, "تاريخ التواصل مطلوب"),
@@ -114,9 +114,9 @@ const RFQAnalysisSchema = z.object({
   communicationId: z.string().uuid().optional().or(z.literal("")),
   destinationPort: z.string().trim().optional().or(z.literal("")),
   paymentMethod: z.string().trim().optional().or(z.literal("")),
-  quantity: z.coerce.number().positive().optional(),
+  quantity: z.coerce.number().positive("لازم يكون أكبر من صفر").optional(),
   incoterm: z.string().trim().optional().or(z.literal("")),
-  seriousnessLevel: z.enum(RFQ_SERIOUSNESS_LEVELS).optional().or(z.literal("")),
+  seriousnessLevel: z.enum(RFQ_SERIOUSNESS_LEVELS, "اختار مستوى جدّية صحيح").optional().or(z.literal("")),
 });
 
 export type RFQAnalysisFormState = { errors?: Record<string, string[]>; formError?: string };
@@ -182,11 +182,11 @@ const CUSTOMER_SAMPLE_STATUSES = [
 const CustomerSampleSchema = z.object({
   productId: z.string().uuid("اختر منتج"),
   batchId: z.string().uuid().optional().or(z.literal("")),
-  quantity: z.coerce.number().positive().optional(),
-  totalCost: z.coerce.number().min(0).optional(),
-  currency: z.string().trim().length(3).toUpperCase().optional().or(z.literal("")),
+  quantity: z.coerce.number().positive("لازم يكون أكبر من صفر").optional(),
+  totalCost: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
+  currency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase().optional().or(z.literal("")),
   trackingNumber: z.string().trim().optional().or(z.literal("")),
-  status: z.enum(CUSTOMER_SAMPLE_STATUSES),
+  status: z.enum(CUSTOMER_SAMPLE_STATUSES, "اختار حالة عيّنة صحيحة"),
 });
 
 export type CustomerSampleFormState = { errors?: Record<string, string[]>; formError?: string };
@@ -250,9 +250,9 @@ export async function createCustomerSample(opportunityId: string, _prevState: Cu
 const NEGOTIATION_STATUSES = ["Open", "Stalled", "Agreed", "Failed"] as const;
 
 const NegotiationSchema = z.object({
-  status: z.enum(NEGOTIATION_STATUSES),
-  currentPrice: z.coerce.number().positive().optional(),
-  currency: z.string().trim().length(3).toUpperCase().optional().or(z.literal("")),
+  status: z.enum(NEGOTIATION_STATUSES, "اختار حالة تفاوض صحيحة"),
+  currentPrice: z.coerce.number().positive("لازم يكون أكبر من صفر").optional(),
+  currency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase().optional().or(z.literal("")),
 });
 
 export type NegotiationFormState = { errors?: Record<string, string[]>; formError?: string };
@@ -300,12 +300,12 @@ const NEGOTIATION_CONCESSION_TYPES = [
 
 const NegotiationRoundSchema = z.object({
   negotiationId: z.string().uuid("اختر تفاوض"),
-  roundNumber: z.coerce.number().int().positive(),
+  roundNumber: z.coerce.number().int().positive("لازم يكون أكبر من صفر"),
   roundDate: z.string().trim().optional().or(z.literal("")),
   customerOffer: z.coerce.number().optional(),
   ourOffer: z.coerce.number().optional(),
-  discountPct: z.coerce.number().min(0).max(100).optional(),
-  concessionType: z.enum(NEGOTIATION_CONCESSION_TYPES).optional().or(z.literal("")),
+  discountPct: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").max(100, "لازم يكون 100 أو أقل").optional(),
+  concessionType: z.enum(NEGOTIATION_CONCESSION_TYPES, "اختار نوع تنازل صحيح").optional().or(z.literal("")),
   concessionValue: z.coerce.number().optional(),
   outcome: z.string().trim().optional().or(z.literal("")),
 });

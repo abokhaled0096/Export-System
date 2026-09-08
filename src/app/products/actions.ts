@@ -119,9 +119,9 @@ export async function createProduct(
 const PRODUCT_STATUSES = ["Draft", "Verified", "NeedsReview"] as const;
 
 const UpdateProductSchema = z.object({
-  status: z.enum(PRODUCT_STATUSES),
+  status: z.enum(PRODUCT_STATUSES, "اختار حالة منتج صحيحة"),
   availableMonths: monthsField,
-  storageTempC: z.coerce.number().min(-30).max(50).optional(),
+  storageTempC: z.coerce.number().min(-30, "درجة الحرارة لازم تكون -30 أو أكتر").max(50, "درجة الحرارة لازم تكون 50 أو أقل").optional(),
 });
 
 export type UpdateProductFormState = {
@@ -245,9 +245,9 @@ export async function restoreProduct(productId: string) {
 }
 
 const ProductSpecificationSchema = z.object({
-  version: z.coerce.number().int().positive().optional(),
+  version: z.coerce.number().int().positive("لازم يكون أكبر من صفر").optional(),
   storageConditions: z.string().trim().optional().or(z.literal("")),
-  shelfLifeDays: z.coerce.number().int().min(0).optional(),
+  shelfLifeDays: z.coerce.number().int().min(0, "لازم يكون 0 أو أكتر").optional(),
   reviewDate: z.string().trim().optional().or(z.literal("")),
 });
 

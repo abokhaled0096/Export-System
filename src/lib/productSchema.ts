@@ -21,8 +21,8 @@ export const ProductSchema = z.object({
   originCountry: z.string().trim().min(1, "بلد المنشأ مطلوب"),
   harvestSeason: z.string().trim().optional(),
   availableMonths: monthsField,
-  storageTempC: z.coerce.number().min(-30).max(50).optional(),
-  shelfLifeDays: z.coerce.number().int().positive().optional(),
+  storageTempC: z.coerce.number().min(-30, "درجة الحرارة لازم تكون -30 أو أكتر").max(50, "درجة الحرارة لازم تكون 50 أو أقل").optional(),
+  shelfLifeDays: z.coerce.number().int().positive("لازم يكون أكبر من صفر").optional(),
   requiresRefrigeration: z.coerce.boolean().optional(),
   confirmDuplicate: z.coerce.boolean().optional(),
 });

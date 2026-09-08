@@ -14,12 +14,12 @@ const PROVIDER_TYPES = [
 const PROVIDER_STATUSES = ["Preferred", "Approved", "Conditional", "UnderReview", "Suspended", "Blacklisted"] as const;
 
 const ServiceProviderSchema = z.object({
-  providerType: z.enum(PROVIDER_TYPES),
+  providerType: z.enum(PROVIDER_TYPES, "اختار نوع مزوّد صحيح"),
   name: z.string().trim().min(1, "اسم المزوّد مطلوب"),
   country: z.string().trim().optional().or(z.literal("")),
-  onTimePerformance: z.coerce.number().min(0).max(100).optional(),
-  invoiceAccuracy: z.coerce.number().min(0).max(100).optional(),
-  status: z.enum(PROVIDER_STATUSES),
+  onTimePerformance: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").max(100, "لازم يكون 100 أو أقل").optional(),
+  invoiceAccuracy: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").max(100, "لازم يكون 100 أو أقل").optional(),
+  status: z.enum(PROVIDER_STATUSES, "اختار حالة مزوّد صحيحة"),
 });
 
 export type ServiceProviderFormState = { errors?: Record<string, string[]>; formError?: string };

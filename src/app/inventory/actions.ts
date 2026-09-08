@@ -17,13 +17,13 @@ const InventorySchema = z.object({
   productId: z.string().uuid("اختر منتج"),
   batchId: z.string().uuid().optional().or(z.literal("")),
   lotId: z.string().uuid().optional().or(z.literal("")),
-  inventoryType: z.enum(INVENTORY_TYPES),
+  inventoryType: z.enum(INVENTORY_TYPES, "اختار نوع مخزون صحيح"),
   quantity: z.coerce.number().positive("الكمية مطلوبة"),
   unit: z.string().trim().optional().or(z.literal("")),
   location: z.string().trim().optional().or(z.literal("")),
-  status: z.enum(INVENTORY_STATUSES),
+  status: z.enum(INVENTORY_STATUSES, "اختار حالة مخزون صحيحة"),
   expiryDate: z.string().trim().optional().or(z.literal("")),
-  unitCost: z.coerce.number().min(0).optional(),
+  unitCost: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
   currency: z.string().trim().optional().or(z.literal("")),
 });
 

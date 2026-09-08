@@ -14,9 +14,9 @@ const SalesTargetSchema = z.object({
   userId: z.string().uuid().optional().or(z.literal("")),
   teamId: z.string().uuid().optional().or(z.literal("")),
   period: z.string().trim().min(1, "الفترة مطلوبة"),
-  targetType: z.enum(SALES_TARGET_TYPES),
+  targetType: z.enum(SALES_TARGET_TYPES, "اختار نوع هدف مبيعات صحيح"),
   targetValue: z.coerce.number().positive("القيمة المستهدفة مطلوبة"),
-  currency: z.string().trim().length(3).toUpperCase().optional().or(z.literal("")),
+  currency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase().optional().or(z.literal("")),
 });
 
 export type SalesTargetFormState = { errors?: Record<string, string[]>; formError?: string };

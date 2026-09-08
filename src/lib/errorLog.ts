@@ -1,4 +1,5 @@
 import { prisma } from "./prisma";
+import { ZodError } from "zod";
 
 /**
  * أي استثناء بيحمل `digest` يبدأ بـ`NEXT_` (redirect()/notFound()/الخ) مش خطأ حقيقي —
@@ -29,6 +30,12 @@ export function isNextControlFlowError(e: unknown): boolean {
  */
 export function businessRuleMessage(error: unknown, fallback: string): string {
   if (!(error instanceof Error)) return fallback;
+
+  // ZodError.message عبارة عن JSON خام (مصفوفة issues) — مش نص مكتوب للمستخدم أبدًا، حتى لو
+  // مفيهوش "Invalid `prisma." (اتكشف وقت مراجعة رسائل الخطأ 8 سبتمبر: سكيمات التحقق من رد
+  // الذكاء الاصطناعي — analyzeCompetitors.ts/analyzeMarket.ts — بترمي ZodError لو الرد جه
+  // بشكل غير متوقع، وكان ممكن يوصل كـJSON خام للمستخدم بدل رسالة عربية مفهومة).
+  if (error instanceof ZodError) return fallback;
 
   const dbMessage = error.message.match(/Message: `([^`]+)`/)?.[1];
   if (dbMessage) return dbMessage;

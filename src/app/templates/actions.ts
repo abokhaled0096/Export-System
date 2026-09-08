@@ -14,11 +14,11 @@ const DOCUMENT_TYPES = [
 const DOCUMENT_LANGUAGES = ["Arabic", "English", "Bilingual"] as const;
 
 const TemplateSchema = z.object({
-  documentType: z.enum(DOCUMENT_TYPES),
-  language: z.enum(DOCUMENT_LANGUAGES),
+  documentType: z.enum(DOCUMENT_TYPES, "اختار نوع مستند صحيح"),
+  language: z.enum(DOCUMENT_LANGUAGES, "اختار لغة مستند صحيحة"),
   marketId: z.string().uuid().optional().or(z.literal("")),
   customerId: z.string().uuid().optional().or(z.literal("")),
-  version: z.coerce.number().int().min(1).optional(),
+  version: z.coerce.number().int().min(1, "لازم يكون 1 أو أكتر").optional(),
 });
 
 export type TemplateFormState = { errors?: Record<string, string[]>; formError?: string };

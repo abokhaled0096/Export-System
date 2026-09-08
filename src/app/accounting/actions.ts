@@ -18,10 +18,10 @@ const ChartOfAccountSchema = z.object({
   accountCode: z.string().trim().min(1, "كود الحساب مطلوب"),
   nameAr: z.string().trim().min(1, "الاسم بالعربي مطلوب"),
   nameEn: z.string().trim().min(1, "الاسم بالإنجليزي مطلوب"),
-  accountType: z.enum(ACCOUNT_TYPES),
-  normalBalance: z.enum(NORMAL_BALANCES),
+  accountType: z.enum(ACCOUNT_TYPES, "اختار نوع حساب صحيح"),
+  normalBalance: z.enum(NORMAL_BALANCES, "اختار طبيعة رصيد صحيحة"),
   parentAccountId: z.string().uuid().optional().or(z.literal("")),
-  currency: z.string().trim().length(3).toUpperCase().optional().or(z.literal("")),
+  currency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase().optional().or(z.literal("")),
 });
 
 export type ChartOfAccountFormState = { errors?: Record<string, string[]>; formError?: string };
@@ -126,7 +126,7 @@ const PERIOD_STATUSES = ["Open", "SoftClosed", "HardClosed"] as const;
  * الكود من الأول لكن بلا إنفاذ فعلي (الدالة كانت بتقبل أي نقلة بما فيها HardClosed→Open بلا فحص
  * خالص)؛ اتصلح بـ`assertWorkflowTransitionAllowed` (مراجعة وحدة 8، 7 سبتمبر) — راجع BACKLOG.md. */
 export async function advanceAccountingPeriodStatus(periodId: string, nextStatus: (typeof PERIOD_STATUSES)[number]) {
-  const parsed = z.enum(PERIOD_STATUSES).safeParse(nextStatus);
+  const parsed = z.enum(PERIOD_STATUSES, "اختار حالة فترة صحيحة").safeParse(nextStatus);
   if (!parsed.success) throw new Error("حالة فترة غير صالحة.");
 
   const user = await requireCurrentUser();
@@ -171,7 +171,7 @@ const COST_CENTER_TYPES = ["Department", "Product", "Customer", "Deal", "Market"
 const CostCenterSchema = z.object({
   code: z.string().trim().min(1, "الكود مطلوب"),
   name: z.string().trim().min(1, "الاسم مطلوب"),
-  type: z.enum(COST_CENTER_TYPES),
+  type: z.enum(COST_CENTER_TYPES, "اختار نوع مركز تكلفة صحيح"),
 });
 
 export type CostCenterFormState = { errors?: Record<string, string[]>; formError?: string };
@@ -213,7 +213,7 @@ const PROFIT_CENTER_SCOPES = ["Company", "Division", "Product", "Market"] as con
 const ProfitCenterSchema = z.object({
   code: z.string().trim().min(1, "الكود مطلوب"),
   name: z.string().trim().min(1, "الاسم مطلوب"),
-  scope: z.enum(PROFIT_CENTER_SCOPES),
+  scope: z.enum(PROFIT_CENTER_SCOPES, "اختار نطاق مركز ربحية صحيح"),
 });
 
 export type ProfitCenterFormState = { errors?: Record<string, string[]>; formError?: string };
@@ -254,9 +254,9 @@ const JOURNAL_ENTRY_SOURCE_TYPES = ["Manual", "Automatic", "Recurring", "Reversa
 
 const JournalLineInputSchema = z.object({
   accountId: z.string().uuid("اختر حساب"),
-  debit: z.coerce.number().min(0),
-  credit: z.coerce.number().min(0),
-  currency: z.string().trim().length(3).toUpperCase(),
+  debit: z.coerce.number().min(0, "لازم يكون 0 أو أكتر"),
+  credit: z.coerce.number().min(0, "لازم يكون 0 أو أكتر"),
+  currency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase(),
   costCenterId: z.string().uuid().optional().or(z.literal("")),
   profitCenterId: z.string().uuid().optional().or(z.literal("")),
   description: z.string().trim().optional().or(z.literal("")),
@@ -350,8 +350,7 @@ export async function createJournalEntry(_prevState: JournalEntryFormState, form
   } catch (e) {
     if (isNextControlFlowError(e)) throw e;
     await logError({ orgId: user.orgId, userId: user.id, action: "createJournalEntry", error: e });
-    const message = e instanceof Error ? e.message : "حصل خطأ أثناء حفظ القيد — حاول تاني.";
-    return { formError: message };
+    return { formError: businessRuleMessage(e, "حصل خطأ أثناء حفظ القيد — حاول تاني.") };
   }
 }
 
@@ -436,8 +435,7 @@ export async function reverseJournalEntryAction(journalEntryId: string): Promise
   } catch (e) {
     if (isNextControlFlowError(e)) throw e;
     await logError({ orgId: user.orgId, userId: user.id, action: "reverseJournalEntryAction", error: e });
-    const message = e instanceof Error ? e.message : "حصل خطأ أثناء عكس القيد — حاول تاني.";
-    throw new Error(message);
+    throw new Error(businessRuleMessage(e, "حصل خطأ أثناء عكس القيد — حاول تاني."));
   }
 
   revalidatePath("/accounting/journal-entries");

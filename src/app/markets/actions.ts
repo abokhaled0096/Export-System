@@ -21,8 +21,8 @@ const MarketSchema = z.object({
   currency: z.string().trim().length(3, "العملة لازم تكون 3 أحرف (ISO 4217)").toUpperCase(),
   mainPorts: z.string().trim().optional(),
   tradeAgreement: z.string().trim().optional(),
-  politicalRiskScore: z.coerce.number().int().min(0).max(100).optional(),
-  logisticsRiskScore: z.coerce.number().int().min(0).max(100).optional(),
+  politicalRiskScore: z.coerce.number().int().min(0, "لازم يكون 0 أو أكتر").max(100, "لازم يكون 100 أو أقل").optional(),
+  logisticsRiskScore: z.coerce.number().int().min(0, "لازم يكون 0 أو أكتر").max(100, "لازم يكون 100 أو أقل").optional(),
 });
 
 export type MarketFormState = {
@@ -96,8 +96,8 @@ export async function createMarket(
 
 const UpdateMarketSchema = z.object({
   tradeAgreement: z.string().trim().optional(),
-  politicalRiskScore: z.coerce.number().int().min(0).max(100).optional(),
-  logisticsRiskScore: z.coerce.number().int().min(0).max(100).optional(),
+  politicalRiskScore: z.coerce.number().int().min(0, "لازم يكون 0 أو أكتر").max(100, "لازم يكون 100 أو أقل").optional(),
+  logisticsRiskScore: z.coerce.number().int().min(0, "لازم يكون 0 أو أكتر").max(100, "لازم يكون 100 أو أقل").optional(),
 });
 
 export type UpdateMarketFormState = {

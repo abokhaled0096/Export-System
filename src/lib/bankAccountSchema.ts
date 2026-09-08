@@ -6,6 +6,6 @@ import { z } from "zod";
 export const BankAccountSchema = z.object({
   accountName: z.string().trim().min(1, "اسم الحساب مطلوب"),
   bankName: z.string().trim().min(1, "اسم البنك مطلوب"),
-  currency: z.string().trim().length(3).toUpperCase(),
+  currency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase(),
   openingBalance: z.coerce.number().optional(),
 });

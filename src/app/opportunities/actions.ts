@@ -16,8 +16,8 @@ const OpportunitySchema = z.object({
   contactId: z.string().uuid().optional().or(z.literal("")),
   productId: z.string().uuid("اختر منتج"),
   marketId: z.string().uuid("اختر سوق"),
-  expectedValue: z.coerce.number().positive().optional(),
-  currency: z.string().trim().length(3).toUpperCase().optional().or(z.literal("")),
+  expectedValue: z.coerce.number().positive("لازم يكون أكبر من صفر").optional(),
+  currency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase().optional().or(z.literal("")),
   indicativeIncoterm: z.string().trim().optional(),
 });
 

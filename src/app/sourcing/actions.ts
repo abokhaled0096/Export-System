@@ -16,10 +16,10 @@ import { generatePoNumber } from "@/lib/purchaseOrder";
 
 const SourcingRequestSchema = z.object({
   specificationId: z.string().uuid().optional().or(z.literal("")),
-  rawQuantityRequired: z.coerce.number().min(0).optional(),
-  saleableQuantityRequired: z.coerce.number().min(0).optional(),
+  rawQuantityRequired: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
+  saleableQuantityRequired: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
   maximumPurchasePrice: z.coerce.number().positive("الحد الأقصى للسعر مطلوب"),
-  targetPurchasePrice: z.coerce.number().min(0).optional(),
+  targetPurchasePrice: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
   currency: z.string().trim().min(1, "العملة مطلوبة"),
   requiredCargoReadyDate: z.string().trim().optional().or(z.literal("")),
 });
@@ -100,7 +100,7 @@ const SupplierRFQSchema = z.object({
   supplierId: z.string().uuid("اختر مورّد"),
   rfqNumber: z.string().trim().optional().or(z.literal("")),
   responseDeadline: z.string().trim().optional().or(z.literal("")),
-  status: z.enum(SUPPLIER_RFQ_STATUSES),
+  status: z.enum(SUPPLIER_RFQ_STATUSES, "اختار حالة طلب عرض سعر صحيحة"),
 });
 
 export type SupplierRFQFormState = { errors?: Record<string, string[]>; formError?: string };
@@ -162,11 +162,11 @@ const SupplierQuoteSchema = z.object({
   packagingIncluded: z.coerce.boolean().optional(),
   transportIncluded: z.coerce.boolean().optional(),
   paymentTerms: z.string().trim().optional().or(z.literal("")),
-  leadTimeDays: z.coerce.number().int().min(0).optional(),
-  availableQuantity: z.coerce.number().min(0).optional(),
-  minimumOrder: z.coerce.number().min(0).optional(),
-  expectedYield: z.coerce.number().min(0).max(1).optional(),
-  totalEffectiveCost: z.coerce.number().min(0).optional(),
+  leadTimeDays: z.coerce.number().int().min(0, "لازم يكون 0 أو أكتر").optional(),
+  availableQuantity: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
+  minimumOrder: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
+  expectedYield: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").max(1, "نسبة بين 0 و1 (مثال: 0.85 يعني 85%)").optional(),
+  totalEffectiveCost: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
   validUntil: z.string().trim().optional().or(z.literal("")),
 });
 
