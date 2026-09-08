@@ -134,3 +134,24 @@ export async function notifyBudgetExceeded(
     relatedEntityId: params.budgetId,
   });
 }
+
+/** إشعار كل حاملي SegregationOfDutyRule.View بمحاولة تخالف قاعدة فصل مهام مفعّلة — الترايجر
+ * (enforce_segregation_of_duty_payment/enforce_segregation_of_duty_supplier_payment) بيرفض
+ * الكتابة نفسها بـRAISE EXCEPTION (مفيش صف يتحفظ)، فده بيتنادى من catch block منفصل بعد الفشل
+ * (تحويل جديدة — القديمة اترجعت بالكامل)، مش من جوه نفس الـtransaction اللي فشلت. المستخدم اللي
+ * حاول شاف رسالة الرفض فورًا في الفورم بتاعه؛ الإشعار ده لمين بيدير قواعد فصل المهام، عشان
+ * يلاحظوا محاولة تجاوز حقيقية حصلت. */
+export async function notifySoDViolationAttempt(
+  tx: ScopedTx,
+  params: { orgId: string; attemptedByUserId: string; attemptedByUserName: string; entityType: string; entityLabel: string }
+): Promise<void> {
+  await notifyUsersWithPermission(tx, {
+    orgId: params.orgId,
+    resource: "SegregationOfDutyRule",
+    action: "View",
+    notificationType: "sod.violationAttempted",
+    title: "محاولة تخالف فصل المهام",
+    body: `${params.attemptedByUserName} حاول ${params.entityLabel} — العملية اتمنعت (فصل المهام مفعّل).`,
+    relatedEntityType: params.entityType,
+  });
+}

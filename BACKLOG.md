@@ -54,7 +54,6 @@ _(فاضي دلوقتي — كل البنود اتقفلت أو اتصلحت. ر
 ## 🟠 P1 — وحدة 9: الحوكمة والإدارة (راجع docs/ERD.md §12)
 
 - [ ] **`WorkflowDefinition.requiredConditions` (jsonb لشروط حرة) مؤجَّل عمدًا** — الكيان نفسه (`entityType`/`fromStage`/`toStage`/`requiredApprovalPolicyId`) اتبنى وقفل الوحدة 13/13 (7 سبتمبر، راجع "✅ خلصان"). مفسّر شروط عام حقيقي (parse/eval لأي تعبير) لسه بلا أي حالة استخدام تحتاجه فعليًا — الشروط الحقيقية الوحيدة الموجودة (RFQAnalysis قبل QuoteSent، verifiedBy قبل إقفال CAPA) مفروضة بالفعل بـTriggers مخصّصة على مستوى القاعدة ومش هتتلغى ولا هتتكرر هنا.
-- [ ] **`Notification` بلا ربط تلقائي بأحداث تانية** — إنشاء يدوي بس دلوقتي؛ الربط بأحداث حقيقية (رفض SoD، طلب موافقة، تجاوز موازنة من وحدة 8) بند مستقبلي واضح.
 - [ ] **`KPI.actualValue` إدخال يدوي** — مفيش محرك BI عام يحسبه تلقائيًا؛ تفعيل حساب تلقائي لأنواع KPI معيّنة (زي معدل الفوز من `Opportunity`) ممكن يتضاف لاحقًا واحد واحد.
 - [ ] **مفيش UI تعديل لـ`DecisionLogEntry`/`KPI` بعد الإنشاء** — نفس نطاق "بلا تعديل بعد الإنشاء" المتبع في `ChartOfAccount`/`Budget`. `RiskRegisterItem` استثناء (حالته قابلة للتحويل عبر أزرار).
 
@@ -114,6 +113,13 @@ _(فاضي دلوقتي — كل البنود اتقفلت أو اتصلحت. ر
 ## ✅ خلصان
 
 _(هنا هتتنقل البنود اللي خلصت، مع التاريخ وملخص سطر واحد وأي ملف اتغيّر)_
+
+- **[2026-09-08] إشعار محاولة تخالف فصل المهام (SoD) — آخر مصدر أحداث كان مربوط بـ`Notification` من الأربعة الموثّقين في وحدة 9 (Approval، MasterDataChangeRequest، Budget، وده) اتقفل.**
+  - **الفرق الجوهري عن باقي أحداث الإشعار**: الترايجرز (`enforce_segregation_of_duty_payment`/`enforce_segregation_of_duty_supplier_payment`) بترفض الكتابة نفسها بـ`RAISE EXCEPTION` — مفيش صف يتحفظ خالص، فالإشعار مبيتكتبش جوه نفس الـtransaction اللي فشلت (اترجعت بالكامل) — لازم transaction جديدة منفصلة في الـ`catch` block بعد الفشل.
+  - `notifySoDViolationAttempt` جديدة في `src/lib/notification.ts` — إشعار حاملي `SegregationOfDutyRule.View` (مين بيدير قواعد فصل المهام) بمحاولة التجاوز، مش المستخدم اللي حاول (هو شاف رسالة الرفض فورًا في فورمه بالفعل).
+  - اتوصلت في `clearPaymentAction` (`src/app/accounting/arap-actions.ts`) — النقطة الوحيدة اللي بتحدّث `Payment.approvedBy` فعليًا، فبتغطّي الترايجرين الاتنين (Payment.Create≠Approve وSupplier.Create≠Payment.Approve) بمكان واحد. best-effort (`try/catch` منفصل) — فشل الإشعار نفسه (نادر) مايمنعش رسالة الرفض الأصلية توصل للمستخدم.
+  - **مُختبر حيًا**: قاعدة فصل مهام مفعّلة + دفعة اختبار منشأة بمعرفة Admin → محاولة اعتماد نفس الدفعة بمعرفة نفس Admin → الترايجر رفض فعليًا (`فصل المهام مفعّل`) → إشعار وصل لحامل `SegregationOfDutyRule.View` بنص واضح. بيانات الاختبار اتنضّفت بالكامل.
+  - `tsc --noEmit`/`eslint` نضاف، `test:rls` **178/178** بلا تغيير، `next build` ناجح. الملفات: `src/lib/notification.ts`, `src/app/accounting/arap-actions.ts`.
 
 - **[2026-09-08] العائق المتكرر "مفيش حساب Supabase Auth حقيقي للتحقق الحي" اتقفل لـ6 أدوار دفعة واحدة (SalesRep, SalesManager, ComplianceOfficer, LogisticsOfficer, ProcurementOfficer, QualityManager) — كان مسجَّل كبند مفتوح في 4 أماكن مختلفة عبر وحدات 2/3/5/6/7.**
   - ميزة إنشاء المستخدمين من `/admin/users` (بُنيت 8 سبتمبر) بقت هي نفسها اللي فتحت الطريق — الأدمن أنشأ الـ6 حسابات مباشرة من الواجهة (`<role>@aboheiba.com`، كلمة سر معروفة)، بلا حاجة لخطوة يدوية في Supabase Dashboard.

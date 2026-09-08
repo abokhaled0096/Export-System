@@ -7,6 +7,7 @@ import { withScopedTransaction, getScopedPrisma } from "@/lib/scoped-prisma";
 import { requireCurrentUser } from "@/lib/session";
 import { requirePermission, getPermissionScope } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
+import { notifySoDViolationAttempt } from "@/lib/notification";
 import { postInvoiceIssued, postPaymentCleared, reverseJournalEntry } from "@/lib/accounting";
 import { logError, isNextControlFlowError, businessRuleMessage, isIdempotencyKeyConflict } from "@/lib/errorLog";
 import { requireAal2 } from "@/lib/mfa";
@@ -587,6 +588,26 @@ export async function clearPaymentAction(paymentId: string) {
   } catch (e) {
     if (isNextControlFlowError(e)) throw e;
     await logError({ orgId: user.orgId, userId: user.id, action: "clearPaymentAction", error: e });
+    // فصل المهام: الترايجر رفض الكتابة نفسها (RAISE EXCEPTION، مفيش صف اتحفظ) — المستخدم شاف
+    // الرسالة فورًا تحت، لكن لمين بيدير قواعد فصل المهام لازم يلاحظوا محاولة تجاوز حقيقية حصلت.
+    // best-effort — فشل الإشعار (نادر) مايمنعش رسالة الرفض الأصلية توصل للمستخدم.
+    if (e instanceof Error && e.message.includes("فصل المهام مفعّل")) {
+      try {
+        const scopedPrisma = await getScopedPrisma();
+        const payment = await scopedPrisma.payment.findUnique({ where: { id: paymentId }, select: { paymentNumber: true } });
+        await withScopedTransaction((tx) =>
+          notifySoDViolationAttempt(tx, {
+            orgId: user.orgId,
+            attemptedByUserId: user.id,
+            attemptedByUserName: user.fullName,
+            entityType: "Payment",
+            entityLabel: `يعتمد دفعة ${payment?.paymentNumber ?? paymentId} وهو نفسه منشئها/منشئ موردها`,
+          })
+        );
+      } catch {
+        // تجاهل — راجع التعليق فوق
+      }
+    }
     throw new Error(businessRuleMessage(e, "حصل خطأ أثناء تحصيل الدفعة."));
   }
 

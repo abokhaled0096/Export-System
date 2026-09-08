@@ -6,7 +6,7 @@
 >
 > **[BACKLOG.md](BACKLOG.md) = قائمة العيوب/التحسينات المرتبة بالأولوية (P0→P3)، مع قسم "✅ خلصان" بتتنقل له البنود بعد إنجازها.** لو بتدوّر على "إيه اللي لسه ناقص بالتفصيل"، ابدأ من هناك.
 
-## أين إحنا دلوقتي (محدَّث 2026-09-08 — إدارة مستخدمين للأدمن + self-service تغيير كلمة سر + مراجعتي كود شاملتين (18 نتيجة إجمالًا، أغلبها اتصلح) + `Notification` بقى مفعّل فعليًا لمسارات Approval/MasterDataChangeRequest + تنبيهات تجاوز الموازنة (Budget Alerts) + Own/Team scope اتحقق حيًا بحسابات حقيقية لكل الأدوار الستة المتبقية (SalesRep/SalesManager/ComplianceOfficer/LogisticsOfficer/ProcurementOfficer/QualityManager) — راجع BACKLOG.md § خلصان للتفاصيل)
+## أين إحنا دلوقتي (محدَّث 2026-09-08 — إدارة مستخدمين للأدمن + self-service تغيير كلمة سر + مراجعتي كود شاملتين (18 نتيجة إجمالًا، أغلبها اتصلح) + `Notification` بقى مفعّل فعليًا لكل مصادر أحداث وحدة 9 الأربعة (Approval، MasterDataChangeRequest، تجاوز موازنة، محاولة تخالف فصل مهام) + Own/Team scope اتحقق حيًا بحسابات حقيقية لكل الأدوار الستة المتبقية (SalesRep/SalesManager/ComplianceOfficer/LogisticsOfficer/ProcurementOfficer/QualityManager) — راجع BACKLOG.md § خلصان للتفاصيل)
 
 ### ✅ اللي اتعمل فعليًا (كود + migrations حقيقية على Supabase، مُختبر حيًا)
 
