@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/table";
 import type { Prisma } from "@/generated/prisma/client";
 import type { CompanyStatus } from "@/generated/prisma/enums";
+import { companyClassificationLabel } from "@/lib/companyLabels";
 
 export const dynamic = "force-dynamic";
 
@@ -158,7 +159,9 @@ export default async function CompaniesPage({
                     {c.country}
                     {c.city ? ` · ${c.city}` : ""}
                   </TableCell>
-                  <TableCell className="text-foreground/80">{c.classification.join("، ")}</TableCell>
+                  <TableCell className="text-foreground/80">
+                    {c.classification.map((cl) => companyClassificationLabel[cl] ?? cl).join("، ")}
+                  </TableCell>
                   <TableCell>
                     <Badge variant="secondary">{statusLabel[c.status]}</Badge>
                   </TableCell>

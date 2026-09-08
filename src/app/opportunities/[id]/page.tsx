@@ -14,6 +14,7 @@ import { communicationChannelLabel, communicationDirectionLabel } from "@/lib/co
 import { rfqSeriousnessLevelLabel, rfqSeriousnessLevelStyle } from "@/lib/rfqAnalysisLabels";
 import { customerSampleStatusLabel, customerSampleStatusStyle } from "@/lib/customerSampleLabels";
 import { negotiationStatusLabel, negotiationStatusStyle, negotiationConcessionTypeLabel } from "@/lib/negotiationLabels";
+import { paymentMethodLabel } from "@/lib/arapLabels";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -150,7 +151,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
                   {opportunity.rfqAnalyses.map((r) => (
                     <TableRow key={r.id}>
                       <TableCell className="text-foreground">{r.destinationPort ?? "—"}</TableCell>
-                      <TableCell className="text-foreground/80">{r.paymentMethod ?? "—"}</TableCell>
+                      <TableCell className="text-foreground/80">{r.paymentMethod ? (paymentMethodLabel[r.paymentMethod] ?? r.paymentMethod) : "—"}</TableCell>
                       <TableCell className="font-mono text-foreground/80">{r.quantity?.toString() ?? "—"}</TableCell>
                       <TableCell className="text-foreground/80">{r.incoterm ?? "—"}</TableCell>
                       <TableCell>

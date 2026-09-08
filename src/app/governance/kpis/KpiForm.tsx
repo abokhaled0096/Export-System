@@ -36,7 +36,16 @@ export default function KpiForm({ users, periods, currentUserId }: { users: User
         <Label htmlFor="kpi-category" className="text-xs">
           الفئة *
         </Label>
-        <Input id="kpi-category" name="category" placeholder="مبيعات / تشغيل / مالي" />
+        <Select name="category" defaultValue="مبيعات">
+          <SelectTrigger id="kpi-category">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="مبيعات">مبيعات</SelectItem>
+            <SelectItem value="تشغيل">تشغيل</SelectItem>
+            <SelectItem value="مالي">مالي</SelectItem>
+          </SelectContent>
+        </Select>
         {state.errors?.category && <span className="text-xs text-destructive">{state.errors.category[0]}</span>}
       </div>
       <div className="flex flex-col gap-1.5">

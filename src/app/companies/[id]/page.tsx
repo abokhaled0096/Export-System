@@ -11,6 +11,7 @@ import RedFlagForm from "./RedFlagForm";
 import CustomerServiceCaseForm from "./CustomerServiceCaseForm";
 import { redFlagSeverityLabel, redFlagSeverityStyle } from "@/lib/redFlagLabels";
 import { customerServiceCaseTypeLabel, customerServiceCaseStatusLabel, customerServiceCaseStatusStyle } from "@/lib/customerServiceCaseLabels";
+import { companyClassificationLabel } from "@/lib/companyLabels";
 
 export const dynamic = "force-dynamic";
 
@@ -63,7 +64,7 @@ export default async function CompanyDetailPage({
           <h1 className="text-2xl font-semibold text-foreground">{company.legalName}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {company.country}
-            {company.city ? ` · ${company.city}` : ""} · {company.classification.join("، ")}
+            {company.city ? ` · ${company.city}` : ""} · {company.classification.map((c) => companyClassificationLabel[c] ?? c).join("، ")}
           </p>
         </div>
         <Button nativeButton={false} render={<Link href={`/opportunities/new?companyId=${company.id}`}>+ فرصة جديدة</Link>} />

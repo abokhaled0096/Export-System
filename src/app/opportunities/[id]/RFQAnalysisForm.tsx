@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { createRFQAnalysis, type RFQAnalysisFormState } from "./actions";
 import { rfqSeriousnessLevelLabel } from "@/lib/rfqAnalysisLabels";
+import { paymentMethodLabel } from "@/lib/arapLabels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -57,7 +58,18 @@ export default function RFQAnalysisForm({
         <Label htmlFor="paymentMethod" className="text-xs">
           طريقة الدفع
         </Label>
-        <Input id="paymentMethod" name="paymentMethod" className="w-32" />
+        <Select name="paymentMethod">
+          <SelectTrigger id="paymentMethod" className="w-32">
+            <SelectValue placeholder="—">{(value: string) => paymentMethodLabel[value] ?? value}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {Object.keys(paymentMethodLabel).map((m) => (
+              <SelectItem key={m} value={m}>
+                {paymentMethodLabel[m]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="rfq-quantity" className="text-xs">

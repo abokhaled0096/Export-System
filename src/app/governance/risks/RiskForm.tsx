@@ -27,7 +27,16 @@ export default function RiskForm({ users, currentUserId }: { users: UserOption[]
         <Label htmlFor="risk-category" className="text-xs">
           الفئة *
         </Label>
-        <Input id="risk-category" name="category" placeholder="مالي / تشغيلي / امتثال" />
+        <Select name="category" defaultValue="مالي">
+          <SelectTrigger id="risk-category">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="مالي">مالي</SelectItem>
+            <SelectItem value="تشغيلي">تشغيلي</SelectItem>
+            <SelectItem value="امتثال">امتثال</SelectItem>
+          </SelectContent>
+        </Select>
         {state.errors?.category && <span className="text-xs text-destructive">{state.errors.category[0]}</span>}
       </div>
       <div className="flex flex-col gap-1.5">

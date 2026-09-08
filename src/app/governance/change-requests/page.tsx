@@ -6,14 +6,7 @@ import ChangeRequestForm from "./ChangeRequestForm";
 import DecisionButtons from "./DecisionButtons";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-
-const ENTITY_LINK_BASE: Record<string, string> = {
-  Company: "/companies",
-  Supplier: "/suppliers",
-  BankAccount: "/accounting/bank-accounts",
-  Product: "/products",
-  PurchaseOrder: "/purchase-orders",
-};
+import { ENTITY_LINK_BASE, entityTypeLabel } from "@/lib/changeRequestLabels";
 
 export const dynamic = "force-dynamic";
 
@@ -89,7 +82,7 @@ export default async function ChangeRequestsPage() {
             ) : (
               requests.map((r) => (
                 <TableRow key={r.id}>
-                  <TableCell className="text-foreground/80">{r.entityType}</TableCell>
+                  <TableCell className="text-foreground/80">{entityTypeLabel[r.entityType] ?? r.entityType}</TableCell>
                   <TableCell className="font-mono text-xs text-foreground/60">
                     {r.entityId === "NEW" ? (
                       <span className="rounded bg-sky-100 px-1.5 py-0.5 font-sans text-xs text-sky-700">طلب إنشاء جديد</span>

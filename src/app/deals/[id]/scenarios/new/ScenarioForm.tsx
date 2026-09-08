@@ -39,7 +39,7 @@ export default function ScenarioForm({ dealId }: { dealId: string }) {
         <Input
           id="scenarioName"
           name="scenarioName"
-          placeholder="Current / BestCase / WorstCase..."
+          placeholder="مثال: السيناريو الأساسي / أفضل حالة / أسوأ حالة"
           value={val("scenarioName")}
           onChange={(e) => draft.setField("scenarioName", e.target.value)}
         />

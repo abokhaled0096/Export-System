@@ -68,7 +68,7 @@ export default function CompetitorForm({ products, markets }: { products: Option
             {monthLabel.slice(1).map((label, i) => (
               <label key={i} className="flex items-center gap-1 text-xs">
                 <input type="checkbox" name="strengthMonths" value={i + 1} className="size-3.5" />
-                {label.slice(0, 3)}
+                {label}
               </label>
             ))}
           </div>
@@ -79,7 +79,7 @@ export default function CompetitorForm({ products, markets }: { products: Option
             {monthLabel.slice(1).map((label, i) => (
               <label key={i} className="flex items-center gap-1 text-xs">
                 <input type="checkbox" name="weaknessMonths" value={i + 1} className="size-3.5" />
-                {label.slice(0, 3)}
+                {label}
               </label>
             ))}
           </div>

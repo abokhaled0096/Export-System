@@ -76,7 +76,16 @@ export default function DocumentForm({ dealId }: { dealId: string }) {
         <Label htmlFor="confidentiality" className="text-xs">
           درجة السرّية
         </Label>
-        <Input id="confidentiality" name="confidentiality" className="w-28" />
+        <Select name="confidentiality">
+          <SelectTrigger id="confidentiality" className="w-28">
+            <SelectValue placeholder="—" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="عام">عام</SelectItem>
+            <SelectItem value="سري">سري</SelectItem>
+            <SelectItem value="سري للغاية">سري للغاية</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="doc-expiryDate" className="text-xs">

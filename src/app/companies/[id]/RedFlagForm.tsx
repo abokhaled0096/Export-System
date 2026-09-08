@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 const initialState: RedFlagFormState = {};
 const severities = Object.keys(redFlagSeverityLabel);
+const flagTypes = ["تعثّر مالي", "نزاع قانوني", "شكوى/احتيال", "تأخر سداد متكرر", "سمعة سيئة", "عقوبات/حظر تجاري", "أخرى"];
 
 export default function RedFlagForm({ companyId }: { companyId: string }) {
   const action = createRedFlag.bind(null, companyId);
@@ -22,7 +23,18 @@ export default function RedFlagForm({ companyId }: { companyId: string }) {
         <Label htmlFor="flagType" className="text-xs">
           نوع العلم *
         </Label>
-        <Input id="flagType" name="flagType" className="w-36" />
+        <Select name="flagType" defaultValue={flagTypes[0]}>
+          <SelectTrigger id="flagType" className="w-36">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {flagTypes.map((t) => (
+              <SelectItem key={t} value={t}>
+                {t}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         {state.errors?.flagType && <span className="text-xs text-destructive">{state.errors.flagType[0]}</span>}
       </div>
       <div className="flex flex-col gap-1.5">

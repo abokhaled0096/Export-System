@@ -5,8 +5,11 @@ import { createMasterDataChangeRequest, type ChangeRequestFormState } from "../a
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { entityTypeLabel } from "@/lib/changeRequestLabels";
 
 const initialState: ChangeRequestFormState = {};
+const entityTypes = Object.keys(entityTypeLabel);
 
 export default function ChangeRequestForm() {
   const [state, formAction, pending] = useActionState(createMasterDataChangeRequest, initialState);
@@ -17,7 +20,18 @@ export default function ChangeRequestForm() {
         <Label htmlFor="cr-type" className="text-xs">
           نوع الكيان *
         </Label>
-        <Input id="cr-type" name="entityType" placeholder="Company / Supplier / BankAccount" />
+        <Select name="entityType" defaultValue={entityTypes[0]}>
+          <SelectTrigger id="cr-type">
+            <SelectValue>{(value: string) => entityTypeLabel[value] ?? value}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {entityTypes.map((t) => (
+              <SelectItem key={t} value={t}>
+                {entityTypeLabel[t]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         {state.errors?.entityType && <span className="text-xs text-destructive">{state.errors.entityType[0]}</span>}
       </div>
       <div className="flex flex-col gap-1.5">
@@ -32,6 +46,10 @@ export default function ChangeRequestForm() {
           التغييرات المقترحة (JSON) *
         </Label>
         <Input id="cr-changes" name="proposedChanges" placeholder='{"creditLimit": 50000}' className="font-mono" />
+        <p className="text-[11px] text-muted-foreground">
+          اكتب اسم الحقل وقيمته الجديدة بصيغة JSON — مثال: <code className="font-mono">{'{"creditLimit": 50000}'}</code> يعني
+          &ldquo;غيّر حد الائتمان لـ 50000&rdquo;. لو محتاج تغيير أكتر من حقل، افصلهم بفاصلة، زي: <code className="font-mono">{'{"creditLimit": 50000, "city": "القاهرة"}'}</code>.
+        </p>
         {state.errors?.proposedChanges && <span className="text-xs text-destructive">{state.errors.proposedChanges[0]}</span>}
       </div>
       <div>

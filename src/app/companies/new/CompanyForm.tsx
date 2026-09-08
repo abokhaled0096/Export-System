@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { companyClassificationLabel } from "@/lib/companyLabels";
 
 const initialState: CompanyFormState = {};
 
@@ -73,12 +74,14 @@ export default function CompanyForm() {
           onValueChange={(v) => draft.setField("classification", v ?? "")}
         >
           <SelectTrigger id="classification" className="w-full">
-            <SelectValue />
+            <SelectValue>
+              {(value: string | null) => (value ? (companyClassificationLabel[value] ?? value) : "")}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {classifications.map((c) => (
               <SelectItem key={c} value={c}>
-                {c}
+                {companyClassificationLabel[c] ?? c}
               </SelectItem>
             ))}
           </SelectContent>

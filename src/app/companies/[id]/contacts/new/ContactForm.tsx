@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { contactDecisionRoleLabel } from "@/lib/companyLabels";
 
 const initialState: ContactFormState = {};
 
@@ -58,7 +59,7 @@ export default function ContactForm({ companyId }: { companyId: string }) {
             <SelectContent>
               {roles.map((r) => (
                 <SelectItem key={r} value={r}>
-                  {r}
+                  {contactDecisionRoleLabel[r] ?? r}
                 </SelectItem>
               ))}
             </SelectContent>

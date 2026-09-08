@@ -114,6 +114,19 @@ _(فاضي دلوقتي — كل البنود اتقفلت أو اتصلحت. ر
 
 _(هنا هتتنقل البنود اللي خلصت، مع التاريخ وملخص سطر واحد وأي ملف اتغيّر)_
 
+- **[2026-09-08] مراجعة شاملة لنصوص الواجهة العربية — نفس فئة عيب "شهور توفّر المنتج" (تقطيع أسماء الشهور العربية بنفس منطق الاختصار الإنجليزي، فـ"سبتمبر" بقت "سبت" يعني السبت) اتلاقى ليه نسختين إضافيتين + حقول نصية حرة كتير المفروض تبقى قوائم اختيار.**
+  - **نفس عيب التقطيع**: `src/app/competitors/new/CompetitorForm.tsx` (شهور القوة/الضعف للمنافس) — كانت نفس النسخة المكرّرة من `monthLabel.slice(0,3)`. اتصلحت بعرض الاسم كامل، زي المنتج بالظبط.
+  - **حقول نصية حرة بقت قوائم اختيار** (تقلل الكتابة اليدوية والأخطاء الإملائية):
+    - `KpiForm.tsx`/`RiskForm.tsx` — "الفئة" (كانت `placeholder` بس بتقول القيم المتاحة، دلوقتي Select فعلي).
+    - `RFQAnalysisForm.tsx` — "طريقة الدفع" بقت تستخدم enum `PaymentMethod`/`paymentMethodLabel` الموجود بالفعل (كان بيتكتب حر بدل ما يعاد استخدامه)، وترجمة العرض في `/opportunities/[id]` كمان.
+    - `DocumentForm.tsx` (الصفقة) — "درجة السرّية" (عام/سري/سري للغاية).
+    - `RedFlagForm.tsx` — "نوع العلم" (تعثّر مالي/نزاع قانوني/شكوى-احتيال/تأخر سداد متكرر/سمعة سيئة/عقوبات-حظر تجاري/أخرى).
+    - `ChangeRequestForm.tsx` — "نوع الكيان" بقى Select من نفس الأنواع المدعومة فعليًا (`ENTITY_LINK_BASE`، اتنقلت لـ`src/lib/changeRequestLabels.ts` مشترك بدل تكرارها) بدل كتابة اسم الكيان الإنجليزي يدويًا بالظبط.
+  - **قوائم اختيار موجودة كانت بتعرض القيمة الإنجليزية/camelCase الخام بدل ترجمة عربية** (`CompanyForm.tsx` — "Importer" بدل "مستورد"، `ContactForm.tsx` — "DecisionMaker" بدل "صاحب القرار"): خرايط تسمية جديدة `src/lib/companyLabels.ts` (`companyClassificationLabel`, `contactDecisionRoleLabel`)، مستخدمة في الفورمات وصفحات العرض (`/companies`, `/companies/[id]`) كمان عشان العرض يتطابق مع الإدخال.
+  - **نص placeholder مربك**: `ChangeRequestForm.tsx` (حقل JSON خام) — اتضاف شرح عربي بمثال واقعي تحت الحقل بدل ما يفضل بلا أي إرشاد. `ScenarioForm.tsx` — placeholder "Current / BestCase / WorstCase" (كان بيوهم إنها قيم لازم تتكتب حرفيًا) اتغيّر لأمثلة عربية واضحة.
+  - اتكشفت الكل عبر 3 عمليات بحث Explore متوازية (تقطيع نص، حقول محتاجة قوائم، نصوص مربكة عمومًا) بطلب صريح من المستخدم بعد ما لاحظ عيب الشهور.
+  - `tsc --noEmit`/`eslint` نضاف، `test:rls` **178/178** بلا تغيير (تعديلات واجهة بحتة، بلا لمسة لأي منطق سيرفر/RLS/Trigger)، `next build` ناجح. **مُختبر حيًا في المتصفح** لكل فورم اتغيّر: الشهور الكاملة في `/competitors/new`، الفئة/القوائم في `/companies`، `/companies/[id]`، `/companies/[id]/contacts/new` (قايمة دور القرار المترجمة بالكامل)، `/governance/risks`، `/governance/change-requests`، `/deals/[id]` (درجة السرّية Select فعلي). الملفات: `src/app/competitors/new/CompetitorForm.tsx`, `src/app/companies/{new/CompanyForm.tsx,page.tsx,[id]/page.tsx,[id]/contacts/new/ContactForm.tsx,[id]/RedFlagForm.tsx}`, `src/app/governance/{kpis/KpiForm.tsx,risks/RiskForm.tsx,change-requests/{page.tsx,ChangeRequestForm.tsx}}`, `src/app/opportunities/[id]/{RFQAnalysisForm.tsx,page.tsx}`, `src/app/deals/[id]/{DocumentForm.tsx,scenarios/new/ScenarioForm.tsx}`, `src/lib/{companyLabels.ts,changeRequestLabels.ts}` (جداد).
+
 - **[2026-09-08] إشعار محاولة تخالف فصل المهام (SoD) — آخر مصدر أحداث كان مربوط بـ`Notification` من الأربعة الموثّقين في وحدة 9 (Approval، MasterDataChangeRequest، Budget، وده) اتقفل.**
   - **الفرق الجوهري عن باقي أحداث الإشعار**: الترايجرز (`enforce_segregation_of_duty_payment`/`enforce_segregation_of_duty_supplier_payment`) بترفض الكتابة نفسها بـ`RAISE EXCEPTION` — مفيش صف يتحفظ خالص، فالإشعار مبيتكتبش جوه نفس الـtransaction اللي فشلت (اترجعت بالكامل) — لازم transaction جديدة منفصلة في الـ`catch` block بعد الفشل.
   - `notifySoDViolationAttempt` جديدة في `src/lib/notification.ts` — إشعار حاملي `SegregationOfDutyRule.View` (مين بيدير قواعد فصل المهام) بمحاولة التجاوز، مش المستخدم اللي حاول (هو شاف رسالة الرفض فورًا في فورمه بالفعل).
