@@ -11,6 +11,7 @@ import { logAudit } from "@/lib/audit";
 import { logError, isNextControlFlowError } from "@/lib/errorLog";
 import { requestEntityCreation } from "@/lib/masterDataChangeRequest";
 import { PurchaseOrderSchema } from "@/lib/purchaseOrderSchema";
+import { generatePoNumber } from "@/lib/purchaseOrder";
 
 const SourcingRequestSchema = z.object({
   specificationId: z.string().uuid().optional().or(z.literal("")),
@@ -365,10 +366,7 @@ export async function createPurchaseOrder(
   try {
     await requirePermission(user.roleId, "PurchaseOrder", "Create");
     await withScopedTransaction(async (tx) => {
-      const year = new Date().getFullYear();
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`po-number-${user.orgId}-${year}`}))`;
-      const countThisYear = await tx.purchaseOrder.count({ where: { orgId: user.orgId, poNumber: { startsWith: `PO-${year}-` } } });
-      const poNumber = `PO-${year}-${String(countThisYear + 1).padStart(4, "0")}`;
+      const poNumber = await generatePoNumber(tx, user.orgId);
 
       const po = await tx.purchaseOrder.create({
         data: {

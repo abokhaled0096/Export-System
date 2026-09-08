@@ -1,7 +1,11 @@
 import { z } from "zod";
 
+// z.union([z.string(), z.number()]) بقصد — الحقل ده بيتفحص مرتين: مرة من FormData (قيم نصية)
+// وقت الإنشاء المباشر أو تسجيل طلب MasterDataChangeRequest، ومرة تانية من JSON مخزَّن (أرقام
+// بعد التحويل الأول) وقت اعتماد الطلب في createEntityFromChangeRequest — لو الحقل قبل نص بس،
+// إعادة الفحص بعد التحويل الأول كانت بترمي خطأ Zod دايمًا وتمنع اعتماد أي طلب فيه شهور متحدّدة.
 const monthsField = z
-  .array(z.string())
+  .array(z.union([z.string(), z.number()]))
   .transform((arr) => arr.map(Number))
   .pipe(z.array(z.number().int().min(1, "شهر غير صالح").max(12, "شهر غير صالح")))
   .optional();

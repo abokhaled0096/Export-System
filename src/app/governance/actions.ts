@@ -15,6 +15,7 @@ import { SupplierSchema } from "@/lib/supplierSchema";
 import { BankAccountSchema } from "@/lib/bankAccountSchema";
 import { ProductSchema } from "@/lib/productSchema";
 import { PurchaseOrderSchema } from "@/lib/purchaseOrderSchema";
+import { generatePoNumber } from "@/lib/purchaseOrder";
 import { Prisma } from "@/generated/prisma/client";
 
 /**
@@ -115,10 +116,7 @@ async function createEntityFromChangeRequest(
         if (!specification) throw new Error("المواصفة غير موجودة.");
       }
 
-      const year = new Date().getFullYear();
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`po-number-${orgId}-${year}`}))`;
-      const countThisYear = await tx.purchaseOrder.count({ where: { orgId, poNumber: { startsWith: `PO-${year}-` } } });
-      const poNumber = `PO-${year}-${String(countThisYear + 1).padStart(4, "0")}`;
+      const poNumber = await generatePoNumber(tx, orgId);
 
       const po = await tx.purchaseOrder.create({
         data: {
@@ -208,30 +206,37 @@ export async function toggleSoDRuleAction(ruleId: string, isActive: boolean) {
 const DecisionSchema = z.object({
   title: z.string().trim().min(1, "العنوان مطلوب"),
   decisionDate: z.string().trim().min(1, "تاريخ القرار مطلوب"),
+  decidedBy: z.string().uuid("اختر مين اتخذ القرار"),
   context: z.string().trim().optional().or(z.literal("")),
   outcome: z.string().trim().optional().or(z.literal("")),
 });
 
 export type DecisionFormState = { errors?: Record<string, string[]>; formError?: string };
 
-/** decidedBy بيتحدَّد تلقائيًا بالمستخدم الحالي — نفس نمط Company.ownerId/Opportunity.ownerId. */
+/** decidedBy مش بالضرورة المستخدم الحالي — القرار ممكن يكون اتّخذه حد تاني (مدير/تنفيذي) والمستخدم
+ * الحالي بيسجّله بس نيابةً عنه. بيتفحص إنه فعلًا مستخدم بنفس المنظمة قبل الإنشاء (اتكشف بمراجعة
+ * كود، 8 سبتمبر — الحقل ده كان اتشال بالغلط ضمن تبسيط عام كان المفروض يقتصر على حقول status). */
 export async function createDecisionLogEntry(_prevState: DecisionFormState, formData: FormData): Promise<DecisionFormState> {
   const parsed = DecisionSchema.safeParse({
     title: formData.get("title"),
     decisionDate: formData.get("decisionDate"),
+    decidedBy: formData.get("decidedBy"),
     context: formData.get("context") || undefined,
     outcome: formData.get("outcome") || undefined,
   });
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
 
   const user = await requireCurrentUser();
-  const { title, decisionDate, context, outcome } = parsed.data;
+  const { title, decisionDate, decidedBy, context, outcome } = parsed.data;
 
   try {
     await requirePermission(user.roleId, "DecisionLogEntry", "Create");
+    const scopedPrisma = await getScopedPrisma();
+    const decisionMaker = await scopedPrisma.user.findFirst({ where: { id: decidedBy } });
+    if (!decisionMaker) return { formError: "المستخدم غير موجود." };
     await withScopedTransaction(async (tx) => {
       const entry = await tx.decisionLogEntry.create({
-        data: { orgId: user.orgId, title, decisionDate: new Date(decisionDate), decidedBy: user.id, context: context || undefined, outcome: outcome || undefined },
+        data: { orgId: user.orgId, title, decisionDate: new Date(decisionDate), decidedBy, context: context || undefined, outcome: outcome || undefined },
       });
       await logAudit(tx, {
         orgId: user.orgId,
@@ -260,12 +265,14 @@ const RiskSchema = z.object({
   probability: z.coerce.number().int().min(0, "من 0 لـ100").max(100, "من 0 لـ100"),
   financialImpact: z.coerce.number().min(0, "الأثر المالي مطلوب"),
   currency: z.string().trim().length(3).toUpperCase(),
+  ownerId: z.string().uuid("اختر المسؤول"),
   mitigation: z.string().trim().optional().or(z.literal("")),
 });
 
 export type RiskFormState = { errors?: Record<string, string[]>; formError?: string };
 
-/** ownerId بيتحدَّد تلقائيًا بالمستخدم الحالي — نفس نمط Company.ownerId/Opportunity.ownerId. */
+/** ownerId مش بالضرورة المستخدم الحالي — مسؤول الخطر ممكن يكون محلل تاني مش اللي بيسجّل الخطر
+ * (اتكشف بمراجعة كود، 8 سبتمبر — نفس ملحوظة DecisionLogEntry.decidedBy). */
 export async function createRiskRegisterItem(_prevState: RiskFormState, formData: FormData): Promise<RiskFormState> {
   const parsed = RiskSchema.safeParse({
     title: formData.get("title"),
@@ -273,6 +280,7 @@ export async function createRiskRegisterItem(_prevState: RiskFormState, formData
     probability: formData.get("probability"),
     financialImpact: formData.get("financialImpact"),
     currency: formData.get("currency"),
+    ownerId: formData.get("ownerId"),
     mitigation: formData.get("mitigation") || undefined,
   });
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
@@ -280,9 +288,12 @@ export async function createRiskRegisterItem(_prevState: RiskFormState, formData
   const user = await requireCurrentUser();
   try {
     await requirePermission(user.roleId, "RiskRegisterItem", "Create");
+    const scopedPrisma = await getScopedPrisma();
+    const owner = await scopedPrisma.user.findFirst({ where: { id: parsed.data.ownerId } });
+    if (!owner) return { formError: "المستخدم غير موجود." };
     await withScopedTransaction(async (tx) => {
       const item = await tx.riskRegisterItem.create({
-        data: { orgId: user.orgId, ownerId: user.id, ...parsed.data, mitigation: parsed.data.mitigation || undefined },
+        data: { orgId: user.orgId, ...parsed.data, mitigation: parsed.data.mitigation || undefined },
       });
       await logAudit(tx, {
         orgId: user.orgId,
@@ -310,7 +321,9 @@ export async function updateRiskStatusAction(riskId: string, status: "Open" | "M
   try {
     await withScopedTransaction(async (tx) => {
       const risk = await tx.riskRegisterItem.findUniqueOrThrow({ where: { id: riskId } });
-      await assertWorkflowTransitionAllowed(tx, user.orgId, "RiskRegisterItem", riskId, risk.status, status);
+      if (risk.status !== status) {
+        await assertWorkflowTransitionAllowed(tx, user.orgId, "RiskRegisterItem", riskId, risk.status, status);
+      }
 
       await tx.riskRegisterItem.update({ where: { id: riskId }, data: { status } });
       await logAudit(tx, { orgId: user.orgId, userId: user.id, action: "riskRegisterItem.statusChanged", entityType: "RiskRegisterItem", entityId: riskId, beforeValue: { status: risk.status }, afterValue: { status } });
@@ -329,6 +342,7 @@ export async function updateRiskStatusAction(riskId: string, status: "Open" | "M
 const KpiSchema = z.object({
   name: z.string().trim().min(1, "الاسم مطلوب"),
   category: z.string().trim().min(1, "الفئة مطلوبة"),
+  ownerId: z.string().uuid("اختر المسؤول"),
   targetValue: z.coerce.number().min(0, "القيمة المستهدفة مطلوبة"),
   actualValue: z.coerce.number().optional(),
   periodId: z.string().uuid("اختر فترة محاسبية"),
@@ -336,12 +350,13 @@ const KpiSchema = z.object({
 
 export type KpiFormState = { errors?: Record<string, string[]>; formError?: string };
 
-/** actualValue إدخال يدوي عمدًا — مفيش محرك BI عام يحسبه تلقائيًا لكل نوع KPI ممكن. ownerId
- * بيتحدَّد تلقائيًا بالمستخدم الحالي — نفس نمط Company.ownerId/Opportunity.ownerId. */
+/** actualValue إدخال يدوي عمدًا — مفيش محرك BI عام يحسبه تلقائيًا لكل نوع KPI ممكن. ownerId مش
+ * بالضرورة المستخدم الحالي (اتكشف بمراجعة كود، 8 سبتمبر — نفس ملحوظة RiskRegisterItem.ownerId). */
 export async function createKPI(_prevState: KpiFormState, formData: FormData): Promise<KpiFormState> {
   const parsed = KpiSchema.safeParse({
     name: formData.get("name"),
     category: formData.get("category"),
+    ownerId: formData.get("ownerId"),
     targetValue: formData.get("targetValue"),
     actualValue: formData.get("actualValue") || undefined,
     periodId: formData.get("periodId"),
@@ -351,13 +366,15 @@ export async function createKPI(_prevState: KpiFormState, formData: FormData): P
   const user = await requireCurrentUser();
   try {
     await requirePermission(user.roleId, "KPI", "Create");
-    // periodId إلزامي وبيتعرض بلا `?.` في `/governance/kpis` (`k.period.periodName`) — لازم يتحقق
-    // قبل الإنشاء (اتكشف في مراجعة وحدة 9، 6 سبتمبر).
+    // ownerId/periodId إلزاميين وبيتعرضوا بلا `?.` في `/governance/kpis` (`k.owner.fullName`،
+    // `k.period.periodName`) — لازم يتحققوا قبل الإنشاء (اتكشف في مراجعة وحدة 9، 6 سبتمبر).
     const scopedPrisma = await getScopedPrisma();
+    const owner = await scopedPrisma.user.findFirst({ where: { id: parsed.data.ownerId } });
+    if (!owner) return { formError: "المستخدم غير موجود." };
     const period = await scopedPrisma.accountingPeriod.findFirst({ where: { id: parsed.data.periodId } });
     if (!period) return { formError: "الفترة المحاسبية غير موجودة." };
     await withScopedTransaction(async (tx) => {
-      const kpi = await tx.kPI.create({ data: { orgId: user.orgId, ownerId: user.id, ...parsed.data } });
+      const kpi = await tx.kPI.create({ data: { orgId: user.orgId, ...parsed.data } });
       await logAudit(tx, { orgId: user.orgId, userId: user.id, action: "kpi.created", entityType: "KPI", entityId: kpi.id, afterValue: { name: parsed.data.name } });
     });
   } catch (e) {

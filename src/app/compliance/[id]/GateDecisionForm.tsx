@@ -45,7 +45,7 @@ export default function GateDecisionForm({
   return (
     <div className="flex flex-col gap-1.5">
       <form action={decideAction} className="flex items-center gap-2">
-        <Select name="status" defaultValue="Passed">
+        <Select name="status" defaultValue={directStatuses[0]}>
           <SelectTrigger className="w-40">
             <SelectValue>{(value: string) => directStatusLabel[value] ?? value}</SelectValue>
           </SelectTrigger>

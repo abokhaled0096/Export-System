@@ -1,7 +1,7 @@
 import { requireCurrentUser } from "@/lib/session";
 import { requirePermission } from "@/lib/permissions";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
-import DecisionForm from "./DecisionForm";
+import DecisionForm, { type UserOption } from "./DecisionForm";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export const dynamic = "force-dynamic";
@@ -30,6 +30,9 @@ export default async function DecisionsPage() {
     orderBy: { decisionDate: "desc" },
     include: { decidedByUser: { select: { fullName: true } } },
   });
+  const users = await prisma.user.findMany({ where: { orgId }, select: { id: true, fullName: true }, orderBy: { fullName: "asc" } });
+  const userOptions: UserOption[] = users.map((u) => ({ id: u.id, label: u.fullName }));
+
   return (
     <main className="mx-auto max-w-5xl px-6 py-10">
       <div>
@@ -38,7 +41,7 @@ export default async function DecisionsPage() {
       </div>
 
       <div className="mt-6">
-        <DecisionForm />
+        <DecisionForm users={userOptions} currentUserId={user.id} />
       </div>
 
       <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card">

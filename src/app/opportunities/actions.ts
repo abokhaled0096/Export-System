@@ -148,7 +148,9 @@ export async function updateOpportunityStageAction(opportunityId: string, newSta
       const opportunity = await tx.opportunity.findUniqueOrThrow({ where: { id: opportunityId } });
       await assertOwnScope(scope, opportunity.ownerId, user);
 
-      await assertWorkflowTransitionAllowed(tx, user.orgId, "Opportunity", opportunityId, opportunity.stage, newStage);
+      if (opportunity.stage !== newStage) {
+        await assertWorkflowTransitionAllowed(tx, user.orgId, "Opportunity", opportunityId, opportunity.stage, newStage);
+      }
 
       await tx.opportunity.update({ where: { id: opportunityId }, data: { stage: newStage } });
       await logAudit(tx, {

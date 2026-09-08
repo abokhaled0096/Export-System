@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import Link from "next/link";
 import { resetUserPasswordAction, type ResetPasswordFormState } from "./actions";
 
 const initialState: ResetPasswordFormState = {};
@@ -29,6 +30,14 @@ export default function ResetPasswordForm({ userId }: { userId: string }) {
       {(state.formError || state.errors?.password) && (
         <span role="alert" className="text-xs text-rose-600">
           {state.formError ?? state.errors?.password?.[0]}
+          {state.mfaRequired && (
+            <>
+              {" "}
+              <Link href="/mfa/challenge?next=/admin/users" className="underline">
+                تحقق دلوقتي
+              </Link>
+            </>
+          )}
         </span>
       )}
     </form>

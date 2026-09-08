@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import Link from "next/link";
 import { createUserAction, type CreateUserFormState } from "./actions";
 
 const initialState: CreateUserFormState = {};
@@ -71,6 +72,14 @@ export default function CreateUserForm({ roles }: { roles: { id: string; name: s
       {state.formError && (
         <span role="alert" className="w-full text-xs text-rose-600">
           {state.formError}
+          {state.mfaRequired && (
+            <>
+              {" "}
+              <Link href="/mfa/challenge?next=/admin/users" className="underline">
+                تحقق دلوقتي
+              </Link>
+            </>
+          )}
         </span>
       )}
     </form>

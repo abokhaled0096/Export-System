@@ -85,7 +85,9 @@ export async function updateCAPAStatusAction(capaId: string, newStatus: (typeof 
   try {
     await withScopedTransaction(async (tx) => {
       const capa = await tx.cAPA.findUniqueOrThrow({ where: { id: capaId } });
-      await assertWorkflowTransitionAllowed(tx, user.orgId, "CAPA", capaId, capa.status, newStatus);
+      if (capa.status !== newStatus) {
+        await assertWorkflowTransitionAllowed(tx, user.orgId, "CAPA", capaId, capa.status, newStatus);
+      }
 
       const needsVerification = newStatus === "Effective" || newStatus === "Ineffective";
       await tx.cAPA.update({

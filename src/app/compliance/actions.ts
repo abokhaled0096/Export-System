@@ -339,7 +339,9 @@ export async function decideGate(
       // بوابة اتقررت بالفعل كان ينفع تتقرر تاني بأي قيمة تانية بلا قيد (اتكشف في إعادة مراجعة
       // وحدة 5، 7 سبتمبر). Waived مش من ضمن القيم هنا أصلًا (بيمرّ عبر requestGateWaiver+اعتماد).
       const fresh = await tx.gate.findUniqueOrThrow({ where: { id: gateId }, select: { status: true } });
-      await assertWorkflowTransitionAllowed(tx, user.orgId, "Gate", gateId, fresh.status, parsed.data.status);
+      if (fresh.status !== parsed.data.status) {
+        await assertWorkflowTransitionAllowed(tx, user.orgId, "Gate", gateId, fresh.status, parsed.data.status);
+      }
       await tx.gate.update({
         where: { id: gateId },
         data: { status: parsed.data.status, decidedBy: user.id, decidedAt: new Date() },
@@ -356,13 +358,10 @@ export async function decideGate(
   } catch (e) {
     if (isNextControlFlowError(e)) throw e;
     await logError({ orgId: user.orgId, userId: user.id, action: "decideGate", error: e });
-    // assertWorkflowTransitionAllowed بترمي Error نضيفة (مش رسالة Prisma/Postgres خام) — آمن
-    // نرجعها زي ما هي، عكس رسائل الـTrigger تحت.
-    if (e instanceof Error && e.message.includes("مينفعش الانتقال من")) {
-      return { formError: e.message };
-    }
-    // ⚠️ متعمّد ما بنرجعش e.message هنا — Prisma بيغلّف رسالة الـTrigger جوه نص مطوّل فيه
-    // مسار الملف والاستعلام الخام، ورسالة نضيفة يدوية زي دي أأمن (نفس نمط createQuote/walkAwayPrice).
+    // ⚠️ متعمّد ما بنرجعش e.message خام لرسائل الـTrigger تحت — Prisma بيغلّف رسالة الـTrigger جوه
+    // نص مطوّل فيه مسار الملف والاستعلام الخام، ورسالة نضيفة يدوية زي دي أأمن (نفس نمط
+    // createQuote/walkAwayPrice). أي حاجة تانية (زي رسالة assertWorkflowTransitionAllowed النضيفة)
+    // بتتسرّب لوحدها عبر businessRuleMessage تحت، بلا فحص substring يدوي منفصل.
     if (e instanceof Error && e.message.includes("متطلب حاجب")) {
       return { formError: "مينفعش تعدّي البوابة دي — لسه فيه متطلبات حاجبة مش مستوفاة (Met/غير منطبق)." };
     }
@@ -377,7 +376,7 @@ export async function decideGate(
         formError: "مينفعش تعدّي بوابة الشحن دي — فيه شحنة مرتبطة لسه ما استوفتش مهلة تصدير ACID الإلزامية (48 ساعة قبل المغادرة).",
       };
     }
-    return { formError: "حصل خطأ أثناء تسجيل قرار البوابة — حاول تاني." };
+    return { formError: businessRuleMessage(e, "حصل خطأ أثناء تسجيل قرار البوابة — حاول تاني.") };
   }
 
   revalidatePath(`/compliance/${complianceCaseId}`);

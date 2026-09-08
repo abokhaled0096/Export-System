@@ -5,10 +5,13 @@ import { createRiskRegisterItem, type RiskFormState } from "../actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const initialState: RiskFormState = {};
 
-export default function RiskForm() {
+export type UserOption = { id: string; label: string };
+
+export default function RiskForm({ users, currentUserId }: { users: UserOption[]; currentUserId: string }) {
   const [state, formAction, pending] = useActionState(createRiskRegisterItem, initialState);
 
   return (
@@ -26,6 +29,23 @@ export default function RiskForm() {
         </Label>
         <Input id="risk-category" name="category" placeholder="مالي / تشغيلي / امتثال" />
         {state.errors?.category && <span className="text-xs text-destructive">{state.errors.category[0]}</span>}
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="risk-owner" className="text-xs">
+          المسؤول *
+        </Label>
+        <Select name="ownerId" defaultValue={currentUserId}>
+          <SelectTrigger id="risk-owner">
+            <SelectValue>{(value: string) => users.find((u) => u.id === value)?.label ?? "—"}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {users.map((u) => (
+              <SelectItem key={u.id} value={u.id}>
+                {u.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="risk-prob" className="text-xs">

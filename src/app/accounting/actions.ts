@@ -135,7 +135,9 @@ export async function advanceAccountingPeriodStatus(periodId: string, nextStatus
   try {
     await withScopedTransaction(async (tx) => {
       const period = await tx.accountingPeriod.findUniqueOrThrow({ where: { id: periodId } });
-      await assertWorkflowTransitionAllowed(tx, user.orgId, "AccountingPeriod", periodId, period.status, parsed.data);
+      if (period.status !== parsed.data) {
+        await assertWorkflowTransitionAllowed(tx, user.orgId, "AccountingPeriod", periodId, period.status, parsed.data);
+      }
 
       await tx.accountingPeriod.update({
         where: { id: periodId },

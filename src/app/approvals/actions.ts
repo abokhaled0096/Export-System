@@ -9,6 +9,7 @@ import { requireAal2 } from "@/lib/mfa";
 import { withScopedTransaction } from "@/lib/scoped-prisma";
 import { logAudit } from "@/lib/audit";
 import { logError, isNextControlFlowError } from "@/lib/errorLog";
+import { generatePoNumber } from "@/lib/purchaseOrder";
 
 const QuoteOverridePayload = z.object({
   scenarioId: z.string().uuid(),
@@ -131,10 +132,7 @@ export async function approveRequest(
         });
       } else if (approval.subjectType === "PurchaseOrder.unitPrice_override") {
         const p = PurchaseOrderOverridePayload.parse(approval.payload);
-        const year = new Date().getFullYear();
-        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`po-number-${user.orgId}-${year}`}))`;
-        const countThisYear = await tx.purchaseOrder.count({ where: { orgId: user.orgId, poNumber: { startsWith: `PO-${year}-` } } });
-        const poNumber = `PO-${year}-${String(countThisYear + 1).padStart(4, "0")}`;
+        const poNumber = await generatePoNumber(tx, user.orgId);
 
         const po = await tx.purchaseOrder.create({
           data: {

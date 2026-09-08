@@ -8,6 +8,7 @@ import { getScopedPrisma, withScopedTransaction } from "@/lib/scoped-prisma";
 import { logAudit } from "@/lib/audit";
 import { logError, isNextControlFlowError, businessRuleMessage } from "@/lib/errorLog";
 import { createAuthUser, updateAuthUserPassword, deleteAuthUser } from "@/lib/authAdmin";
+import { requireAal2 } from "@/lib/mfa";
 
 const AssignRoleSchema = z.object({
   userId: z.string().uuid(),
@@ -70,10 +71,13 @@ const CreateUserSchema = z.object({
   password: z.string().min(6, "كلمة المرور قصيرة جدًا"),
 });
 
-export type CreateUserFormState = { errors?: Record<string, string[]>; formError?: string };
+export type CreateUserFormState = { errors?: Record<string, string[]>; formError?: string; mfaRequired?: boolean };
 
 /** بيحل محل الخطوة اليدوية (Supabase Dashboard + prisma/link-auth-user.ts) — الأدمن بيحدّد كلمة
- * سر ابتدائية هنا، مش المستخدم الجديد (نفس فلسفة "الأدمن بيتحكّم بالحسابات" اللي طلبها المستخدم). */
+ * سر ابتدائية هنا، مش المستخدم الجديد (نفس فلسفة "الأدمن بيتحكّم بالحسابات" اللي طلبها المستخدم).
+ * MFA (aal2) إلزامي هنا — قيد غير قابل للتفاوض من CLAUDE.md، نفس نمط updateSupplierBankInfoAction:
+ * إنشاء حساب بكلمة سر يعرفها الأدمن قدرة استيلاء كاملة على حساب مستخدم، على الأقل بنفس خطورة
+ * تعديل بيانات بنكية (اتكشف بمراجعة كود، 8 سبتمبر — كانت ناقصة من البناء الأصلي). */
 export async function createUserAction(_prevState: CreateUserFormState, formData: FormData): Promise<CreateUserFormState> {
   const parsed = CreateUserSchema.safeParse({
     email: formData.get("email"),
@@ -88,6 +92,11 @@ export async function createUserAction(_prevState: CreateUserFormState, formData
     await requirePermission(user.roleId, "User", "Edit");
   } catch {
     return { formError: "معندكش صلاحية إضافة مستخدمين." };
+  }
+  try {
+    await requireAal2();
+  } catch {
+    return { formError: "إضافة مستخدم جديد محتاج تحقق بخطوتين (MFA) الأول.", mfaRequired: true };
   }
 
   const { email, fullName, roleId, password } = parsed.data;
@@ -133,10 +142,11 @@ const ResetPasswordSchema = z.object({
   password: z.string().min(6, "كلمة المرور قصيرة جدًا"),
 });
 
-export type ResetPasswordFormState = { errors?: Record<string, string[]>; formError?: string; success?: boolean };
+export type ResetPasswordFormState = { errors?: Record<string, string[]>; formError?: string; success?: boolean; mfaRequired?: boolean };
 
 /** الأدمن بيقدر يعيد تعيين كلمة سر أي مستخدم في أي وقت — مفيش قراءة/عرض للقيمة القديمة خالص،
- * مستحيل تقنيًا (كلمات السر مشفّرة اتجاه واحد). */
+ * مستحيل تقنيًا (كلمات السر مشفّرة اتجاه واحد). MFA (aal2) إلزامي — نفس سبب createUserAction فوق،
+ * إعادة تعيين كلمة سر مستخدم تاني قدرة استيلاء كاملة على حسابه. */
 export async function resetUserPasswordAction(
   _prevState: ResetPasswordFormState,
   formData: FormData
@@ -152,6 +162,11 @@ export async function resetUserPasswordAction(
     await requirePermission(user.roleId, "User", "Edit");
   } catch {
     return { formError: "معندكش صلاحية تغيير كلمات السر." };
+  }
+  try {
+    await requireAal2();
+  } catch {
+    return { formError: "إعادة تعيين كلمة السر محتاج تحقق بخطوتين (MFA) الأول.", mfaRequired: true };
   }
 
   const scopedPrisma = await getScopedPrisma();

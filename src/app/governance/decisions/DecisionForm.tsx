@@ -5,10 +5,13 @@ import { createDecisionLogEntry, type DecisionFormState } from "../actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const initialState: DecisionFormState = {};
 
-export default function DecisionForm() {
+export type UserOption = { id: string; label: string };
+
+export default function DecisionForm({ users, currentUserId }: { users: UserOption[]; currentUserId: string }) {
   const [state, formAction, pending] = useActionState(createDecisionLogEntry, initialState);
 
   return (
@@ -26,6 +29,23 @@ export default function DecisionForm() {
         </Label>
         <Input id="dec-date" name="decisionDate" type="date" />
         {state.errors?.decisionDate && <span className="text-xs text-destructive">{state.errors.decisionDate[0]}</span>}
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="dec-by" className="text-xs">
+          اتخذ القرار *
+        </Label>
+        <Select name="decidedBy" defaultValue={currentUserId}>
+          <SelectTrigger id="dec-by">
+            <SelectValue>{(value: string) => users.find((u) => u.id === value)?.label ?? "—"}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {users.map((u) => (
+              <SelectItem key={u.id} value={u.id}>
+                {u.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="dec-context" className="text-xs">
