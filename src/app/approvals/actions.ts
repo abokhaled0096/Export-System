@@ -10,6 +10,7 @@ import { withScopedTransaction } from "@/lib/scoped-prisma";
 import { logAudit } from "@/lib/audit";
 import { logError, isNextControlFlowError } from "@/lib/errorLog";
 import { generatePoNumber } from "@/lib/purchaseOrder";
+import { notifyUser } from "@/lib/notification";
 
 const QuoteOverridePayload = z.object({
   scenarioId: z.string().uuid(),
@@ -170,6 +171,15 @@ export async function approveRequest(
         entityId: approvalId,
         afterValue: { reason },
       });
+      await notifyUser(tx, {
+        orgId: user.orgId,
+        userId: approval.requestedBy,
+        notificationType: "approval.decided",
+        title: "اتوافق على طلبك",
+        body: reason,
+        relatedEntityType: "Approval",
+        relatedEntityId: approvalId,
+      });
     });
   } catch (e) {
     if (isNextControlFlowError(e)) throw e;
@@ -220,6 +230,15 @@ export async function rejectRequest(
         entityType: "Approval",
         entityId: approvalId,
         afterValue: { reason },
+      });
+      await notifyUser(tx, {
+        orgId: user.orgId,
+        userId: approval.requestedBy,
+        notificationType: "approval.decided",
+        title: "اتّرفض طلبك",
+        body: reason,
+        relatedEntityType: "Approval",
+        relatedEntityId: approvalId,
       });
     });
   } catch (e) {
