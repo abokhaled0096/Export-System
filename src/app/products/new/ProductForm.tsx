@@ -13,6 +13,7 @@ import { COUNTRIES_AR } from "@/lib/countries";
 const initialState: ProductFormState = {};
 const monthLabel = ["", "يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
 const PRODUCT_CATEGORIES = ["فواكه طازجة", "فواكه مجمدة", "فواكه مجففة", "خضروات", "حبوب"];
+const HARVEST_SEASONS = ["الشتاء", "الربيع", "الصيف", "الخريف", "على مدار السنة"];
 
 function Field({
   label,
@@ -97,7 +98,22 @@ export default function ProductForm() {
           </Select>
           {state.errors?.originCountry && <span className="text-xs text-destructive">{state.errors.originCountry[0]}</span>}
         </div>
-        <Field label="موسم الحصاد" name="harvestSeason" error={state.errors?.harvestSeason} />
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="harvestSeason">موسم الحصاد</Label>
+          <Select name="harvestSeason">
+            <SelectTrigger id="harvestSeason">
+              <SelectValue placeholder="— غير محدد —" />
+            </SelectTrigger>
+            <SelectContent>
+              {HARVEST_SEASONS.map((s) => (
+                <SelectItem key={s} value={s}>
+                  {s}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {state.errors?.harvestSeason && <span className="text-xs text-destructive">{state.errors.harvestSeason[0]}</span>}
+        </div>
       </div>
       <div className="grid items-end gap-4 grid-cols-1 sm:grid-cols-2">
         <Field
