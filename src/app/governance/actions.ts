@@ -7,7 +7,7 @@ import { getScopedPrisma, withScopedTransaction } from "@/lib/scoped-prisma";
 import { requireCurrentUser } from "@/lib/session";
 import { requirePermission, getPermissionScope } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
-import { notifyUser, notifyUsersWithPermission } from "@/lib/notification";
+import { notifyUser, notifyChangeRequestApprovers } from "@/lib/notification";
 import { logError, isNextControlFlowError, businessRuleMessage } from "@/lib/errorLog";
 import { assertWorkflowTransitionAllowed } from "@/lib/workflow";
 import { NEW_ENTITY_SENTINEL } from "@/lib/masterDataChangeRequest";
@@ -462,16 +462,11 @@ export async function createMasterDataChangeRequest(_prevState: ChangeRequestFor
         entityId: request.id,
         afterValue: { entityType: parsed.data.entityType, entityId: parsed.data.entityId },
       });
-      await notifyUsersWithPermission(tx, {
+      await notifyChangeRequestApprovers(tx, {
         orgId: user.orgId,
-        resource: "MasterDataChangeRequest",
-        action: "Edit",
-        excludeUserId: user.id,
-        notificationType: "changeRequest.requested",
-        title: "طلب اعتماد بيانات أساسية جديد",
-        body: `نوع الكيان: ${parsed.data.entityType}`,
-        relatedEntityType: "MasterDataChangeRequest",
-        relatedEntityId: request.id,
+        requesterId: user.id,
+        requestId: request.id,
+        entityType: parsed.data.entityType,
       });
     });
   } catch (e) {

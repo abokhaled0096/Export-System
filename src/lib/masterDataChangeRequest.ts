@@ -1,6 +1,6 @@
 import type { ScopedTx } from "./scoped-prisma";
 import { logAudit } from "./audit";
-import { notifyUsersWithPermission } from "./notification";
+import { notifyChangeRequestApprovers } from "./notification";
 
 /** entityId لطلبات "إنشاء كيان جديد" (عكس طلبات تعديل كيان موجود، اللي بتحمل الـid الحقيقي).
  * `MasterDataChangeRequest.entityId` عمدًا مش @db.Uuid في الـSchema — نص حر، فالقيمة دي آمنة. */
@@ -33,15 +33,10 @@ export async function requestEntityCreation(
     entityId: request.id,
     afterValue: { entityType: params.entityType, entityId: NEW_ENTITY_SENTINEL, proposedChanges: params.proposedChanges },
   });
-  await notifyUsersWithPermission(tx, {
+  await notifyChangeRequestApprovers(tx, {
     orgId: params.orgId,
-    resource: "MasterDataChangeRequest",
-    action: "Edit",
-    excludeUserId: params.userId,
-    notificationType: "changeRequest.requested",
-    title: "طلب اعتماد بيانات أساسية جديد",
-    body: `نوع الكيان: ${params.entityType}`,
-    relatedEntityType: "MasterDataChangeRequest",
-    relatedEntityId: request.id,
+    requesterId: params.userId,
+    requestId: request.id,
+    entityType: params.entityType,
   });
 }

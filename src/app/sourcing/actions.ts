@@ -8,7 +8,7 @@ import { getScopedPrisma, withScopedTransaction } from "@/lib/scoped-prisma";
 import { requireCurrentUser } from "@/lib/session";
 import { requirePermission, getPermissionScope } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
-import { notifyUsersWithPermission } from "@/lib/notification";
+import { notifyApprovers } from "@/lib/notification";
 import { logError, isNextControlFlowError } from "@/lib/errorLog";
 import { requestEntityCreation } from "@/lib/masterDataChangeRequest";
 import { PurchaseOrderSchema } from "@/lib/purchaseOrderSchema";
@@ -353,16 +353,11 @@ export async function createPurchaseOrder(
           entityId: approval.id,
           afterValue: { sourcingRequestId, unitPrice: rest.unitPrice, maximumPurchasePrice: sourcingRequest.maximumPurchasePrice.toString() },
         });
-        await notifyUsersWithPermission(tx, {
+        await notifyApprovers(tx, {
           orgId: user.orgId,
-          resource: "Approval",
-          action: "Approve",
-          excludeUserId: user.id,
-          notificationType: "approval.requested",
-          title: "طلب موافقة استثنائية جديد",
-          body: `نوع الطلب: ${approval.subjectType}`,
-          relatedEntityType: "Approval",
-          relatedEntityId: approval.id,
+          requesterId: user.id,
+          approvalId: approval.id,
+          subjectType: approval.subjectType,
         });
       });
     } catch (e) {

@@ -7,7 +7,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { getScopedPrisma, withScopedTransaction, type ScopedTx } from "@/lib/scoped-prisma";
 import { requireCurrentUser } from "@/lib/session";
 import { logAudit } from "@/lib/audit";
-import { notifyUsersWithPermission } from "@/lib/notification";
+import { notifyApprovers } from "@/lib/notification";
 import { requirePermission, assertOwnScope } from "@/lib/permissions";
 import { getQuotePdfData } from "@/lib/quote-data";
 import { renderQuotePdf } from "@/lib/quote-pdf";
@@ -672,16 +672,11 @@ export async function createQuote(
           entityId: approval.id,
           afterValue: { scenarioId, unitPrice: parsed.data.unitPrice, walkAwayPrice: scenario.walkAwayPrice.toString() },
         });
-        await notifyUsersWithPermission(tx, {
+        await notifyApprovers(tx, {
           orgId: user.orgId,
-          resource: "Approval",
-          action: "Approve",
-          excludeUserId: user.id,
-          notificationType: "approval.requested",
-          title: "طلب موافقة استثنائية جديد",
-          body: `نوع الطلب: ${approval.subjectType}`,
-          relatedEntityType: "Approval",
-          relatedEntityId: approval.id,
+          requesterId: user.id,
+          approvalId: approval.id,
+          subjectType: approval.subjectType,
         });
       });
     } catch (e) {
