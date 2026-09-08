@@ -93,7 +93,7 @@ export default function ProductForm() {
           {monthLabel.slice(1).map((label, i) => (
             <label key={i} className="flex items-center gap-1 text-xs">
               <input type="checkbox" name="availableMonths" value={i + 1} className="size-3.5" />
-              {label.slice(0, 3)}
+              {label}
             </label>
           ))}
         </div>
