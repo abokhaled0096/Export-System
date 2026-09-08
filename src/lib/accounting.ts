@@ -2,6 +2,7 @@ import { Prisma } from "@/generated/prisma/client";
 import type { ScopedTx } from "@/lib/scoped-prisma";
 import type { JournalEntrySourceType } from "@/generated/prisma/enums";
 import { computeStraightLineDepreciation } from "@/lib/depreciation";
+import { checkBudgetAlerts } from "./budget";
 
 export type PostingLine = {
   accountId: string;
@@ -108,9 +109,12 @@ export async function createJournalEntryDraft(tx: ScopedTx, input: CreateJournal
 
 /** بيرحّل قيد موجود (Draft → Posted) — دي اللي بتفعّل Trigger enforce_journal_entry_balanced على
  * مستوى القاعدة فعليًا (توازن + عملة موحّدة + الفترة مش HardClosed). بعد الترحيل، القيد وبنوده
- * immutable بالكامل على مستوى القاعدة — التصحيح الشرعي الوحيد reverseJournalEntry(). */
+ * immutable بالكامل على مستوى القاعدة — التصحيح الشرعي الوحيد reverseJournalEntry(). نقطة الوصل
+ * الوحيدة لكل مسارات الترحيل (يدوي أو آلي) — أنسب مكان لفحص تجاوز الموازنة (checkBudgetAlerts)
+ * بعد كل قيد يتحوّل لـPosted، بلا حاجة نداء يدوي في كل مسار على حدة. */
 export async function postJournalEntryById(tx: ScopedTx, journalEntryId: string): Promise<void> {
-  await tx.journalEntry.update({ where: { id: journalEntryId }, data: { status: "Posted" } });
+  const entry = await tx.journalEntry.update({ where: { id: journalEntryId }, data: { status: "Posted" } });
+  await checkBudgetAlerts(tx, { orgId: entry.orgId, periodId: entry.periodId, journalEntryId });
 }
 
 /** اختصار للترحيل التلقائي الفوري (إنشاء + ترحيل في نفس الخطوة) — للاستخدام من وحدات تانية بترحّل
@@ -167,27 +171,8 @@ export async function reverseJournalEntry(tx: ScopedTx, { journalEntryId, prepar
 // ==================== محرك ترحيل AR/AP (وحدة 8، الشريحة التانية) ====================
 // أول استهلاك فعلي لـpostJournalEntry() من خارج الإدخال اليدوي.
 
-/** خريطة الحسابات القياسية بالأكواد (مش UUIDs) — بتتحل لـids وقت الترحيل بـresolveAccountIds().
- * v1 مقصودة: خريطة ثابتة موثّقة بدل جدول تكوين. نظام ناضج بيخلّيها قابلة للتعديل من الواجهة —
- * مسجّل في BACKLOG.md. الأكواد دي مزروعة في prisma/seed.ts (STANDARD_CHART_OF_ACCOUNTS). */
-export const GL_ACCOUNTS = {
-  CASH: "1010",
-  AR: "1020",
-  VAT_INPUT: "1040",
-  AP: "2010",
-  VAT_OUTPUT: "2030",
-  LOANS_PAYABLE: "2040",
-  REVENUE: "4010",
-  INTEREST_INCOME: "4020",
-  COGS: "5010",
-  BANK_CHARGES: "6040",
-  INTEREST_EXPENSE: "6050",
-  ACCUMULATED_DEPRECIATION: "1050",
-  FIXED_ASSETS_COST: "1060",
-  DEPRECIATION_EXPENSE: "6060",
-  ASSET_DISPOSAL_GAIN_LOSS: "7010",
-  SALES_COMMISSIONS: "6020",
-} as const;
+export { GL_ACCOUNTS } from "./glAccounts";
+import { GL_ACCOUNTS } from "./glAccounts";
 
 type GlAccountKey = keyof typeof GL_ACCOUNTS;
 

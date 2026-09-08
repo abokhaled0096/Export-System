@@ -2,33 +2,12 @@ import { Prisma } from "@/generated/prisma/client";
 import { requireCurrentUser } from "@/lib/session";
 import { requirePermission } from "@/lib/permissions";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
-import { GL_ACCOUNTS } from "@/lib/accounting";
+import { BUDGET_TYPE_ACCOUNT_RULES, type BudgetActualRule } from "@/lib/budget";
 import BudgetForm, { type PeriodOption, type CostCenterOption } from "./BudgetForm";
 import { budgetTypeLabel } from "@/lib/treasuryLabels";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export const dynamic = "force-dynamic";
-
-/** خريطة نوع الموازنة → الحسابات المعنية واتجاه الحركة الطبيعي لها. ده اللي بيخلّي "الفعلي"
- * يتحسب من الدفتر مباشرة بدل ما يتكتب — أول استخدام فعلي لـJournalLine.costCenterId (موجود من
- * الشريحة الأولى، بلا استخدام عملي لحد الشريحة دي).
- *
- * كل نوع إما بيتحدد بـ`accountType` واسع (Sales/Purchase/OPEX — كل الحسابات من النوع ده)
- * أو بـ`accountCodes` محدَّدة (CAPEX/Cash — حساب بعينه، مش النوع كله).
- *
- * ⚠️ إصلاح عيب حقيقي: النسخة الأولى كانت بتفلتر CAPEX وCash بنوع الحساب المحاسبي بالكامل
- * (Asset) — يعني أي بند "استثمار رأسمالي" كان بيجمع كل حركة أصول في الفترة (نقدية، ذمم مدينة،
- * ض.ق.م مدخلات، مجمّع إهلاك...) مش شراء أصول ثابتة بس، ونفس المشكلة لـCash. الإصلاح: تحديد
- * أكواد الحسابات بالظبط — CAPEX = 1060 (الأصول الثابتة بالتكلفة) فقط، Cash = 1010 (النقدية) فقط. */
-type BudgetActualRule = { direction: "debit" | "credit" } & ({ accountType: string } | { accountCodes: string[] });
-
-const BUDGET_TYPE_ACCOUNT_RULES: Record<string, BudgetActualRule> = {
-  Sales: { accountType: "Revenue", direction: "credit" },
-  Purchase: { accountType: "COGS", direction: "debit" },
-  OPEX: { accountType: "Expense", direction: "debit" },
-  CAPEX: { accountCodes: [GL_ACCOUNTS.FIXED_ASSETS_COST], direction: "debit" },
-  Cash: { accountCodes: [GL_ACCOUNTS.CASH], direction: "debit" },
-};
 
 export default async function BudgetsPage() {
   const user = await requireCurrentUser();

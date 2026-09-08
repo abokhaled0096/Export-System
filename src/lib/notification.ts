@@ -115,3 +115,22 @@ export async function notifyChangeRequestApprovers(
     relatedEntityId: params.requestId,
   });
 }
+
+/** إشعار كل حاملي Budget.View بتجاوز بند موازنة — بيتنادى من checkBudgetAlerts
+ * (src/lib/budget.ts) بعد ترحيل قيد يخلّي الفعلي يعدّي الموازنة لأول مرة. بلا excludeUserId —
+ * مفيش "مقدّم طلب" هنا، أي حد بيرحّل قيد عادي ممكن يكون هو نفسه اللي يستفيد من التنبيه. */
+export async function notifyBudgetExceeded(
+  tx: ScopedTx,
+  params: { orgId: string; budgetId: string; budgetTypeLabel: string; costCenterLabel: string; periodName: string; amount: string; actual: string }
+): Promise<void> {
+  await notifyUsersWithPermission(tx, {
+    orgId: params.orgId,
+    resource: "Budget",
+    action: "View",
+    notificationType: "budget.exceeded",
+    title: "تجاوز موازنة",
+    body: `${params.budgetTypeLabel} — ${params.costCenterLabel} (${params.periodName}): الفعلي ${params.actual} تجاوز الموازنة ${params.amount}`,
+    relatedEntityType: "Budget",
+    relatedEntityId: params.budgetId,
+  });
+}
