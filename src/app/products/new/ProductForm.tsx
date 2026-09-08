@@ -7,9 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { COUNTRIES_AR } from "@/lib/countries";
 
 const initialState: ProductFormState = {};
 const monthLabel = ["", "يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
+const PRODUCT_CATEGORIES = ["فواكه طازجة", "فواكه مجمدة", "فواكه مجففة", "خضروات", "حبوب"];
 
 function Field({
   label,
@@ -56,15 +59,44 @@ export default function ProductForm() {
           required
           placeholder="0811.10"
         />
-        <Field label="الفئة" name="category" error={state.errors?.category} required />
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="category">
+            الفئة<span className="text-destructive"> *</span>
+          </Label>
+          <Select name="category" defaultValue={PRODUCT_CATEGORIES[0]}>
+            <SelectTrigger id="category">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PRODUCT_CATEGORIES.map((c) => (
+                <SelectItem key={c} value={c}>
+                  {c}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {state.errors?.category && <span className="text-xs text-destructive">{state.errors.category[0]}</span>}
+        </div>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Field
-          label="بلد المنشأ"
-          name="originCountry"
-          error={state.errors?.originCountry}
-          required
-        />
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="originCountry">
+            بلد المنشأ<span className="text-destructive"> *</span>
+          </Label>
+          <Select name="originCountry" defaultValue="مصر">
+            <SelectTrigger id="originCountry">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {COUNTRIES_AR.map((c) => (
+                <SelectItem key={c} value={c}>
+                  {c}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {state.errors?.originCountry && <span className="text-xs text-destructive">{state.errors.originCountry[0]}</span>}
+        </div>
         <Field label="موسم الحصاد" name="harvestSeason" error={state.errors?.harvestSeason} />
       </div>
       <div className="grid items-end gap-4 grid-cols-1 sm:grid-cols-2">
