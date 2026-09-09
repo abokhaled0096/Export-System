@@ -7,7 +7,7 @@ import { getScopedPrisma, withScopedTransaction } from "@/lib/scoped-prisma";
 import { requireCurrentUser } from "@/lib/session";
 import { requirePermission } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
-import { analyzeCompetitorsWithAI } from "@/lib/ai/analyzeCompetitors";
+import { analyzeCompetitorsWithAI, type AiCompetitor } from "@/lib/ai/analyzeCompetitors";
 import { logError, isNextControlFlowError, businessRuleMessage } from "@/lib/errorLog";
 
 const monthsField = z
@@ -98,6 +98,49 @@ export type AiCompetitorsFormState = {
   formError?: string;
 };
 
+/** بيحفظ نتايج بحث AI عن المنافسين (منتج+سوق اتفحصوا بالفعل) — مستخرجة من createAiCompetitors
+ * عشان processNextBatchItem في batchActions.ts يقدر يستخدم نفس منطق الحفظ بالحرف في دفعة "ابحث عن
+ * منافسين لكل المنتجات × كل الأسواق". بيرجّع id أول صف اتسجّل (يُستخدم كـresultId للـbatch item). */
+export async function saveAiCompetitors(
+  orgId: string,
+  userId: string,
+  product: { id: string },
+  market: { id: string },
+  results: AiCompetitor[]
+): Promise<string> {
+  return withScopedTransaction(async (tx) => {
+    let firstId = "";
+    for (const c of results) {
+      const competitor = await tx.competitor.create({
+        data: {
+          orgId,
+          productId: product.id,
+          marketId: market.id,
+          countryName: c.countryName,
+          strengthMonths: c.strengthMonths,
+          weaknessMonths: c.weaknessMonths,
+          priceRangeMin: c.priceRangeMin ?? undefined,
+          priceRangeMax: c.priceRangeMax ?? undefined,
+          currency: c.currency.toUpperCase(),
+          source: "AI",
+          aiReasoning: c.reasoning,
+          aiSources: c.sources,
+        },
+      });
+      if (!firstId) firstId = competitor.id;
+      await logAudit(tx, {
+        orgId,
+        userId,
+        action: "competitor.aiCreated",
+        entityType: "Competitor",
+        entityId: competitor.id,
+        afterValue: { countryName: c.countryName },
+      });
+    }
+    return firstId;
+  });
+}
+
 /** بحث آلي حقيقي عن المنافسين (web_search) — بيرجّع 0 لحد 10 صف دفعة واحدة، كل صف مستقل
  * قابل للمراجعة/الحذف بعد كده زي أي بيانات تانية، مش "حقيقة نهائية" بلا مراجعة بشرية. */
 export async function createAiCompetitors(_prevState: AiCompetitorsFormState, formData: FormData): Promise<AiCompetitorsFormState> {
@@ -122,34 +165,7 @@ export async function createAiCompetitors(_prevState: AiCompetitorsFormState, fo
       return { formError: "الذكاء الاصطناعي بحث فعليًا ومالقاش منافسين حقيقيين مؤكَّدين لهذا المنتج/السوق — جرّب منتج أو سوق تاني، أو سجّل منافس معروف يدويًا." };
     }
 
-    await withScopedTransaction(async (tx) => {
-      for (const c of results) {
-        const competitor = await tx.competitor.create({
-          data: {
-            orgId: user.orgId,
-            productId: product.id,
-            marketId: market.id,
-            countryName: c.countryName,
-            strengthMonths: c.strengthMonths,
-            weaknessMonths: c.weaknessMonths,
-            priceRangeMin: c.priceRangeMin ?? undefined,
-            priceRangeMax: c.priceRangeMax ?? undefined,
-            currency: c.currency.toUpperCase(),
-            source: "AI",
-            aiReasoning: c.reasoning,
-            aiSources: c.sources,
-          },
-        });
-        await logAudit(tx, {
-          orgId: user.orgId,
-          userId: user.id,
-          action: "competitor.aiCreated",
-          entityType: "Competitor",
-          entityId: competitor.id,
-          afterValue: { countryName: c.countryName },
-        });
-      }
-    });
+    await saveAiCompetitors(user.orgId, user.id, product, market, results);
   } catch (e) {
     if (isNextControlFlowError(e)) throw e;
     await logError({ orgId: user.orgId, userId: user.id, action: "createAiCompetitors", error: e });

@@ -518,12 +518,80 @@ model ProductMarketAnalysis {
   aiReasoning      String?
   /// [{title, url}] من نتائج web_search الفعلية اللي اعتمد عليها التحليل.
   aiSources        Json?
+  /// 8 سبتمبر: تقرير أغنى بدل فقرة واحدة — {marketOverview, demandDrivers[], keyRisks[],
+  /// regulatoryNotes, priceEstimate:{min,max,currency}, recommendedNextSteps[]}. عمود واحد
+  /// (بدل أعمدة كتير) نفس فلسفة aiSources — فاضي لتحاليل قديمة/يدوية قبل الترقية.
+  aiDetails        Json?
 
   product Product @relation(fields: [productId], references: [id])
   market  Market  @relation(fields: [marketId], references: [id])
 
   @@index([orgId])
   @@index([productId, marketId])
+}
+
+enum BatchAnalysisKind {
+  MarketAnalysis
+  Competitors
+}
+
+enum AiBatchStatus {
+  Pending
+  Running
+  Completed
+  Failed
+  Cancelled
+}
+
+enum BatchItemStatus {
+  Pending
+  Running
+  Succeeded
+  Failed
+}
+
+/// 8 سبتمبر: تشغيل تحليل AI على كل تركيبة (منتج × سوق) دفعة واحدة، بطلب صريح من المستخدم بعد
+/// ما جرّب التحليل الفردي ولقاه ضيق النطاق. مفيش بنية Cron/Queue في المشروع (BACKLOG.md) — المعالجة
+/// بتتم بمعالجة مدفوعة من المتصفح (processNextBatchItem بينادَى بـpolling من العميل)، كل نداء
+/// بيعالج تركيبة واحدة بس عشان يتفادى أي timeout. راجع src/app/analysis/batchActions.ts.
+model AiAnalysisBatch {
+  id             String            @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId          String            @db.Uuid
+  kind           BatchAnalysisKind
+  year           Int
+  status         AiBatchStatus       @default(Pending)
+  totalPairs     Int
+  succeededCount Int               @default(0)
+  failedCount    Int               @default(0)
+  createdBy      String            @db.Uuid
+  createdAt      DateTime          @default(now())
+  completedAt    DateTime?
+
+  items AiAnalysisBatchItem[]
+
+  @@index([orgId])
+}
+
+/// productId/marketId عمدًا بلا Prisma relation لـProduct/Market (بلا حاجة لتحميل الصف كامل هنا؛
+/// صفحة التقدّم بتجيب أسماء المنتجات/الأسواق منفصل زي analysis/ai/new/page.tsx) — نفس نمط
+/// startBatch اللي بيتحقق من وجود المنتج/السوق في نفس المنظمة قبل الإنشاء، زي createAnalysis.
+model AiAnalysisBatchItem {
+  id           String          @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId        String          @db.Uuid
+  batchId      String          @db.Uuid
+  productId    String          @db.Uuid
+  marketId     String          @db.Uuid
+  status       BatchItemStatus @default(Pending)
+  /// ProductMarketAnalysis.id (تحليل سوق) أو أول Competitor.id من المجموعة الناتجة (بحث منافسين).
+  resultId     String?         @db.Uuid
+  errorMessage String?
+  startedAt    DateTime?
+  completedAt  DateTime?
+
+  batch AiAnalysisBatch @relation(fields: [batchId], references: [id])
+
+  @@index([orgId])
+  @@index([batchId, status])
 }
 
 /// منافسين حقيقيين لمنتج/سوق (ERD §194) — بحث آلي بالذكاء الاصطناعي (Manual/AI زي

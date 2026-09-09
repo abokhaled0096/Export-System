@@ -5,6 +5,8 @@ import { getScopedPrisma } from "@/lib/scoped-prisma";
 import { PAGE_SIZE, parsePage } from "@/lib/pagination";
 import Pagination from "@/components/Pagination";
 import DeleteCompetitorButton from "./DeleteCompetitorButton";
+import { startCompetitorsBatchAction } from "@/app/analysis/batchActions";
+import BulkAnalysisButton from "@/app/analysis/BulkAnalysisButton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -68,6 +70,17 @@ export default async function CompetitorsPage({ searchParams }: { searchParams: 
           <span className="rounded-lg bg-muted px-4 py-2 text-sm text-muted-foreground">محتاج منتج وسوق الأول</span>
         )}
       </div>
+
+      {canCreate && (
+        <div className="mt-4">
+          <BulkAnalysisButton
+            action={startCompetitorsBatchAction}
+            label="📊 ابحث عن منافسين لكل المنتجات × كل الأسواق"
+            description="هيبحث عن منافسين حقيقيين لكل تركيبة منتج/سوق نشطة دفعة واحدة (حد أقصى 50 تركيبة) — ممكن ياخد لغاية 20-25 دقيقة، وشريط تقدّم حي هيظهرلك أول بأول."
+            colorClass="bg-indigo-700 text-white hover:bg-indigo-800"
+          />
+        </div>
+      )}
 
       {!canCreate && (
         <p className="mt-4 w-fit rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-700">

@@ -2,7 +2,7 @@ import type OpenAI from "openai";
 import { z } from "zod";
 import { getAiClientForOrg } from "./client";
 import { parseJsonBlock, extractSources, describeOpenAiError } from "./openaiHelpers";
-import { tavilySearch, formatSourcesForPrompt } from "./tavilySearch";
+import { multiTavilySearch, formatSourcesForPrompt } from "./tavilySearch";
 
 const CompetitorResultSchema = z.object({
   countryName: z.string().min(1),
@@ -74,10 +74,11 @@ ${product.availableMonths.length > 0 ? `مواسم توفّر المنتج عن�
   if (tavilyApiKey) {
     let searchResults;
     try {
-      searchResults = await tavilySearch(
-        tavilyApiKey,
-        `${product.nameEn} export competitors countries ${market.countryNameEn} import 2026 price season`
-      );
+      searchResults = await multiTavilySearch(tavilyApiKey, [
+        `${product.nameEn} exporting countries competitors ${market.countryNameEn} import 2026`,
+        `${product.nameEn} export season harvest calendar top producing countries`,
+        `${product.nameEn} export price per kg competitors ${market.countryNameEn}`,
+      ]);
     } catch (e) {
       throw e instanceof Error ? e : new Error("حصل خطأ أثناء البحث الحقيقي عن المنافسين.");
     }

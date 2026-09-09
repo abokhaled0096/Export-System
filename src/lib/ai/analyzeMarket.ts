@@ -2,7 +2,15 @@ import type OpenAI from "openai";
 import { z } from "zod";
 import { getAiClientForOrg } from "./client";
 import { parseJsonBlock, extractSources, describeOpenAiError } from "./openaiHelpers";
-import { tavilySearch, formatSourcesForPrompt } from "./tavilySearch";
+import { multiTavilySearch, formatSourcesForPrompt } from "./tavilySearch";
+
+const PriceEstimateSchema = z
+  .object({
+    min: z.number().nullable(),
+    max: z.number().nullable(),
+    currency: z.string().length(3),
+  })
+  .nullable();
 
 const AnalysisResultSchema = z.object({
   opportunityScore: z.number().int().min(0).max(100),
@@ -10,6 +18,12 @@ const AnalysisResultSchema = z.object({
   confidenceLevel: z.number().int().min(0).max(100),
   recommendation: z.enum(["Start", "Study", "Monitor", "Avoid"]),
   reasoning: z.string().min(20),
+  marketOverview: z.string().min(20),
+  demandDrivers: z.array(z.string().min(3)).max(8),
+  keyRisks: z.array(z.string().min(3)).max(8),
+  regulatoryNotes: z.string().min(10),
+  priceEstimate: PriceEstimateSchema,
+  recommendedNextSteps: z.array(z.string().min(3)).max(8),
 });
 
 export type AiMarketAnalysis = z.infer<typeof AnalysisResultSchema> & {
@@ -27,19 +41,25 @@ const JSON_INSTRUCTIONS = `في آخر ردك، وبعد ما تخلص تحلي�
   "riskScore": <رقم من 0 إلى 100>,
   "confidenceLevel": <رقم من 0 إلى 100 — مدى ثقتك في التقييم ده بناءً على جودة المعلومات اللي لقيتها>,
   "recommendation": "<Start أو Study أو Monitor أو Avoid>",
-  "reasoning": "<فقرة عربية واضحة تشرح سبب الدرجات والتوصية، بالاستناد لحاجات حقيقية لقيتها بالبحث>"
+  "reasoning": "<فقرة عربية واضحة تشرح سبب الدرجات والتوصية، بالاستناد لحاجات حقيقية لقيتها بالبحث>",
+  "marketOverview": "<فقرة عربية عن حجم السوق ومعدل نموه واتجاهه العام>",
+  "demandDrivers": ["<سبب طلب حقيقي 1>", "<سبب طلب حقيقي 2>", "..."],
+  "keyRisks": ["<خطر حقيقي 1>", "<خطر حقيقي 2>", "..."],
+  "regulatoryNotes": "<لوائح استيراد/تعريفات جمركية/شهادات مطلوبة لهذا المنتج في هذه الدولة تحديدًا>",
+  "priceEstimate": {"min": <رقم أو null>, "max": <رقم أو null>, "currency": "<كود عملة ISO 4217>"} أو null لو مفيش بيانات سعر حقيقية،
+  "recommendedNextSteps": ["<خطوة عملية موصى بها 1>", "<خطوة عملية موصى بها 2>", "..."]
 }
 \`\`\`
 
-القاعدة: أي درجة بلا سبب واضح في reasoning غير مقبولة — لازم يبان في التبرير إيه اللي أثّر على القرار.`;
+القاعدة: أي درجة أو بند بلا سبب واضح غير مقبول — لازم يبان في النص إيه اللي أثّر على القرار. لو معلومة معيّنة (زي السعر) مش متوفرة فعليًا في البحث، سيبها null/فاضية بدل ما تخترعها.`;
 
 const SYSTEM_PROMPT_LEGACY = `أنت محلل أسواق تصدير خبير. مهمتك تحليل فرصة تصدير منتج مصري لسوق دولة معيّنة، بالاعتماد على بحث حقيقي وحديث في الإنترنت (أسعار، منافسين، لوائح استيراد، اتفاقيات تجارية، طلب فعلي) — مش تخمين عام.
 
-استخدم أداة البحث بقدر ما تحتاج للتأكد من معلومات حديثة فعلية عن السوق ده تحديدًا للمنتج ده تحديدًا.
+استخدم أداة البحث بقدر ما تحتاج للتأكد من معلومات حديثة فعلية عن السوق ده تحديدًا للمنتج ده تحديدًا. ابحث عن حجم السوق ومعدل نموه، اللوائح التنظيمية والتعريفات الجمركية والشهادات المطلوبة، ونطاق الأسعار الفعلي — مش تقييم سطحي برقم واحد بس.
 
 ${JSON_INSTRUCTIONS}`;
 
-const SYSTEM_PROMPT_TAVILY = `أنت محلل أسواق تصدير خبير. مهمتك تحليل فرصة تصدير منتج مصري لسوق دولة معيّنة، بالاعتماد **حصريًا** على نتائج البحث الحقيقية المرفقة في رسالة المستخدم تحت (أسعار، منافسين، لوائح استيراد، اتفاقيات تجارية، طلب فعلي) — ممنوع تختراع أو تفترض معلومة مش موجودة في النتائج المرفقة؛ لو المعلومة ناقصة، قول كده صراحة في التبرير وقلّل confidenceLevel.
+const SYSTEM_PROMPT_TAVILY = `أنت محلل أسواق تصدير خبير. مهمتك تحليل فرصة تصدير منتج مصري لسوق دولة معيّنة، بالاعتماد **حصريًا** على نتائج البحث الحقيقية المرفقة في رسالة المستخدم تحت (أسعار، منافسين، لوائح استيراد، اتفاقيات تجارية، طلب فعلي) — ممنوع تختراع أو تفترض معلومة مش موجودة في النتائج المرفقة؛ لو المعلومة ناقصة، قول كده صراحة في الحقل المناسب (نص يوضح النقص، أو null للأرقام) وقلّل confidenceLevel.
 
 ${JSON_INSTRUCTIONS}`;
 
@@ -58,10 +78,11 @@ export async function analyzeMarketWithAI(
   if (tavilyApiKey) {
     let searchResults;
     try {
-      searchResults = await tavilySearch(
-        tavilyApiKey,
-        `${product.nameEn} export import ${market.countryNameEn} 2026 market demand price regulations tariffs`
-      );
+      searchResults = await multiTavilySearch(tavilyApiKey, [
+        `${product.nameEn} demand market size growth ${market.countryNameEn} 2026`,
+        `${product.nameEn} import regulations tariffs certification requirements ${market.countryNameEn}`,
+        `${product.nameEn} export price competition ${market.countryNameEn} 2026`,
+      ]);
     } catch (e) {
       throw e instanceof Error ? e : new Error("حصل خطأ أثناء البحث الحقيقي عن السوق.");
     }

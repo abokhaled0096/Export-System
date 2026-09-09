@@ -1911,6 +1911,18 @@ async function main() {
     const changeRequestsAsB = await asUser(userB.id, (tx) => tx.masterDataChangeRequest.findMany({ where: { id: changeRequestA.id } }));
     record("userB مايشوفش MasterDataChangeRequest بتاع orgA (عزل RLS)", changeRequestsAsB.length === 0);
 
+    // 8 سبتمبر: AiAnalysisBatch/AiAnalysisBatchItem — تشغيل تحليل AI على كل تركيبة (منتج × سوق) دفعة واحدة.
+    const aiBatchA = await asUser(userA.id, (tx) =>
+      tx.aiAnalysisBatch.create({ data: { orgId: orgA.id, kind: "MarketAnalysis", year: 2026, totalPairs: 1, createdBy: userA.id } })
+    );
+    const aiBatchItemA = await asUser(userA.id, (tx) =>
+      tx.aiAnalysisBatchItem.create({ data: { orgId: orgA.id, batchId: aiBatchA.id, productId: productA.id, marketId: marketA.id } })
+    );
+    const aiBatchesAsB = await asUser(userB.id, (tx) => tx.aiAnalysisBatch.findMany({ where: { id: aiBatchA.id } }));
+    record("userB مايشوفش AiAnalysisBatch بتاع orgA (عزل RLS)", aiBatchesAsB.length === 0);
+    const aiBatchItemsAsB = await asUser(userB.id, (tx) => tx.aiAnalysisBatchItem.findMany({ where: { id: aiBatchItemA.id } }));
+    record("userB مايشوفش AiAnalysisBatchItem بتاع orgA (عزل RLS)", aiBatchItemsAsB.length === 0);
+
     // ---------- 37) تدفّق Verify/Close لـCAPA — تفعيل حالة حقيقية بدل create-only ----------
 
     // (أ) status=Overdue مباشرة — لازم يترفض (حالة محسوبة مش قيمة تُكتب)
@@ -2133,6 +2145,8 @@ async function main() {
     await prisma.opportunity.deleteMany({ where: { orgId: { in: [orgA.id, orgB.id] } } });
     await prisma.company.deleteMany({ where: { orgId: { in: [orgA.id, orgB.id] } } });
     await prisma.competitor.deleteMany({ where: { orgId: { in: [orgA.id, orgB.id] } } });
+    await prisma.aiAnalysisBatchItem.deleteMany({ where: { orgId: { in: [orgA.id, orgB.id] } } });
+    await prisma.aiAnalysisBatch.deleteMany({ where: { orgId: { in: [orgA.id, orgB.id] } } });
     await prisma.market.deleteMany({ where: { orgId: { in: [orgA.id, orgB.id] } } });
     await prisma.auditLog.deleteMany({ where: { orgId: { in: [orgA.id, orgB.id] } } });
     await prisma.product.deleteMany({ where: { orgId: { in: [orgA.id, orgB.id] } } });

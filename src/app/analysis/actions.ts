@@ -7,7 +7,7 @@ import { getScopedPrisma, withScopedTransaction } from "@/lib/scoped-prisma";
 import { requireCurrentUser } from "@/lib/session";
 import { requirePermission } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
-import { analyzeMarketWithAI } from "@/lib/ai/analyzeMarket";
+import { analyzeMarketWithAI, type AiMarketAnalysis } from "@/lib/ai/analyzeMarket";
 import { computeOpportunityRiskSuggestion, type ScoringResult } from "@/lib/opportunityScoring";
 import { logError, isNextControlFlowError, businessRuleMessage } from "@/lib/errorLog";
 
@@ -127,6 +127,58 @@ export type AiAnalysisFormState = {
   formError?: string;
 };
 
+/** بيحفظ نتيجة تحليل AI جاهزة (منتج+سوق اتفحصوا واتحقق منهم بالفعل) — مستخرجة من createAiAnalysis
+ * عشان processNextBatchItem في batchActions.ts يقدر يستخدم نفس منطق الحفظ بالحرف لكل تركيبة في
+ * دفعة "حلّل كل المنتجات × كل الأسواق"، بلا تكرار كود. */
+export async function saveAiMarketAnalysis(
+  orgId: string,
+  userId: string,
+  product: { id: string },
+  market: { id: string },
+  year: number,
+  result: AiMarketAnalysis
+): Promise<string> {
+  return withScopedTransaction(async (tx) => {
+    const analysis = await tx.productMarketAnalysis.create({
+      data: {
+        orgId,
+        productId: product.id,
+        marketId: market.id,
+        year,
+        opportunityScore: result.opportunityScore,
+        riskScore: result.riskScore,
+        confidenceLevel: result.confidenceLevel,
+        recommendation: result.recommendation,
+        source: "AI",
+        aiReasoning: result.reasoning,
+        aiSources: result.sources,
+        aiDetails: {
+          marketOverview: result.marketOverview,
+          demandDrivers: result.demandDrivers,
+          keyRisks: result.keyRisks,
+          regulatoryNotes: result.regulatoryNotes,
+          priceEstimate: result.priceEstimate,
+          recommendedNextSteps: result.recommendedNextSteps,
+        },
+      },
+    });
+
+    await logAudit(tx, {
+      orgId,
+      userId,
+      action: "productMarketAnalysis.aiCreated",
+      entityType: "ProductMarketAnalysis",
+      entityId: analysis.id,
+      afterValue: {
+        opportunityScore: result.opportunityScore,
+        riskScore: result.riskScore,
+        recommendation: result.recommendation,
+      },
+    });
+    return analysis.id;
+  });
+}
+
 export async function createAiAnalysis(
   _prevState: AiAnalysisFormState,
   formData: FormData
@@ -152,38 +204,7 @@ export async function createAiAnalysis(
     if (!product || !market) return { formError: "المنتج أو السوق غير موجودين." };
 
     const result = await analyzeMarketWithAI(product, market, user.orgId);
-
-    analysisId = await withScopedTransaction(async (tx) => {
-      const analysis = await tx.productMarketAnalysis.create({
-        data: {
-          orgId: user.orgId,
-          productId: product.id,
-          marketId: market.id,
-          year: parsed.data.year,
-          opportunityScore: result.opportunityScore,
-          riskScore: result.riskScore,
-          confidenceLevel: result.confidenceLevel,
-          recommendation: result.recommendation,
-          source: "AI",
-          aiReasoning: result.reasoning,
-          aiSources: result.sources,
-        },
-      });
-
-      await logAudit(tx, {
-        orgId: user.orgId,
-        userId: user.id,
-        action: "productMarketAnalysis.aiCreated",
-        entityType: "ProductMarketAnalysis",
-        entityId: analysis.id,
-        afterValue: {
-          opportunityScore: result.opportunityScore,
-          riskScore: result.riskScore,
-          recommendation: result.recommendation,
-        },
-      });
-      return analysis.id;
-    });
+    analysisId = await saveAiMarketAnalysis(user.orgId, user.id, product, market, parsed.data.year, result);
   } catch (e) {
     if (isNextControlFlowError(e)) throw e;
     await logError({ orgId: user.orgId, userId: user.id, action: "createAiAnalysis", error: e });

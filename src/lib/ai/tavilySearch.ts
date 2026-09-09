@@ -23,6 +23,15 @@ export async function tavilySearch(apiKey: string, query: string, maxResults = 6
   return (data.results ?? []).map((r) => ({ title: r.title, url: r.url, content: r.content }));
 }
 
+/** بحث أعمق — عدة استعلامات مركّزة بالتوازي بدل استعلام واحد سطحي، بطلب صريح من المستخدم بعد
+ * ما شاف نتيجة تحليل حقيقية لكن سطحية. النتائج بتتجمّع وتتشال منها التكرارات (بنفس الرابط) —
+ * لو استعلامين رجّعوا نفس المصدر، بيتحسب مرة واحدة بس. التكلفة: اعتماد Tavily واحد لكل استعلام. */
+export async function multiTavilySearch(apiKey: string, queries: string[], maxResultsPerQuery = 5): Promise<TavilySource[]> {
+  const results = await Promise.all(queries.map((q) => tavilySearch(apiKey, q, maxResultsPerQuery)));
+  const seen = new Set<string>();
+  return results.flat().filter((s) => (seen.has(s.url) ? false : (seen.add(s.url), true)));
+}
+
 /** بيجهّز نتائج Tavily كنص سياق مرقّم يتحط في رسالة المستخدم للموديل. */
 export function formatSourcesForPrompt(sources: TavilySource[]): string {
   if (sources.length === 0) return "(مفيش نتائج بحث — قيّم بناءً على معرفتك العامة وقول ده صراحة في التبرير)";

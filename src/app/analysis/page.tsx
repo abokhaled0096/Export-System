@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
+import { startMarketAnalysisBatchAction } from "./batchActions";
+import BulkAnalysisButton from "./BulkAnalysisButton";
 import { getCurrentOrgId } from "@/lib/org";
 import { requireCurrentUser } from "@/lib/session";
 import { requirePermission } from "@/lib/permissions";
@@ -88,6 +90,17 @@ export default async function AnalysisPage({
           </span>
         )}
       </div>
+
+      {canCreate && (
+        <div className="mt-4">
+          <BulkAnalysisButton
+            action={startMarketAnalysisBatchAction}
+            label="📊 حلّل كل المنتجات × كل الأسواق"
+            description="هيحلّل كل تركيبة منتج/سوق نشطة دفعة واحدة (حد أقصى 50 تركيبة) — ممكن ياخد لغاية 20-25 دقيقة، وشريط تقدّم حي هيظهرلك أول بأول."
+            colorClass="bg-indigo-700 text-white hover:bg-indigo-800"
+          />
+        </div>
+      )}
 
       {!canCreate && (
         <p className="mt-4 w-fit rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-700">
