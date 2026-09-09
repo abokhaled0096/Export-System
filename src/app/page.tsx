@@ -24,7 +24,9 @@ export default async function Home() {
   // transaction لوحده، والتنفيذ بالتوازي بيتزاحم على اتصال الـpool).
   const productCount = await prisma.product.count({ where: { orgId, deletedAt: null } });
   const marketCount = await prisma.market.count({ where: { orgId, deletedAt: null } });
-  const analysisCount = await prisma.productMarketAnalysis.count({ where: { orgId } });
+  // supersededAt: null — نسخ التحليل القديمة لنفس التركيبة (راجع migration 20260909120000)
+  // مش المفروض تتحسب هنا، وإلا العدّاد يبقى أكبر من عدد التحاليل "الفعلية" اللي المستخدم شايفها.
+  const analysisCount = await prisma.productMarketAnalysis.count({ where: { orgId, supersededAt: null } });
   const companyCount = await prisma.company.count({ where: { orgId, deletedAt: null } });
   const opportunityCount = await prisma.opportunity.count({ where: { orgId, deletedAt: null } });
 

@@ -49,7 +49,7 @@ export default async function MarketDetailPage({ params }: { params: Promise<{ i
 
   // ⚠️ مش Promise.all — راجع BACKLOG.md (P2028).
   const analyses = await prisma.productMarketAnalysis.findMany({
-    where: { marketId: id, orgId },
+    where: { marketId: id, orgId, supersededAt: null },
     include: { product: true },
     orderBy: { createdAt: "desc" },
     take: 20,

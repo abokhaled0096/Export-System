@@ -159,6 +159,7 @@ export async function saveAiMarketAnalysis(
           regulatoryNotes: result.regulatoryNotes,
           priceEstimate: result.priceEstimate,
           recommendedNextSteps: result.recommendedNextSteps,
+          rejectedSourcesCount: result.rejectedSourcesCount,
         },
       },
     });

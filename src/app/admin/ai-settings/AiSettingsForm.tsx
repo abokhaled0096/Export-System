@@ -85,9 +85,12 @@ export default function AiSettingsForm({
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="ai-model" className="text-xs">
-              الموديل
+              الموديل (أو أكتر من واحد بفاصلة — الأول أساسي والباقي احتياطي)
             </Label>
-            <Input id="ai-model" name="model" defaultValue={currentModel ?? ""} placeholder="افتراضي (gpt-4o-mini)" className="w-48 font-mono" dir="ltr" />
+            <Input id="ai-model" name="model" defaultValue={currentModel ?? ""} placeholder="افتراضي (gpt-4o-mini)" className="w-96 font-mono" dir="ltr" />
+            <span className="text-[11px] text-muted-foreground">
+              لو الموديل الأساسي كوتته خلصت أو مزحوم، النظام بيجرّب اللي بعده تلقائيًا بدل ما يفشل التحليل.
+            </span>
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="tavily-api-key" className="text-xs">

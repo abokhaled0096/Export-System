@@ -28,11 +28,14 @@ export async function startBatch(kind: BatchKind, year: number): Promise<StartBa
     const prisma = await getScopedPrisma();
 
     // ⚠️ مش Promise.all — راجع BACKLOG.md (P2028).
-    const products = await prisma.product.findMany({ where: { orgId: user.orgId, deletedAt: null }, select: { id: true } });
+    // status: "Verified" بس — مش أي منتج مسجّل. اتكشف حيًا (9 سبتمبر) إن الدفعة الشاملة كانت
+    // بتحلّل منتجات اختبار/مكرّرة لسه Draft زي أي منتج حقيقي، وبتهدر كوتة AI على بيانات وهمية.
+    // منتج بيتحوّل لـVerified بفورم /products/[id] بعد ما بياناته تتراجع وتتأكد.
+    const products = await prisma.product.findMany({ where: { orgId: user.orgId, deletedAt: null, status: "Verified" }, select: { id: true } });
     const markets = await prisma.market.findMany({ where: { orgId: user.orgId, deletedAt: null }, select: { id: true } });
 
     const totalPairs = products.length * markets.length;
-    if (totalPairs === 0) return { formError: "محتاج منتج وسوق واحد على الأقل مسجَّلين." };
+    if (totalPairs === 0) return { formError: "محتاج منتج بحالة \"Verified\" وسوق واحد على الأقل مسجَّلين — منتجات Draft متستبعدة من التحليل الشامل عمدًا." };
     if (totalPairs > MAX_PAIRS_PER_BATCH) {
       return {
         formError: `عدد التركيبات الحالي (${products.length} منتج × ${markets.length} سوق = ${totalPairs}) أكبر من الحد الأقصى المسموح (${MAX_PAIRS_PER_BATCH}) للدفعة الواحدة — قلّل عدد المنتجات أو الأسواق النشطة، أو شغّل الدفعة على دفعات.`,
@@ -137,7 +140,18 @@ export async function processNextBatchItem(batchId: string): Promise<BatchView> 
   if (batch.status === "Pending") {
     await prisma.aiAnalysisBatch.update({ where: { id: batch.id }, data: { status: "Running" } });
   }
-  await prisma.aiAnalysisBatchItem.update({ where: { id: next.id }, data: { status: "Running", startedAt: new Date() } });
+
+  // Claim ذري بـupdateMany (بدل update عادي) — بيمنع نداءين متزامنين (تابين مفتوحين، أو Strict
+  // Mode في التطوير بيولّد نداءين للـeffect) من معالجة نفس التركيبة مرتين وزيادة العدّاد مرتين
+  // (اتلاحظ حيًا: succeededCount+failedCount بقوا أكبر من totalPairs). لو حد تاني سبقنا وكلايم
+  // التركيبة، claimed.count بيبقى 0 ونرجّع الحالة الحالية بلا معالجة إضافية.
+  const claimed = await prisma.aiAnalysisBatchItem.updateMany({
+    where: { id: next.id, status: "Pending" },
+    data: { status: "Running", startedAt: new Date() },
+  });
+  if (claimed.count === 0) {
+    return getBatchView(batchId);
+  }
 
   let succeeded = false;
   let resultId: string | null = null;

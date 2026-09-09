@@ -58,15 +58,19 @@ export default async function AnalysisPage({
   // ⚠️ مش Promise.all — راجع نفس الملاحظة في products/page.tsx (P2028). ده كان موجود من قبل
   // بصيغة Promise.all لـ3 استعلامات وشغّال بالصدفة (حظ في توقيت الاتصالات)، لحد ما ضفنا
   // استعلام رابع (total) وكشف المشكلة فعليًا.
+  // supersededAt: null — النسخة النشطة بس (راجع migration 20260909120000). النسخ القديمة لنفس
+  // التركيبة محفوظة في القاعدة للتاريخ، بس مش معروضة هنا افتراضيًا عشان القايمة متبقاش مليانة
+  // تكرارات لنفس (منتج × سوق × سنة).
   const analyses = await prisma.productMarketAnalysis.findMany({
-    where: { orgId },
+    where: { orgId, supersededAt: null },
     include: { product: true, market: true },
     orderBy: { createdAt: "desc" },
     skip: (page - 1) * PAGE_SIZE,
     take: PAGE_SIZE,
   });
-  const total = await prisma.productMarketAnalysis.count({ where: { orgId } });
+  const total = await prisma.productMarketAnalysis.count({ where: { orgId, supersededAt: null } });
   const productCount = await prisma.product.count({ where: { orgId, deletedAt: null } });
+  const verifiedProductCount = await prisma.product.count({ where: { orgId, deletedAt: null, status: "Verified" } });
   const marketCount = await prisma.market.count({ where: { orgId, deletedAt: null } });
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
@@ -91,15 +95,21 @@ export default async function AnalysisPage({
         )}
       </div>
 
-      {canCreate && (
+      {canCreate && verifiedProductCount > 0 && (
         <div className="mt-4">
           <BulkAnalysisButton
             action={startMarketAnalysisBatchAction}
             label="📊 حلّل كل المنتجات × كل الأسواق"
-            description="هيحلّل كل تركيبة منتج/سوق نشطة دفعة واحدة (حد أقصى 50 تركيبة) — ممكن ياخد لغاية 20-25 دقيقة، وشريط تقدّم حي هيظهرلك أول بأول."
+            description={`هيحلّل ${verifiedProductCount} منتج بحالة "Verified" × ${marketCount} سوق (حد أقصى 50 تركيبة) — منتجات Draft متستبعدة عمدًا عشان محتاج تراجع بياناتها الأول. ممكن ياخد لغاية 20-25 دقيقة، وشريط تقدّم حي هيظهرلك أول بأول.`}
             colorClass="bg-indigo-700 text-white hover:bg-indigo-800"
           />
         </div>
+      )}
+
+      {canCreate && verifiedProductCount === 0 && (
+        <p className="mt-4 w-fit rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-700">
+          التحليل الشامل محتاج منتج واحد على الأقل بحالة &quot;Verified&quot; — كل منتجاتك لسه Draft. راجع بيانات المنتج وغيّر حالته من صفحة تفاصيله.
+        </p>
       )}
 
       {!canCreate && (
@@ -125,28 +135,39 @@ export default async function AnalysisPage({
                 <TableHead>درجة المخاطرة</TableHead>
                 <TableHead>التوصية</TableHead>
                 <TableHead>المصدر</TableHead>
+                <TableHead>الحداثة</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {analyses.map((a) => (
-                <TableRow key={a.id}>
-                  <TableCell>
-                    <Button nativeButton={false} variant="link" className="h-auto p-0 font-medium" render={<Link href={`/analysis/${a.id}`}>{a.product.nameAr}</Link>} />
-                  </TableCell>
-                  <TableCell className="text-foreground/80">{a.market.countryNameAr}</TableCell>
-                  <TableCell className="font-mono text-foreground/80">{a.year}</TableCell>
-                  <TableCell className="font-mono text-foreground/80">{a.opportunityScore}</TableCell>
-                  <TableCell className="font-mono text-foreground/80">{a.riskScore}</TableCell>
-                  <TableCell>
-                    <Badge className={recStyle[a.recommendation]}>{recLabel[a.recommendation]}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge className={a.source === "AI" ? "bg-violet-100 text-violet-700 hover:bg-violet-100" : "bg-secondary text-secondary-foreground hover:bg-secondary"}>
-                      {a.source === "AI" ? "🤖 AI" : "يدوي"}
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {analyses.map((a) => {
+                const isStale = a.validUntil !== null && a.validUntil < new Date();
+                return (
+                  <TableRow key={a.id}>
+                    <TableCell>
+                      <Button nativeButton={false} variant="link" className="h-auto p-0 font-medium" render={<Link href={`/analysis/${a.id}`}>{a.product.nameAr}</Link>} />
+                    </TableCell>
+                    <TableCell className="text-foreground/80">{a.market.countryNameAr}</TableCell>
+                    <TableCell className="font-mono text-foreground/80">{a.year}</TableCell>
+                    <TableCell className="font-mono text-foreground/80">{a.opportunityScore}</TableCell>
+                    <TableCell className="font-mono text-foreground/80">{a.riskScore}</TableCell>
+                    <TableCell>
+                      <Badge className={recStyle[a.recommendation]}>{recLabel[a.recommendation]}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={a.source === "AI" ? "bg-violet-100 text-violet-700 hover:bg-violet-100" : "bg-secondary text-secondary-foreground hover:bg-secondary"}>
+                        {a.source === "AI" ? "🤖 AI" : "يدوي"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {isStale ? (
+                        <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">⏰ قديم — يحتاج إعادة تحليل</Badge>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">حديث</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </div>

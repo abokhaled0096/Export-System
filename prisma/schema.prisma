@@ -522,6 +522,15 @@ model ProductMarketAnalysis {
   /// regulatoryNotes, priceEstimate:{min,max,currency}, recommendedNextSteps[]}. عمود واحد
   /// (بدل أعمدة كتير) نفس فلسفة aiSources — فاضي لتحاليل قديمة/يدوية قبل الترقية.
   aiDetails        Json?
+  /// 9 سبتمبر: بيتحطّ تلقائيًا (Trigger) لما تحليل جديد لنفس (productId, marketId, year) يتعمل —
+  /// النسخة القديمة بتفضل محفوظة للتاريخ لكن مش "نشطة" بقى. فهرس فريد جزئي (WHERE هذا العمود
+  /// IS NULL) بيمنع وجود أكتر من نسخة نشطة واحدة لنفس التركيبة — راجع migration
+  /// 20260909120000_product_market_analysis_versioning. مفيش تمثيل للفهرس هنا (نفس نمط
+  /// Market.orgId_countryCode_active_key — Prisma DSL مش بيدعم partial unique index).
+  supersededAt DateTime?
+  /// تاريخ انتهاء صلاحية التحليل الافتراضي (+90 يوم من الإنشاء) — بعده الواجهة بتعرض تحذير
+  /// "قديم، يحتاج إعادة تحليل" بدل ما تفضل تعرضه وكأنه حديث لحد الأبد.
+  validUntil   DateTime? @default(dbgenerated("(now() + interval '90 days')"))
 
   product Product @relation(fields: [productId], references: [id])
   market  Market  @relation(fields: [marketId], references: [id])

@@ -24,14 +24,36 @@ const recStyle: Record<string, string> = {
   Avoid: "bg-rose-100 text-rose-700 hover:bg-rose-100",
 };
 
+// Claim ممكن يكون نص خام (تحاليل قديمة قبل 9 سبتمبر) أو {text, sourceRefs} (تحاليل جديدة —
+// كل ادعاء لازم مرجع مصدر). الاتنين مدعومين هنا عشان التحاليل القديمة تفضل تتعرض صح.
+type Claim = string | { text: string; sourceRefs: number[] };
 type AiDetails = {
   marketOverview?: string;
-  demandDrivers?: string[];
-  keyRisks?: string[];
+  demandDrivers?: Claim[];
+  keyRisks?: Claim[];
   regulatoryNotes?: string;
-  priceEstimate?: { min: number | null; max: number | null; currency: string } | null;
+  priceEstimate?: { min: number | null; max: number | null; currency: string; sourceRefs?: number[] } | null;
   recommendedNextSteps?: string[];
+  rejectedSourcesCount?: number;
 };
+
+function claimText(c: Claim): string {
+  return typeof c === "string" ? c : c.text;
+}
+// لو النص نفسه فيه مرجع [n] مكتوب بالفعل (الموديل بيميل يحطّه جوه كل جملة، مش بس الحقول
+// اللي البرومبت بيطلبها صراحة)، مفيش داعي نعرض بادج SourceRefs تاني جنبه — تكرار بصري.
+function hasInlineCitation(text: string): boolean {
+  return /\[\d+(?:\s*,\s*\d+)*\]/.test(text);
+}
+function claimRefs(c: Claim): number[] {
+  if (typeof c === "string" || hasInlineCitation(c.text)) return [];
+  return c.sourceRefs;
+}
+
+function SourceRefs({ refs }: { refs: number[] }) {
+  if (refs.length === 0) return null;
+  return <sup className="mr-1 font-mono text-[10px] text-primary">[{refs.join(",")}]</sup>;
+}
 
 export default async function AnalysisDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -58,7 +80,7 @@ export default async function AnalysisDetailPage({ params }: { params: Promise<{
   });
   if (!analysis) notFound();
 
-  const sources = Array.isArray(analysis.aiSources) ? (analysis.aiSources as { title: string; url: string }[]) : [];
+  const sources = Array.isArray(analysis.aiSources) ? (analysis.aiSources as { title: string; url: string; publishedDate?: string | null }[]) : [];
   const details = (analysis.aiDetails ?? null) as AiDetails | null;
 
   return (
@@ -131,7 +153,10 @@ export default async function AnalysisDetailPage({ params }: { params: Promise<{
                     {details.demandDrivers.map((d, i) => (
                       <li key={i} className="flex gap-2">
                         <span className="text-emerald-600">✓</span>
-                        {d}
+                        <span>
+                          {claimText(d)}
+                          <SourceRefs refs={claimRefs(d)} />
+                        </span>
                       </li>
                     ))}
                   </ul>
@@ -149,7 +174,10 @@ export default async function AnalysisDetailPage({ params }: { params: Promise<{
                     {details.keyRisks.map((r, i) => (
                       <li key={i} className="flex gap-2">
                         <span className="text-rose-600">⚠</span>
-                        {r}
+                        <span>
+                          {claimText(r)}
+                          <SourceRefs refs={claimRefs(r)} />
+                        </span>
                       </li>
                     ))}
                   </ul>
@@ -165,6 +193,7 @@ export default async function AnalysisDetailPage({ params }: { params: Promise<{
                 <CardContent>
                   <p className="font-mono text-sm text-foreground/80">
                     {details.priceEstimate.min ?? "؟"} – {details.priceEstimate.max ?? "؟"} {details.priceEstimate.currency}
+                    <SourceRefs refs={details.priceEstimate.sourceRefs ?? []} />
                   </p>
                 </CardContent>
               </Card>
@@ -205,13 +234,20 @@ export default async function AnalysisDetailPage({ params }: { params: Promise<{
               <h2 className="text-lg font-medium text-foreground">المصادر</h2>
               <ul className="mt-3 flex flex-col gap-2">
                 {sources.map((s, i) => (
-                  <li key={i}>
-                    <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline">
+                  <li key={i} className="text-sm">
+                    <span className="ml-1 font-mono text-xs text-muted-foreground">[{i + 1}]</span>
+                    <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
                       {s.title}
                     </a>
+                    {s.publishedDate && <span className="mr-2 text-xs text-muted-foreground">({s.publishedDate})</span>}
                   </li>
                 ))}
               </ul>
+              {typeof details?.rejectedSourcesCount === "number" && details.rejectedSourcesCount > 0 && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  تم استبعاد {details.rejectedSourcesCount} مصدر إضافي أثناء فرز الصلة الآلي (منتج/دولة مختلفة أو محتوى قديم).
+                </p>
+              )}
             </section>
           )}
         </>

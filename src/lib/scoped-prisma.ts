@@ -33,13 +33,20 @@ export async function getScopedPrisma(): Promise<typeof prisma> {
         }
         const modelProp = model.charAt(0).toLowerCase() + model.slice(1);
 
-        return prisma.$transaction(async (tx) => {
-          await tx.$executeRawUnsafe(`SET LOCAL ROLE authenticated`);
-          await tx.$executeRaw`SELECT set_config('request.jwt.claims', ${claims}, true)`;
-          // @ts-expect-error -- الوصول الديناميكي للموديل مطلوب هنا؛ Prisma
-          // بيوفّر النوع الصريح على مستوى الاستدعاء الأصلي (product.findMany...) مش هنا.
-          return tx[modelProp][operation](args);
-        });
+        return prisma.$transaction(
+          async (tx) => {
+            await tx.$executeRawUnsafe(`SET LOCAL ROLE authenticated`);
+            await tx.$executeRaw`SELECT set_config('request.jwt.claims', ${claims}, true)`;
+            // @ts-expect-error -- الوصول الديناميكي للموديل مطلوب هنا؛ Prisma
+            // بيوفّر النوع الصريح على مستوى الاستدعاء الأصلي (product.findMany...) مش هنا.
+            return tx[modelProp][operation](args);
+          },
+          // maxWait/timeout أعلى من افتراضي Prisma (2s/5s) — اتلاحظ حيًا P2028 "Unable to
+          // start a transaction in the given time" تحت ضغط بسيط (Next dev بيعيد compile +
+          // نداءات متزامنة)، لأن الاتصال بيعدّي على pgbouncer (transaction pooling) مش على
+          // Postgres مباشرة، فبطء لحظي في تسليم اتصال من الـpooler كافي يعدّي 2 ثانية بسهولة.
+          { maxWait: 10_000, timeout: 15_000 }
+        );
       },
     },
   });
@@ -69,9 +76,12 @@ export async function withScopedTransaction<T>(
   }
   const claims = JSON.stringify({ sub: authUser.id, role: "authenticated" });
 
-  return prisma.$transaction(async (tx) => {
-    await tx.$executeRawUnsafe(`SET LOCAL ROLE authenticated`);
-    await tx.$executeRaw`SELECT set_config('request.jwt.claims', ${claims}, true)`;
-    return fn(tx);
-  });
+  return prisma.$transaction(
+    async (tx) => {
+      await tx.$executeRawUnsafe(`SET LOCAL ROLE authenticated`);
+      await tx.$executeRaw`SELECT set_config('request.jwt.claims', ${claims}, true)`;
+      return fn(tx);
+    },
+    { maxWait: 10_000, timeout: 15_000 } // نفس سبب getScopedPrisma فوق (P2028 تحت ضغط pgbouncer).
+  );
 }

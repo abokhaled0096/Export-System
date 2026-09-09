@@ -2008,6 +2008,36 @@ async function main() {
     await asUser(userA.id, (tx) => tx.opportunity.update({ where: { id: opportunityForStageTest.id }, data: { stage: "QuoteSent" } }));
     const opportunityAfterStageMove = await asUser(userA.id, (tx) => tx.opportunity.findUniqueOrThrow({ where: { id: opportunityForStageTest.id } }));
     record("انتقال Opportunity.stage لـQuoteSent بعد إضافة RFQAnalysis نجح فعليًا", opportunityAfterStageMove.stage === "QuoteSent");
+
+    // ---------- 40) وحدة 1 — ProductMarketAnalysis: منع تكرار نفس التركيبة (Trigger + فهرس فريد جزئي) ----------
+    const pmaFirst = await asUser(userA.id, (tx) =>
+      tx.productMarketAnalysis.create({
+        data: { orgId: orgA.id, productId: productA.id, marketId: marketA.id, year: 2026, opportunityScore: 50, riskScore: 50, recommendation: "Study", source: "Manual" },
+      })
+    );
+    record("ProductMarketAnalysis أول تحليل لتركيبة جديدة نجح، supersededAt=null", pmaFirst.supersededAt === null);
+
+    const pmaSecond = await asUser(userA.id, (tx) =>
+      tx.productMarketAnalysis.create({
+        data: { orgId: orgA.id, productId: productA.id, marketId: marketA.id, year: 2026, opportunityScore: 70, riskScore: 30, recommendation: "Start", source: "AI" },
+      })
+    );
+    const pmaFirstAfter = await asUser(userA.id, (tx) => tx.productMarketAnalysis.findUniqueOrThrow({ where: { id: pmaFirst.id } }));
+    record("تحليل تاني لنفس التركيبة (منتج×سوق×سنة) عمل supersede تلقائي للقديم بدل ما يترفض (Trigger)", pmaFirstAfter.supersededAt !== null && pmaSecond.supersededAt === null);
+
+    // تركيبة بسنة مختلفة — لازم تنجح عادي بلا أي تأثير على تركيبة 2026 (الفهرس بيشمل year).
+    const pmaDifferentYear = await asUser(userA.id, (tx) =>
+      tx.productMarketAnalysis.create({
+        data: { orgId: orgA.id, productId: productA.id, marketId: marketA.id, year: 2027, opportunityScore: 40, riskScore: 40, recommendation: "Monitor", source: "Manual" },
+      })
+    );
+    const pmaSecondAfter = await asUser(userA.id, (tx) => tx.productMarketAnalysis.findUniqueOrThrow({ where: { id: pmaSecond.id } }));
+    record("تحليل بسنة مختلفة (2027) ما أثّرش على النسخة النشطة بتاعة 2026", pmaDifferentYear.supersededAt === null && pmaSecondAfter.supersededAt === null);
+
+    const activePmaCountForTriple = await asUser(userA.id, (tx) =>
+      tx.productMarketAnalysis.count({ where: { orgId: orgA.id, productId: productA.id, marketId: marketA.id, year: 2026, supersededAt: null } })
+    );
+    record("نسخة نشطة واحدة بس فعليًا لتركيبة 2026 بعد كل التحديثات (فهرس فريد جزئي)", activePmaCountForTriple === 1);
   } finally {
     // ---------- تنظيف (ترتيب معكوس بسبب FKs: BatchRawMaterialLine/BatchMarketEligibility/SupplierRFQ/Farm → Batch/Farm/Inventory/Supplier/SourcingRequest/Market؛
     // ProductionPlan/Inventory/NCR/LabTest → Batch/PurchaseOrder/Facility/Supplier؛
@@ -2145,6 +2175,7 @@ async function main() {
     await prisma.opportunity.deleteMany({ where: { orgId: { in: [orgA.id, orgB.id] } } });
     await prisma.company.deleteMany({ where: { orgId: { in: [orgA.id, orgB.id] } } });
     await prisma.competitor.deleteMany({ where: { orgId: { in: [orgA.id, orgB.id] } } });
+    await prisma.productMarketAnalysis.deleteMany({ where: { orgId: { in: [orgA.id, orgB.id] } } });
     await prisma.aiAnalysisBatchItem.deleteMany({ where: { orgId: { in: [orgA.id, orgB.id] } } });
     await prisma.aiAnalysisBatch.deleteMany({ where: { orgId: { in: [orgA.id, orgB.id] } } });
     await prisma.market.deleteMany({ where: { orgId: { in: [orgA.id, orgB.id] } } });
