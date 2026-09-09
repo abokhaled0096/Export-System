@@ -61,14 +61,18 @@ export default async function AnalysisPage({
   // supersededAt: null — النسخة النشطة بس (راجع migration 20260909120000). النسخ القديمة لنفس
   // التركيبة محفوظة في القاعدة للتاريخ، بس مش معروضة هنا افتراضيًا عشان القايمة متبقاش مليانة
   // تكرارات لنفس (منتج × سوق × سنة).
+  // product/market.deletedAt: null كمان — أرشفة منتج أو سوق (Phase 0، 9 سبتمبر) لازم تشيل
+  // تحليلاته القديمة من القايمة الافتراضية برضه، وإلا أرشفة الاختبار بتفضل ظاهرة هنا رغم
+  // اختفائها من /products و/markets (اتلاحظ حيًا فورًا بعد أرشفة 5 منتجات اختبار).
+  const activeAnalysisFilter = { orgId, supersededAt: null, product: { deletedAt: null }, market: { deletedAt: null } } as const;
   const analyses = await prisma.productMarketAnalysis.findMany({
-    where: { orgId, supersededAt: null },
+    where: activeAnalysisFilter,
     include: { product: true, market: true },
     orderBy: { createdAt: "desc" },
     skip: (page - 1) * PAGE_SIZE,
     take: PAGE_SIZE,
   });
-  const total = await prisma.productMarketAnalysis.count({ where: { orgId, supersededAt: null } });
+  const total = await prisma.productMarketAnalysis.count({ where: activeAnalysisFilter });
   const productCount = await prisma.product.count({ where: { orgId, deletedAt: null } });
   const verifiedProductCount = await prisma.product.count({ where: { orgId, deletedAt: null, status: "Verified" } });
   const marketCount = await prisma.market.count({ where: { orgId, deletedAt: null } });

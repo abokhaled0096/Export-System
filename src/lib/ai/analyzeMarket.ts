@@ -4,21 +4,35 @@ import { parseJsonBlock, describeOpenAiError, chatCompletionWithModelFallback, d
 import { multiTavilySearch, formatSourcesForPrompt, type TavilySource } from "./tavilySearch";
 import { vetSources } from "./sourceVetting";
 
-/** كل ادعاء قابل للتحقق لازم مصدر — مصفوفة فاضية أو ناقصة مرفوضة من Zod. رقم المصدر هو نفس
- * رقم [n] اللي ظهر في formatSourcesForPrompt، بترتيب المصادر المقبولة بعد الفرز (raqm 1-based). */
+/** كل ادعاء قابل للتحقق لازم مصدر — رقم المصدر هو نفس رقم [n] اللي ظهر في formatSourcesForPrompt
+ * (raqm 1-based). sourceRefs مش .min(1) هنا عمدًا: اتلاحظ حيًا إن الموديل أحيانًا بينسى مرجع بند
+ * واحد وسط رد طويل غني — رفض الرد كله بسبب بند واحد ناقص إهدار لتحليل صحيح غالبًا. بدل كده،
+ * البند اللي من غير مرجع (لا في sourceRefs ولا [n] جوه النص) بيتشال بعد الـparsing (filterCitedItems
+ * تحت)، مش الرد كله. */
 const citedText = z.object({
   text: z.string().min(3),
-  sourceRefs: z.array(z.number().int().min(1)).min(1),
+  sourceRefs: z.array(z.number().int().min(1)),
 });
 
 const CITATION_PATTERN = /\[\d+\]/;
+
+function hasCitation(item: z.infer<typeof citedText>): boolean {
+  return item.sourceRefs.length > 0 || CITATION_PATTERN.test(item.text);
+}
+
+/** بيشيل أي بند من demandDrivers/keyRisks من غير مرجع مصدر حقيقي (لا sourceRefs ولا [n] جوه
+ * النص) بدل ما يرفض التحليل كله — نفس مبدأ "ممنوع ادعاء بلا مصدر"، بس على مستوى البند مش الرد
+ * كله. لو النتيجة فاضية بالكامل بعد الفلترة، برضه مقبول (array فاضي أحسن من ادعاء مخترع). */
+function filterCitedItems(items: z.infer<typeof citedText>[]): z.infer<typeof citedText>[] {
+  return items.filter(hasCitation);
+}
 
 const PriceEstimateSchema = z
   .object({
     min: z.number().nullable(),
     max: z.number().nullable(),
     currency: z.string().length(3),
-    sourceRefs: z.array(z.number().int().min(1)).min(1),
+    sourceRefs: z.array(z.number().int().min(1)),
   })
   .nullable();
 
@@ -154,6 +168,11 @@ ${describeMarketContext(market)}`;
   const parsed = parseJsonBlock(text, AnalysisResultSchema);
   return {
     ...parsed,
+    demandDrivers: filterCitedItems(parsed.demandDrivers),
+    keyRisks: filterCitedItems(parsed.keyRisks),
+    // سعر بلا مرجع مصدر = بالظبط الخطر اللي البوابة دي مبنية عشان تمنعه — نسيبه فاضي بدل ما
+    // نعرض رقم مخترع، مش نرفض التحليل كله عشانه.
+    priceEstimate: parsed.priceEstimate && parsed.priceEstimate.sourceRefs.length > 0 ? parsed.priceEstimate : null,
     sources: searchResults.map((s) => ({ title: s.title, url: s.url, publishedDate: s.publishedDate })),
     rejectedSourcesCount: rejected.length,
   };
