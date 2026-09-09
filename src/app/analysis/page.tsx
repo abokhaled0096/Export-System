@@ -158,9 +158,16 @@ export default async function AnalysisPage({
                       <Badge className={recStyle[a.recommendation]}>{recLabel[a.recommendation]}</Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge className={a.source === "AI" ? "bg-violet-100 text-violet-700 hover:bg-violet-100" : "bg-secondary text-secondary-foreground hover:bg-secondary"}>
-                        {a.source === "AI" ? "🤖 AI" : "يدوي"}
-                      </Badge>
+                      <div className="flex items-center gap-1.5">
+                        <Badge className={a.source === "AI" ? "bg-violet-100 text-violet-700 hover:bg-violet-100" : "bg-secondary text-secondary-foreground hover:bg-secondary"}>
+                          {a.source === "AI" ? "🤖 AI" : "يدوي"}
+                        </Badge>
+                        {a.needsReview && (
+                          <Badge className="bg-rose-100 text-rose-700 hover:bg-rose-100" title="تقييم الـAI بعيد عن اقتراح محرك القواعد بأكتر من 25 نقطة">
+                            🚩 راجع الرقم
+                          </Badge>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       {isStale ? (

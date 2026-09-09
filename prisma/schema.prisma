@@ -531,6 +531,11 @@ model ProductMarketAnalysis {
   /// تاريخ انتهاء صلاحية التحليل الافتراضي (+90 يوم من الإنشاء) — بعده الواجهة بتعرض تحذير
   /// "قديم، يحتاج إعادة تحليل" بدل ما تفضل تعرضه وكأنه حديث لحد الأبد.
   validUntil   DateTime? @default(dbgenerated("(now() + interval '90 days')"))
+  /// true لو تقييم الـAI (opportunityScore/riskScore) بعيد أكتر من 25 نقطة عن اقتراح محرك القواعد
+  /// (computeOpportunityRiskSuggestion — مبني على بيانات حقيقية: مخاطرة السوق، مواسم التوفّر،
+  /// منافسين) — إشارة "راجع الرقم ده قبل ما تاخد قرار عليه"، مش رفض. بيتحسب وقت الحفظ بس
+  /// (aiDetails.ruleBasedComparison فيه التفاصيل الكاملة)، مش عمود مُشتقّ حي.
+  needsReview  Boolean   @default(false)
 
   product Product @relation(fields: [productId], references: [id])
   market  Market  @relation(fields: [marketId], references: [id])

@@ -129,16 +129,35 @@ export type AiAnalysisFormState = {
 
 /** بيحفظ نتيجة تحليل AI جاهزة (منتج+سوق اتفحصوا واتحقق منهم بالفعل) — مستخرجة من createAiAnalysis
  * عشان processNextBatchItem في batchActions.ts يقدر يستخدم نفس منطق الحفظ بالحرف لكل تركيبة في
- * دفعة "حلّل كل المنتجات × كل الأسواق"، بلا تكرار كود. */
+ * دفعة "حلّل كل المنتجات × كل الأسواق"، بلا تكرار كود.
+ *
+ * product/market بيوصلوا بالكامل من الاستدعاءين الحاليين (createAiAnalysis وprocessNextBatchItem)
+ * بلا select ضيّق — استخدمت الحقول دي مباشرة بدل إعادة استعلام داخل الـtransaction. */
 export async function saveAiMarketAnalysis(
   orgId: string,
   userId: string,
-  product: { id: string },
-  market: { id: string },
+  product: { id: string; availableMonths: number[] },
+  market: { id: string; politicalRiskScore: number | null; logisticsRiskScore: number | null },
   year: number,
   result: AiMarketAnalysis
 ): Promise<string> {
   return withScopedTransaction(async (tx) => {
+    // مساءلة الرقم — مقارنة تقييم الـAI بمحرك القواعد (Rule-Based، بيانات حقيقية مسجّلة فعليًا)
+    // بدل ما نصدّق رقم الـAI أعمى. فرق كبير (>25 نقطة) مش رفض، بس علامة "راجع ده" ظاهرة للمستخدم.
+    const competitorsForScoring = await tx.competitor.findMany({
+      where: { orgId, productId: product.id, marketId: market.id, deletedAt: null },
+      select: { strengthMonths: true, weaknessMonths: true },
+    });
+    const ruleBased = computeOpportunityRiskSuggestion({
+      politicalRiskScore: market.politicalRiskScore,
+      logisticsRiskScore: market.logisticsRiskScore,
+      productAvailableMonths: product.availableMonths,
+      competitors: competitorsForScoring,
+    });
+    const opportunityDiff = Math.abs(result.opportunityScore - ruleBased.opportunityScore);
+    const riskDiff = Math.abs(result.riskScore - ruleBased.riskScore);
+    const needsReview = opportunityDiff > 25 || riskDiff > 25;
+
     const analysis = await tx.productMarketAnalysis.create({
       data: {
         orgId,
@@ -150,6 +169,7 @@ export async function saveAiMarketAnalysis(
         confidenceLevel: result.confidenceLevel,
         recommendation: result.recommendation,
         source: "AI",
+        needsReview,
         aiReasoning: result.reasoning,
         aiSources: result.sources,
         aiDetails: {
@@ -160,6 +180,7 @@ export async function saveAiMarketAnalysis(
           priceEstimate: result.priceEstimate,
           recommendedNextSteps: result.recommendedNextSteps,
           rejectedSourcesCount: result.rejectedSourcesCount,
+          ruleBasedComparison: { opportunityScore: ruleBased.opportunityScore, riskScore: ruleBased.riskScore, reasoning: ruleBased.reasoning, opportunityDiff, riskDiff },
         },
       },
     });

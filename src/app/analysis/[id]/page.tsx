@@ -35,6 +35,7 @@ type AiDetails = {
   priceEstimate?: { min: number | null; max: number | null; currency: string; sourceRefs?: number[] } | null;
   recommendedNextSteps?: string[];
   rejectedSourcesCount?: number;
+  ruleBasedComparison?: { opportunityScore: number; riskScore: number; reasoning: string[]; opportunityDiff: number; riskDiff: number };
 };
 
 function claimText(c: Claim): string {
@@ -121,6 +122,28 @@ export default async function AnalysisDetailPage({ params }: { params: Promise<{
       <div className="mt-4">
         <Badge className={`px-3 py-1.5 text-sm ${recStyle[analysis.recommendation]}`}>التوصية: {recLabel[analysis.recommendation]}</Badge>
       </div>
+
+      {analysis.needsReview && details?.ruleBasedComparison && (
+        <section className="mt-6">
+          <Card className="border-rose-300 bg-rose-50">
+            <CardContent>
+              <p className="flex items-center gap-1.5 text-sm font-medium text-rose-700">🚩 تقييم الـAI بعيد عن اقتراح محرك القواعد — راجع قبل ما تاخد قرار عليه</p>
+              <p className="mt-2 text-sm text-rose-700/90">
+                الـAI: فرصة {analysis.opportunityScore} / مخاطرة {analysis.riskScore} — محرك القواعد (بيانات حقيقية مسجّلة: مخاطرة السوق، مواسم التوفّر، منافسين): فرصة{" "}
+                {details.ruleBasedComparison.opportunityScore} / مخاطرة {details.ruleBasedComparison.riskScore}
+                {" "}(فرق {details.ruleBasedComparison.opportunityDiff} و{details.ruleBasedComparison.riskDiff} نقطة على التوالي).
+              </p>
+              {details.ruleBasedComparison.reasoning.length > 0 && (
+                <ul className="mt-2 flex flex-col gap-1 text-xs text-rose-700/80">
+                  {details.ruleBasedComparison.reasoning.map((r, i) => (
+                    <li key={i}>• {r}</li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+        </section>
+      )}
 
       {analysis.source === "AI" && (
         <>
