@@ -124,19 +124,37 @@ export async function getBatchView(batchId: string): Promise<BatchView> {
   return toView(batch, items);
 }
 
+/** لو تركيبة فضلت "Running" أكتر من كده، السيرفر وقع أو المتصفح اتقفل *أثناء* معالجتها فعليًا
+ * (مش بس بعدها) — أعلى بكتير من أطول وقت معالجة حقيقي اتلاحظ (~2-3 دقايق حتى مع retries). */
+const STUCK_RUNNING_THRESHOLD_MS = 10 * 60 * 1000;
+
 /** بيعالج **تركيبة واحدة بس** من الدفعة في كل نداء — عمدًا، عشان يتفادى أي timeout (مفيش queue
  * حقيقي في المشروع). صفحة التقدّم بتنادي الدالة دي بـpolling (كل 2 ثانية) لحد ما الدفعة تخلص.
  * تركيبة واحدة تفشل ما بتوقفش الباقي — بتتسجّل Failed مع سبب واضح والمعالجة بتكمل. */
 export async function processNextBatchItem(batchId: string): Promise<BatchView> {
   const user = await requireCurrentUser();
-  const { batch, items } = await loadBatchView(batchId, user.orgId, user.roleId);
+  const { batch, items: initialItems } = await loadBatchView(batchId, user.orgId, user.roleId);
 
-  const next = items.find((i) => i.status === "Pending");
-  if (!next || batch.status === "Completed" || batch.status === "Cancelled") {
-    return toView(batch, items);
+  if (batch.status === "Completed" || batch.status === "Cancelled") {
+    return toView(batch, initialItems);
   }
 
   const prisma = await getScopedPrisma();
+
+  // استرداد أي تركيبة عالقة في Running للأبد — كانت بتفضل كده بلا أي مسار رجوع لو حد قفل التاب
+  // أو السيرفر وقع وسط معالجتها (اتلاحظ حيًا فعليًا واحتاج تصليح يدوي مباشر على القاعدة).
+  const stuckThreshold = new Date(Date.now() - STUCK_RUNNING_THRESHOLD_MS);
+  const reclaimed = await prisma.aiAnalysisBatchItem.updateMany({
+    where: { batchId, orgId: user.orgId, status: "Running", startedAt: { lt: stuckThreshold } },
+    data: { status: "Pending", startedAt: null },
+  });
+  const items = reclaimed.count > 0 ? (await loadBatchView(batchId, user.orgId, user.roleId)).items : initialItems;
+
+  const next = items.find((i) => i.status === "Pending");
+  if (!next) {
+    return toView(batch, items);
+  }
+
   if (batch.status === "Pending") {
     await prisma.aiAnalysisBatch.update({ where: { id: batch.id }, data: { status: "Running" } });
   }
