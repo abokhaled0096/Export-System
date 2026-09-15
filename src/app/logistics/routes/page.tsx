@@ -61,8 +61,8 @@ export default async function RoutesPage() {
             ) : (
               routes.map((r) => (
                 <TableRow key={r.id}>
-                  <TableCell className="text-foreground/80">
-                    {r.originPort} ← {r.destinationPort}
+                  <TableCell>
+                    <Button nativeButton={false} variant="link" className="h-auto p-0 font-medium" render={<Link href={`/logistics/routes/${r.id}`}>{r.originPort} ← {r.destinationPort}</Link>} />
                   </TableCell>
                   <TableCell className="text-foreground/80">
                     {r.transportModes.map((m) => transportModeLabel[m] ?? m).join("، ") || "—"}
