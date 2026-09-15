@@ -10,6 +10,7 @@ import { logError, isNextControlFlowError } from "@/lib/errorLog";
 
 const DOCUMENT_TYPES = [
   "Quotation", "ProformaInvoice", "CommercialInvoice", "PackingList", "SalesContract", "SalesConfirmation", "TechnicalDataSheet", "COA", "Declaration", "PriceList", "EmailDraft",
+  "BillOfLading", "InspectionCertificate",
 ] as const;
 const DOCUMENT_LANGUAGES = ["Arabic", "English", "Bilingual"] as const;
 

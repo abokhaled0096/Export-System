@@ -993,6 +993,7 @@ export async function markDealLost(
 
 const DOCUMENT_TYPES = [
   "Quotation", "ProformaInvoice", "CommercialInvoice", "PackingList", "SalesContract", "SalesConfirmation", "TechnicalDataSheet", "COA", "Declaration", "PriceList", "EmailDraft",
+  "BillOfLading", "InspectionCertificate",
 ] as const;
 const DOCUMENT_LANGUAGES = ["Arabic", "English", "Bilingual"] as const;
 const DOCUMENT_ETA_STATUSES = ["NotApplicable", "Pending", "Submitted", "Validated", "Rejected"] as const;

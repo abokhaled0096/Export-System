@@ -10,6 +10,8 @@ export const documentTypeLabel: Record<string, string> = {
   Declaration: "إقرار",
   PriceList: "قائمة أسعار",
   EmailDraft: "مسودة إيميل",
+  BillOfLading: "بوليصة شحن",
+  InspectionCertificate: "شهادة فحص قبل الشحن",
 };
 
 export const documentLanguageLabel: Record<string, string> = {

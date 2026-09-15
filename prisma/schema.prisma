@@ -3864,6 +3864,13 @@ enum DocumentType {
   Declaration
   PriceList
   EmailDraft
+  /// بوليصة الشحن — migration 20260915120000. shipmentId (موجود بالفعل على Document) هو الربط
+  /// الطبيعي؛ رقمها الفعلي بيتسجّل في documentNumber العام زي أي مستند تاني.
+  BillOfLading
+  /// شهادة فحص طرف ثالث قبل الشحن (SGS/Bureau Veritas وغيرهم) — مختلفة عن Inspection/
+  /// QualityRelease الداخليين في وحدة الجودة (بوابة داخلية قبل التصدير)، ومختلفة عن Certificate
+  /// العامة (اعتماد شركة/منشأة مستمر زي HACCP، مش مستند خاص بشحنة واحدة).
+  InspectionCertificate
 }
 
 enum DocumentLanguage {
