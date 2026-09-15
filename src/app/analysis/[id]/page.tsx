@@ -10,6 +10,9 @@ import { Badge } from "@/components/ui/badge";
 
 export const dynamic = "force-dynamic";
 
+// نفس الاختصارات المستخدمة في src/app/competitors/page.tsx — اتساق بين الصفحتين.
+const monthShort = ["", "ينا", "فبر", "مار", "أبر", "ماي", "يون", "يول", "أغس", "سبت", "أكت", "نوف", "ديس"];
+
 const recLabel: Record<string, string> = {
   Start: "ابدأ",
   Study: "ادرس أكتر",
@@ -81,12 +84,21 @@ export default async function AnalysisDetailPage({ params }: { params: Promise<{
   const canCreateOpportunity = await getPermissionScope(user.roleId, "Opportunity", "Create");
   const canCreateRisk = await getPermissionScope(user.roleId, "RiskRegisterItem", "Create");
   const canCreateRequirement = await getPermissionScope(user.roleId, "Requirement", "Create");
+  const canCreateCompetitor = await getPermissionScope(user.roleId, "Competitor", "Create");
 
   const analysis = await prisma.productMarketAnalysis.findFirst({
     where: { id, orgId },
     include: { product: true, market: true },
   });
   if (!analysis) notFound();
+
+  // منافسين حقيقيين مسجّلين لنفس التركيبة — مصدر النافذة الموسمية تحت. بلا AI هنا، بيانات
+  // فعلية بس (source ممكن يكون AI أو Manual، المهم إنها strengthMonths/weaknessMonths حقيقية
+  // اتسجّلت قبل كده، مش تخمين وقت عرض الصفحة).
+  const competitors = await prisma.competitor.findMany({
+    where: { productId: analysis.productId, marketId: analysis.marketId, orgId, deletedAt: null },
+    select: { countryName: true, strengthMonths: true, weaknessMonths: true, priceRangeMin: true, priceRangeMax: true, currency: true },
+  });
 
   const sources = Array.isArray(analysis.aiSources) ? (analysis.aiSources as { title: string; url: string; publishedDate?: string | null }[]) : [];
   const details = (analysis.aiDetails ?? null) as AiDetails | null;
@@ -333,6 +345,99 @@ export default async function AnalysisDetailPage({ params }: { params: Promise<{
           )}
         </>
       )}
+
+      <section className="mt-8">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-medium text-foreground">التقويم الموسمي مقابل المنافسين</h2>
+          {canCreateCompetitor && (
+            <Link
+              href={`/competitors/ai/new?${new URLSearchParams({ productId: analysis.productId, marketId: analysis.marketId }).toString()}`}
+              className="text-xs text-primary hover:underline"
+            >
+              {competitors.length > 0 ? "🔍 حدّث بيانات المنافسين" : "🔍 ابحث عن منافسين"}
+            </Link>
+          )}
+        </div>
+
+        {competitors.length === 0 ? (
+          <p className="mt-3 rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
+            لسه مفيش منافسين مسجّلين لهذه التركيبة — التقويم الموسمي محتاج بيانات منافسين حقيقية (شهور قوتهم/ضعفهم) عشان يبان.
+          </p>
+        ) : (
+          <>
+            <p className="mt-1 text-xs text-muted-foreground">
+              مبني على {competitors.length} منافس مسجّل فعليًا (مش تخمين) — مش منحنى سعر شهري حقيقي، لأن مفيش بيانات سعر شهرية بتتسجّل حاليًا في النظام (بس نطاق سعر إجمالي لكل منافس، تحت).
+            </p>
+            <div className="mt-3 overflow-x-auto rounded-xl border border-border bg-card">
+              <table className="w-full text-center text-sm">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="p-2 text-xs font-medium text-muted-foreground">الشهر</th>
+                    {monthShort.slice(1).map((m) => (
+                      <th key={m} className="p-2 text-xs font-medium text-muted-foreground">
+                        {m}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-border">
+                    <td className="p-2 text-xs text-muted-foreground">منتجنا متوفر</td>
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map((month) => (
+                      <td key={month} className="p-2">
+                        {analysis.product.availableMonths.includes(month) ? "✅" : "—"}
+                      </td>
+                    ))}
+                  </tr>
+                  <tr className="border-b border-border">
+                    <td className="p-2 text-xs text-muted-foreground">منافسين ضعاف (فرصة)</td>
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map((month) => {
+                      const weak = competitors.filter((c) => c.weaknessMonths.includes(month)).length;
+                      return (
+                        <td key={month} className={`p-2 font-mono ${weak > 0 ? "text-emerald-700" : "text-muted-foreground/50"}`}>
+                          {weak || "—"}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                  <tr>
+                    <td className="p-2 text-xs text-muted-foreground">منافسين أقوياء (منافسة)</td>
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map((month) => {
+                      const strong = competitors.filter((c) => c.strengthMonths.includes(month)).length;
+                      return (
+                        <td key={month} className={`p-2 font-mono ${strong > 0 ? "text-rose-700" : "text-muted-foreground/50"}`}>
+                          {strong || "—"}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="p-2 text-right text-xs font-medium text-muted-foreground">المنافس</th>
+                    <th className="p-2 text-right text-xs font-medium text-muted-foreground">نطاق السعر الإجمالي (مش شهري)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {competitors.map((c, i) => (
+                    <tr key={i} className="border-b border-border last:border-0">
+                      <td className="p-2 text-foreground/80">{c.countryName}</td>
+                      <td className="p-2 font-mono text-foreground/80">
+                        {c.priceRangeMin && c.priceRangeMax ? `${Number(c.priceRangeMin).toLocaleString()} – ${Number(c.priceRangeMax).toLocaleString()} ${c.currency}` : "غير مسجَّل"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </section>
     </main>
   );
 }

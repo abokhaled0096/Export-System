@@ -6,7 +6,8 @@ import AiCompetitorForm from "./AiCompetitorForm";
 
 export const dynamic = "force-dynamic";
 
-export default async function NewAiCompetitorsPage() {
+export default async function NewAiCompetitorsPage({ searchParams }: { searchParams: Promise<{ productId?: string; marketId?: string }> }) {
+  const { productId, marketId } = await searchParams;
   const orgId = await getCurrentOrgId();
   const prisma = await getScopedPrisma();
   const products = await prisma.product.findMany({ where: { orgId, deletedAt: null }, orderBy: { nameAr: "asc" } });
@@ -23,6 +24,8 @@ export default async function NewAiCompetitorsPage() {
         <AiCompetitorForm
           products={products.map((p) => ({ id: p.id, label: `${p.nameAr} (${p.nameEn})` }))}
           markets={markets.map((m) => ({ id: m.id, label: m.countryNameAr }))}
+          defaultProductId={productId}
+          defaultMarketId={marketId}
         />
       </div>
     </main>

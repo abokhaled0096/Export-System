@@ -10,7 +10,17 @@ const initialState: AiCompetitorsFormState = {};
 
 type Option = { id: string; label: string };
 
-export default function AiCompetitorForm({ products, markets }: { products: Option[]; markets: Option[] }) {
+export default function AiCompetitorForm({
+  products,
+  markets,
+  defaultProductId,
+  defaultMarketId,
+}: {
+  products: Option[];
+  markets: Option[];
+  defaultProductId?: string;
+  defaultMarketId?: string;
+}) {
   const [state, formAction, pending] = useActionState(createAiCompetitors, initialState);
 
   return (
@@ -18,7 +28,7 @@ export default function AiCompetitorForm({ products, markets }: { products: Opti
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="productId">المنتج *</Label>
-          <Select name="productId">
+          <Select name="productId" defaultValue={defaultProductId}>
             <SelectTrigger id="productId" className="w-full">
               <SelectValue placeholder="اختر منتج">
                 {(value: string | null) => (value ? (products.find((p) => p.id === value)?.label ?? value) : "اختر منتج")}
@@ -36,7 +46,7 @@ export default function AiCompetitorForm({ products, markets }: { products: Opti
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="marketId">السوق *</Label>
-          <Select name="marketId">
+          <Select name="marketId" defaultValue={defaultMarketId}>
             <SelectTrigger id="marketId" className="w-full">
               <SelectValue placeholder="اختر سوق">
                 {(value: string | null) => (value ? (markets.find((m) => m.id === value)?.label ?? value) : "اختر سوق")}
