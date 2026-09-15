@@ -49,7 +49,11 @@ export default async function CompetitorsPage({ searchParams }: { searchParams: 
   });
   const total = await prisma.competitor.count({ where: { orgId, deletedAt: null } });
   const productCount = await prisma.product.count({ where: { orgId, deletedAt: null } });
-  const marketCount = await prisma.market.count({ where: { orgId, deletedAt: null } });
+  // Verified بس لزرار الدفعة الشاملة — نفس فلترة startBatch الداخلية (منتجات Draft بتتستبعد على
+  // مستوى السيرفر بغض النظر)، فعرض منتج Draft كـcheckbox قابل للاختيار هنا هيدّي انطباع غلط.
+  const verifiedProductsForBulk = await prisma.product.findMany({ where: { orgId, deletedAt: null, status: "Verified" }, select: { id: true, nameAr: true }, orderBy: { nameAr: "asc" } });
+  const marketsForBulk = await prisma.market.findMany({ where: { orgId, deletedAt: null }, select: { id: true, countryNameAr: true }, orderBy: { countryNameAr: "asc" } });
+  const marketCount = marketsForBulk.length;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const canCreate = productCount > 0 && marketCount > 0;
@@ -71,15 +75,23 @@ export default async function CompetitorsPage({ searchParams }: { searchParams: 
         )}
       </div>
 
-      {canCreate && (
+      {canCreate && verifiedProductsForBulk.length > 0 && (
         <div className="mt-4">
           <BulkAnalysisButton
             action={startCompetitorsBatchAction}
             label="📊 ابحث عن منافسين لكل المنتجات × كل الأسواق"
-            description="هيبحث عن منافسين حقيقيين لكل تركيبة منتج/سوق نشطة دفعة واحدة (حد أقصى 50 تركيبة) — ممكن ياخد لغاية 20-25 دقيقة، وشريط تقدّم حي هيظهرلك أول بأول."
+            description="اختار المنتجات والأسواق اللي عايز تبحث لها عن منافسين (حد أقصى 50 تركيبة) — منتجات Draft متستبعدة عمدًا. ممكن ياخد لغاية 20-25 دقيقة، وشريط تقدّم حي هيظهرلك أول بأول."
             colorClass="bg-indigo-700 text-white hover:bg-indigo-800"
+            products={verifiedProductsForBulk.map((p) => ({ id: p.id, label: p.nameAr }))}
+            markets={marketsForBulk.map((m) => ({ id: m.id, label: m.countryNameAr }))}
           />
         </div>
+      )}
+
+      {canCreate && verifiedProductsForBulk.length === 0 && (
+        <p className="mt-4 w-fit rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-700">
+          البحث الشامل محتاج منتج واحد على الأقل بحالة &quot;Verified&quot; — كل منتجاتك لسه Draft.
+        </p>
       )}
 
       {!canCreate && (

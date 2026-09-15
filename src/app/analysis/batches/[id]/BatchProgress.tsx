@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { processNextBatchItem, type BatchView } from "@/app/analysis/batchActions";
+import { processNextBatchItem, retryFailedBatchItemsAction, type BatchView } from "@/app/analysis/batchActions";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 const itemStatusLabel: Record<string, string> = {
@@ -59,15 +60,24 @@ export default function BatchProgress({
           <span className="text-foreground/80">
             {done} من {view.totalPairs} ({view.succeededCount} نجح، {view.failedCount} فشل)
           </span>
-          <Badge
-            className={
-              view.status === "Completed"
-                ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-100"
-                : "bg-sky-100 text-sky-700 hover:bg-sky-100"
-            }
-          >
-            {view.status === "Completed" ? "✅ خلصت" : "🔄 شغّالة..."}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge
+              className={
+                view.status === "Completed"
+                  ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-100"
+                  : "bg-sky-100 text-sky-700 hover:bg-sky-100"
+              }
+            >
+              {view.status === "Completed" ? "✅ خلصت" : "🔄 شغّالة..."}
+            </Badge>
+            {view.status === "Completed" && view.failedCount > 0 && (
+              <form action={retryFailedBatchItemsAction.bind(null, batchId)}>
+                <Button type="submit" size="sm" variant="outline">
+                  🔁 أعد الفاشلين فقط ({view.failedCount})
+                </Button>
+              </form>
+            )}
+          </div>
         </div>
         <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-muted">
           <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${percent}%` }} />

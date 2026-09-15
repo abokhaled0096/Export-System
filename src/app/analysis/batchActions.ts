@@ -19,9 +19,19 @@ export type BatchKind = "MarketAnalysis" | "Competitors";
 
 export type StartBatchState = { formError?: string; batchId?: string };
 
-/** بينشئ دفعة (Batch) + عنصر (Item) لكل تركيبة منتج×سوق نشطة في المنظمة — التشغيل الفعلي بيحصل
- * بعد كده عبر processNextBatchItem، مُستدعاة بـpolling من صفحة التقدّم (بلا queue حقيقي). */
-export async function startBatch(kind: BatchKind, year: number): Promise<StartBatchState> {
+export type StartBatchOptions = {
+  /** فاضي/undefined = كل المنتجات Verified. غير فاضي = بس المنتجات المختارة (لازم يكونوا Verified برضه). */
+  productIds?: string[];
+  /** فاضي/undefined = كل الأسواق. */
+  marketIds?: string[];
+  /** false (الافتراضي) = تركيبة عندها تحليل نشط لسه صالح (validUntil في المستقبل) بتتستبعد تلقائيًا
+   * توفيرًا لاستدعاءات AI. true = يتجاهل ده ويعيد تحليل كل حاجة حتى لو حديثة. */
+  forceRefresh?: boolean;
+};
+
+/** بينشئ دفعة (Batch) + عنصر (Item) لكل تركيبة منتج×سوق مختارة — التشغيل الفعلي بيحصل بعد كده
+ * عبر processNextBatchItem، مُستدعاة بـpolling من صفحة التقدّم (بلا queue حقيقي). */
+export async function startBatch(kind: BatchKind, year: number, options: StartBatchOptions = {}): Promise<StartBatchState> {
   const user = await requireCurrentUser();
   try {
     await requirePermission(user.roleId, kind === "MarketAnalysis" ? "Analysis" : "Competitor", "Create");
@@ -31,14 +41,46 @@ export async function startBatch(kind: BatchKind, year: number): Promise<StartBa
     // status: "Verified" بس — مش أي منتج مسجّل. اتكشف حيًا (9 سبتمبر) إن الدفعة الشاملة كانت
     // بتحلّل منتجات اختبار/مكرّرة لسه Draft زي أي منتج حقيقي، وبتهدر كوتة AI على بيانات وهمية.
     // منتج بيتحوّل لـVerified بفورم /products/[id] بعد ما بياناته تتراجع وتتأكد.
-    const products = await prisma.product.findMany({ where: { orgId: user.orgId, deletedAt: null, status: "Verified" }, select: { id: true } });
-    const markets = await prisma.market.findMany({ where: { orgId: user.orgId, deletedAt: null }, select: { id: true } });
+    const productWhere = { orgId: user.orgId, deletedAt: null, status: "Verified" as const, ...(options.productIds?.length ? { id: { in: options.productIds } } : {}) };
+    const marketWhere = { orgId: user.orgId, deletedAt: null, ...(options.marketIds?.length ? { id: { in: options.marketIds } } : {}) };
+    const products = await prisma.product.findMany({ where: productWhere, select: { id: true } });
+    const markets = await prisma.market.findMany({ where: marketWhere, select: { id: true } });
 
-    const totalPairs = products.length * markets.length;
-    if (totalPairs === 0) return { formError: "محتاج منتج بحالة \"Verified\" وسوق واحد على الأقل مسجَّلين — منتجات Draft متستبعدة من التحليل الشامل عمدًا." };
+    let pairs = products.flatMap((p) => markets.map((m) => ({ productId: p.id, marketId: m.id })));
+    let skippedFreshCount = 0;
+
+    // تركيبة عندها تحليل نشط لسه صالح (validUntil في المستقبل) بتتستبعد تلقائيًا — مفيش داعي
+    // نستهلك بحث Tavily + نداءات AI على تحليل حديث أصلًا. Competitor مالوش validUntil/versioning
+    // زي ProductMarketAnalysis (كيانات إضافية مش نسخة واحدة نشطة)، فالفلترة دي لـMarketAnalysis بس.
+    if (!options.forceRefresh && kind === "MarketAnalysis" && pairs.length > 0) {
+      const fresh = await prisma.productMarketAnalysis.findMany({
+        where: {
+          orgId: user.orgId,
+          supersededAt: null,
+          validUntil: { gt: new Date() },
+          productId: { in: products.map((p) => p.id) },
+          marketId: { in: markets.map((m) => m.id) },
+        },
+        select: { productId: true, marketId: true },
+      });
+      const freshSet = new Set(fresh.map((f) => `${f.productId}:${f.marketId}`));
+      const before = pairs.length;
+      pairs = pairs.filter((p) => !freshSet.has(`${p.productId}:${p.marketId}`));
+      skippedFreshCount = before - pairs.length;
+    }
+
+    const totalPairs = pairs.length;
+    if (totalPairs === 0) {
+      return {
+        formError:
+          skippedFreshCount > 0
+            ? `كل التركيبات المختارة (${skippedFreshCount}) عندها تحليل حديث لسه صالح — فعّل "أعد تحليل حتى الحديث" لو عايز تجبر إعادة التحليل.`
+            : "محتاج منتج بحالة \"Verified\" وسوق واحد على الأقل مسجَّلين — منتجات Draft متستبعدة من التحليل الشامل عمدًا.",
+      };
+    }
     if (totalPairs > MAX_PAIRS_PER_BATCH) {
       return {
-        formError: `عدد التركيبات الحالي (${products.length} منتج × ${markets.length} سوق = ${totalPairs}) أكبر من الحد الأقصى المسموح (${MAX_PAIRS_PER_BATCH}) للدفعة الواحدة — قلّل عدد المنتجات أو الأسواق النشطة، أو شغّل الدفعة على دفعات.`,
+        formError: `عدد التركيبات الحالي (${totalPairs}) أكبر من الحد الأقصى المسموح (${MAX_PAIRS_PER_BATCH}) للدفعة الواحدة — قلّل الاختيار، أو شغّل الدفعة على دفعات.`,
       };
     }
 
@@ -47,7 +89,7 @@ export async function startBatch(kind: BatchKind, year: number): Promise<StartBa
         data: { orgId: user.orgId, kind, year, totalPairs, createdBy: user.id },
       });
       await tx.aiAnalysisBatchItem.createMany({
-        data: products.flatMap((p) => markets.map((m) => ({ orgId: user.orgId, batchId: batch.id, productId: p.id, marketId: m.id }))),
+        data: pairs.map((p) => ({ orgId: user.orgId, batchId: batch.id, productId: p.productId, marketId: p.marketId })),
       });
       return batch.id;
     });
@@ -62,19 +104,27 @@ export async function startBatch(kind: BatchKind, year: number): Promise<StartBa
 
 export type StartBatchFormState = { formError?: string };
 
-/** غلاف حول startBatch متوافق مع useActionState (فورم بحقل year واحد) — بيحوّل مباشرة لصفحة
- * التقدّم عند النجاح. year مش بيتستخدم فعليًا في مسار Competitors (Competitor مالوش عمود year) —
- * محتفظ بيه في الفورم عشان تجربة استخدام موحّدة بين الزرارين. */
+function readBatchOptionsFromForm(formData: FormData): StartBatchOptions {
+  return {
+    productIds: formData.getAll("productIds").map(String).filter(Boolean),
+    marketIds: formData.getAll("marketIds").map(String).filter(Boolean),
+    forceRefresh: formData.get("forceRefresh") === "on",
+  };
+}
+
+/** غلاف حول startBatch متوافق مع useActionState — بيحوّل مباشرة لصفحة التقدّم عند النجاح. year
+ * مش بيتستخدم فعليًا في مسار Competitors (Competitor مالوش عمود year) — محتفظ بيه في الفورم
+ * عشان تجربة استخدام موحّدة بين الزرارين. productIds/marketIds فاضيين = كل الحالي (توافق خلفي). */
 export async function startMarketAnalysisBatchAction(_prevState: StartBatchFormState, formData: FormData): Promise<StartBatchFormState> {
   const year = Number(formData.get("year"));
-  const result = await startBatch("MarketAnalysis", year);
+  const result = await startBatch("MarketAnalysis", year, readBatchOptionsFromForm(formData));
   if (result.formError) return { formError: result.formError };
   redirect(`/analysis/batches/${result.batchId}`);
 }
 
 export async function startCompetitorsBatchAction(_prevState: StartBatchFormState, formData: FormData): Promise<StartBatchFormState> {
   const year = Number(formData.get("year"));
-  const result = await startBatch("Competitors", year);
+  const result = await startBatch("Competitors", year, readBatchOptionsFromForm(formData));
   if (result.formError) return { formError: result.formError };
   redirect(`/analysis/batches/${result.batchId}`);
 }
@@ -122,6 +172,29 @@ export async function getBatchView(batchId: string): Promise<BatchView> {
   const user = await requireCurrentUser();
   const { batch, items } = await loadBatchView(batchId, user.orgId, user.roleId);
   return toView(batch, items);
+}
+
+/** بيرجّع كل تركيبة "Failed" في دفعة خلصت لـ"Pending" تاني، بدل ما تحتاج تبدأ دفعة جديدة من
+ * الصفر (وتعيد تحليل التركيبات اللي نجحت بالفعل من غير داعي). الدفعة ترجع "Running" والصفحة
+ * بتكمل الـpolling عادي من نفس الرابط. */
+export async function retryFailedBatchItemsAction(batchId: string): Promise<void> {
+  const user = await requireCurrentUser();
+  const { batch } = await loadBatchView(batchId, user.orgId, user.roleId);
+  await requirePermission(user.roleId, batch.kind === "MarketAnalysis" ? "Analysis" : "Competitor", "Create");
+
+  const prisma = await getScopedPrisma();
+  const reset = await prisma.aiAnalysisBatchItem.updateMany({
+    where: { batchId, orgId: user.orgId, status: "Failed" },
+    data: { status: "Pending", startedAt: null, completedAt: null, errorMessage: null, resultId: null },
+  });
+  if (reset.count > 0) {
+    await prisma.aiAnalysisBatch.update({
+      where: { id: batchId },
+      data: { status: "Running", failedCount: { decrement: reset.count }, completedAt: null },
+    });
+  }
+
+  redirect(`/analysis/batches/${batchId}`);
 }
 
 /** لو تركيبة فضلت "Running" أكتر من كده، السيرفر وقع أو المتصفح اتقفل *أثناء* معالجتها فعليًا

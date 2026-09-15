@@ -74,8 +74,10 @@ export default async function AnalysisPage({
   });
   const total = await prisma.productMarketAnalysis.count({ where: activeAnalysisFilter });
   const productCount = await prisma.product.count({ where: { orgId, deletedAt: null } });
-  const verifiedProductCount = await prisma.product.count({ where: { orgId, deletedAt: null, status: "Verified" } });
-  const marketCount = await prisma.market.count({ where: { orgId, deletedAt: null } });
+  const verifiedProducts = await prisma.product.findMany({ where: { orgId, deletedAt: null, status: "Verified" }, select: { id: true, nameAr: true }, orderBy: { nameAr: "asc" } });
+  const marketsForBulk = await prisma.market.findMany({ where: { orgId, deletedAt: null }, select: { id: true, countryNameAr: true }, orderBy: { countryNameAr: "asc" } });
+  const verifiedProductCount = verifiedProducts.length;
+  const marketCount = marketsForBulk.length;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const canCreate = productCount > 0 && marketCount > 0;
@@ -104,8 +106,11 @@ export default async function AnalysisPage({
           <BulkAnalysisButton
             action={startMarketAnalysisBatchAction}
             label="📊 حلّل كل المنتجات × كل الأسواق"
-            description={`هيحلّل ${verifiedProductCount} منتج بحالة "Verified" × ${marketCount} سوق (حد أقصى 50 تركيبة) — منتجات Draft متستبعدة عمدًا عشان محتاج تراجع بياناتها الأول. ممكن ياخد لغاية 20-25 دقيقة، وشريط تقدّم حي هيظهرلك أول بأول.`}
+            description={`اختار المنتجات والأسواق اللي عايز تحلّلها (حد أقصى 50 تركيبة) — منتجات Draft متستبعدة عمدًا عشان محتاج تراجع بياناتها الأول، وتركيبة عندها تحليل حديث لسه صالح بتتستبعد تلقائيًا برضه. ممكن ياخد لغاية 20-25 دقيقة، وشريط تقدّم حي هيظهرلك أول بأول.`}
             colorClass="bg-indigo-700 text-white hover:bg-indigo-800"
+            products={verifiedProducts.map((p) => ({ id: p.id, label: p.nameAr }))}
+            markets={marketsForBulk.map((m) => ({ id: m.id, label: m.countryNameAr }))}
+            showForceRefresh
           />
         </div>
       )}
