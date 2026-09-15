@@ -117,6 +117,12 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
     id: q.id,
     label: `${q.route.originPort} ← ${q.route.destinationPort} (${q.provider.name})`,
   }));
+  // مطابقة نصية بسيطة (بلا FK حقيقي بين Shipment وRoute — مينائين الشحنة نص حر) — لو لقينا خط
+  // بنفس المينائين بالظبط، نديله رابط مباشر لصفحة المقارنة بدل ما المستخدم يدوّر يدويًا.
+  const matchingRoute = await prisma.route.findFirst({
+    where: { orgId, originPort: shipment.originPort, destinationPort: shipment.destinationPort },
+    select: { id: true },
+  });
   const lots = await prisma.lot.findMany({
     where: { orgId },
     select: { id: true, lotCode: true },
@@ -230,6 +236,24 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
 
       <section className="mt-8">
         <h2 className="text-lg font-medium text-foreground">الحجوزات (Bookings)</h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {matchingRoute ? (
+            <>
+              قارن شركات الشحن على خط {shipment.originPort} ← {shipment.destinationPort} قبل ما تختار عرض سعر —{" "}
+              <Link href={`/logistics/routes/${matchingRoute.id}`} className="text-primary hover:underline">
+                افتح المقارنة
+              </Link>
+            </>
+          ) : (
+            <>
+              مفيش خط شحن مسجّل بنفس مينائي الشحنة دي ({shipment.originPort} ← {shipment.destinationPort}) — سجّله من{" "}
+              <Link href="/logistics/routes" className="text-primary hover:underline">
+                خطوط الشحن
+              </Link>{" "}
+              عشان تقدر تقارن الأسعار.
+            </>
+          )}
+        </p>
         <div className="mt-3">
           <BookingForm shipmentId={shipment.id} providers={providers} freightQuotes={freightQuotes} />
         </div>

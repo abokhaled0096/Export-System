@@ -23,6 +23,10 @@ export default async function RouteDetailPage({ params }: { params: Promise<{ id
 
   try {
     await requirePermission(user.roleId, "Route", "View");
+    // Route.View وFreightQuote.View بيتمنحوا سوا لدور LogisticsOfficer دلوقتي (نفس المصفوفة في
+    // prisma/seed.ts)، بس مفيش ضمان إن ده هيفضل صحيح لو دور جديد اتضاف بعدين بـRoute.View بس.
+    // الصفحة دي أساسًا بتعرض بيانات FreightQuote (تسعير)، فلازم تتحقق من صلاحيته صراحةً.
+    await requirePermission(user.roleId, "FreightQuote", "View");
   } catch {
     return (
       <main className="mx-auto max-w-3xl px-6 py-10">
@@ -44,12 +48,15 @@ export default async function RouteDetailPage({ params }: { params: Promise<{ id
     orderBy: { createdAt: "desc" },
   });
 
-  // أرخص عرض سعر لكل نوع حاوية — ده اللي المستخدم فعليًا بيدوّر عليه لما يقارن. حاوية بلا نوع
-  // محدَّد (null) بتتحسب لوحدها تحت مفتاح "غير محدَّد".
-  const cheapestByContainer = new Map<string, string>(); // containerType -> quoteId
+  // أرخص عرض سعر لكل (نوع حاوية × عملة) — لازم العملة تدخل المفتاح، وإلا هنقارن أرقام خام من
+  // عملات مختلفة (500,000 EGP يظهر "أغلى" من 2,000 USD رقميًا رغم إنه ممكن يكون أرخص فعليًا) —
+  // ده نفس عيب "مقارنة عملات مختلفة كأنها نفس الوحدة" اللي اتصلح قبل كده في تحليل الأسواق بالـAI.
+  // مفيش تحويل عملة هنا لأن مفيش أسعار صرف مضمونة/محدَّثة مسجّلة، فالفصل بالعملة أسلم من رقم غلط.
+  const cheapestKey = (q: (typeof quotes)[number]) => `${q.containerType ?? "—"}:${(q.currency ?? "—").trim().toUpperCase()}`;
+  const cheapestByContainer = new Map<string, string>(); // "containerType:CURRENCY" -> quoteId
   for (const q of quotes) {
     if (q.status !== "Approved") continue; // مسودة/منتهي الصلاحية مش مقارنة عادلة.
-    const key = q.containerType ?? "—";
+    const key = cheapestKey(q);
     const current = cheapestByContainer.get(key);
     if (!current) {
       cheapestByContainer.set(key, q.id);
@@ -79,7 +86,7 @@ export default async function RouteDetailPage({ params }: { params: Promise<{ id
       <section className="mt-8">
         <h2 className="text-lg font-medium text-foreground">مقارنة شركات الشحن على هذا الخط</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          {quotes.length} عرض سعر مسجَّل — الأرخص لكل نوع حاوية (بين العروض المعتمدة) معلَّم بـ🏆. الإجمالي = مصاريف المنشأ + أجرة الشحن + مصاريف الوصول + التأمين.
+          {quotes.length} عرض سعر مسجَّل — الأرخص لكل (نوع حاوية × عملة) بين العروض المعتمدة معلَّم بـ🏆. الإجمالي = مصاريف المنشأ + أجرة الشحن + مصاريف الوصول + التأمين. المقارنة بلا تحويل عملة — عروض بعملات مختلفة لنفس نوع الحاوية بتتقارن كل عملة لوحدها.
         </p>
 
         <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card">
@@ -109,7 +116,7 @@ export default async function RouteDetailPage({ params }: { params: Promise<{ id
                 </TableRow>
               ) : (
                 quotes.map((q) => {
-                  const isCheapest = cheapestByContainer.get(q.containerType ?? "—") === q.id;
+                  const isCheapest = cheapestByContainer.get(cheapestKey(q)) === q.id;
                   return (
                     <TableRow key={q.id} className={isCheapest ? "bg-emerald-50" : undefined}>
                       <TableCell className="text-foreground/80">
