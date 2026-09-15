@@ -18,12 +18,18 @@ export default function OpportunityForm({
   products,
   markets,
   defaultCompanyId,
+  defaultProductId,
+  defaultMarketId,
+  defaultCurrency,
 }: {
   companies: Option[];
   contacts: (Option & { companyId: string })[];
   products: Option[];
   markets: Option[];
   defaultCompanyId?: string;
+  defaultProductId?: string;
+  defaultMarketId?: string;
+  defaultCurrency?: string;
 }) {
   const [state, formAction, pending] = useActionState(createOpportunity, initialState);
 
@@ -31,6 +37,8 @@ export default function OpportunityForm({
   const draft = useFormDraft("opportunity-new");
   const val = (name: string) => draft.values[name] ?? "";
   const companyId = val("companyId") || defaultCompanyId || "";
+  const productId = val("productId") || defaultProductId || "";
+  const marketId = val("marketId") || defaultMarketId || "";
 
   return (
     <form action={formAction} className="flex max-w-xl flex-col gap-5">
@@ -90,7 +98,7 @@ export default function OpportunityForm({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="productId">المنتج *</Label>
-          <Select name="productId" value={val("productId")} onValueChange={(v) => draft.setField("productId", v ?? "")}>
+          <Select name="productId" value={productId} onValueChange={(v) => draft.setField("productId", v ?? "")}>
             <SelectTrigger id="productId" className="w-full">
               <SelectValue placeholder="اختر منتج">
                 {(value: string | null) =>
@@ -112,7 +120,7 @@ export default function OpportunityForm({
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="marketId">السوق *</Label>
-          <Select name="marketId" value={val("marketId")} onValueChange={(v) => draft.setField("marketId", v ?? "")}>
+          <Select name="marketId" value={marketId} onValueChange={(v) => draft.setField("marketId", v ?? "")}>
             <SelectTrigger id="marketId" className="w-full">
               <SelectValue placeholder="اختر سوق">
                 {(value: string | null) =>
@@ -151,7 +159,7 @@ export default function OpportunityForm({
             id="currency"
             name="currency"
             placeholder="EUR"
-            value={val("currency")}
+            value={val("currency") || defaultCurrency || ""}
             onChange={(e) => draft.setField("currency", e.target.value)}
           />
         </div>

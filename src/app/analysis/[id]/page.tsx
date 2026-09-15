@@ -119,9 +119,28 @@ export default async function AnalysisDetailPage({ params }: { params: Promise<{
         </Card>
       </div>
 
-      <div className="mt-4">
+      <div className="mt-4 flex items-center gap-3">
         <Badge className={`px-3 py-1.5 text-sm ${recStyle[analysis.recommendation]}`}>التوصية: {recLabel[analysis.recommendation]}</Badge>
+        <Button
+          nativeButton={false}
+          size="sm"
+          variant="outline"
+          render={
+            <Link
+              href={`/opportunities/new?${new URLSearchParams({
+                productId: analysis.productId,
+                marketId: analysis.marketId,
+                ...(details?.priceEstimate?.currency ? { currency: details.priceEstimate.currency } : {}),
+              }).toString()}`}
+            >
+              🎯 حوّل لفرصة (Opportunity)
+            </Link>
+          }
+        />
       </div>
+      <p className="mt-1 text-xs text-muted-foreground">
+        التحليل ده تقييم سوق عام — محتاج تختار عميل معيّن عشان يتحوّل لفرصة، وبعدين لصفقة بمحرك التسعير الحقيقي (walkAwayPrice/breakEvenPrice).
+      </p>
 
       {analysis.needsReview && details?.ruleBasedComparison && (
         <section className="mt-6">

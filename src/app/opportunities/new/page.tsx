@@ -10,9 +10,9 @@ export const dynamic = "force-dynamic";
 export default async function NewOpportunityPage({
   searchParams,
 }: {
-  searchParams: Promise<{ companyId?: string }>;
+  searchParams: Promise<{ companyId?: string; productId?: string; marketId?: string; currency?: string }>;
 }) {
-  const { companyId } = await searchParams;
+  const { companyId, productId, marketId, currency } = await searchParams;
   const user = await requireCurrentUser();
   const orgId = user.orgId;
   const prisma = await getScopedPrisma();
@@ -55,6 +55,9 @@ export default async function NewOpportunityPage({
           products={products.map((p) => ({ id: p.id, label: p.nameAr }))}
           markets={markets.map((m) => ({ id: m.id, label: m.countryNameAr }))}
           defaultCompanyId={companyId}
+          defaultProductId={productId}
+          defaultMarketId={marketId}
+          defaultCurrency={currency}
         />
       </div>
     </main>
