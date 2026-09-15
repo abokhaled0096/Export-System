@@ -255,12 +255,23 @@ export default async function AnalysisDetailPage({ params }: { params: Promise<{
 
           {details?.regulatoryNotes && (
             <section className="mt-6">
-              <h2 className="text-lg font-medium text-foreground">الالتزامات التنظيمية</h2>
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-medium text-foreground">الالتزامات التنظيمية</h2>
+                <Link
+                  href={`/compliance/requirements?${new URLSearchParams({ productId: analysis.productId, marketId: analysis.marketId }).toString()}`}
+                  className="text-xs text-primary hover:underline"
+                >
+                  📋 سجّل متطلبات دخول هذا السوق
+                </Link>
+              </div>
               <Card className="mt-3">
                 <CardContent>
                   <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/80">{details.regulatoryNotes}</p>
                 </CardContent>
               </Card>
+              <p className="mt-1 text-xs text-muted-foreground">
+                النص فوق ده فقرة عامة من الـAI — الزرار بياخدك لصفحة تسجيل متطلبات حقيقية (منتج+سوق متملّيين)، إنت بتحدد كل شهادة/متطلب باسمه بنفسك بعد قراءة الفقرة.
+              </p>
             </section>
           )}
 
