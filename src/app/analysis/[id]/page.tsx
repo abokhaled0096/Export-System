@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
 import { getCurrentOrgId } from "@/lib/org";
 import { requireCurrentUser } from "@/lib/session";
-import { requirePermission } from "@/lib/permissions";
+import { requirePermission, getPermissionScope } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -75,6 +75,13 @@ export default async function AnalysisDetailPage({ params }: { params: Promise<{
   const orgId = await getCurrentOrgId();
   const prisma = await getScopedPrisma();
 
+  // ⚠️ مش Promise.all — راجع BACKLOG.md (P2028). الأزرار اللي بتودّي لصفحات تانية (فرصة/مخاطرة/
+  // متطلب) بتتحقق من صلاحية الوجهة هنا وتتخفي لو المستخدم مش هيقدر يعمل حاجة هناك أصلًا — بدل ما
+  // تظهر وتوصله لصفحة "معندكش صلاحية" (اتلاحظ حيًا: الاتنين متسابين بلا فحص لحد المراجعة دي).
+  const canCreateOpportunity = await getPermissionScope(user.roleId, "Opportunity", "Create");
+  const canCreateRisk = await getPermissionScope(user.roleId, "RiskRegisterItem", "Create");
+  const canCreateRequirement = await getPermissionScope(user.roleId, "Requirement", "Create");
+
   const analysis = await prisma.productMarketAnalysis.findFirst({
     where: { id, orgId },
     include: { product: true, market: true },
@@ -121,26 +128,30 @@ export default async function AnalysisDetailPage({ params }: { params: Promise<{
 
       <div className="mt-4 flex items-center gap-3">
         <Badge className={`px-3 py-1.5 text-sm ${recStyle[analysis.recommendation]}`}>التوصية: {recLabel[analysis.recommendation]}</Badge>
-        <Button
-          nativeButton={false}
-          size="sm"
-          variant="outline"
-          render={
-            <Link
-              href={`/opportunities/new?${new URLSearchParams({
-                productId: analysis.productId,
-                marketId: analysis.marketId,
-                ...(details?.priceEstimate?.currency ? { currency: details.priceEstimate.currency } : {}),
-              }).toString()}`}
-            >
-              🎯 حوّل لفرصة (Opportunity)
-            </Link>
-          }
-        />
+        {canCreateOpportunity && (
+          <Button
+            nativeButton={false}
+            size="sm"
+            variant="outline"
+            render={
+              <Link
+                href={`/opportunities/new?${new URLSearchParams({
+                  productId: analysis.productId,
+                  marketId: analysis.marketId,
+                  ...(details?.priceEstimate?.currency ? { currency: details.priceEstimate.currency } : {}),
+                }).toString()}`}
+              >
+                🎯 حوّل لفرصة (Opportunity)
+              </Link>
+            }
+          />
+        )}
       </div>
-      <p className="mt-1 text-xs text-muted-foreground">
-        التحليل ده تقييم سوق عام — محتاج تختار عميل معيّن عشان يتحوّل لفرصة، وبعدين لصفقة بمحرك التسعير الحقيقي (walkAwayPrice/breakEvenPrice).
-      </p>
+      {canCreateOpportunity && (
+        <p className="mt-1 text-xs text-muted-foreground">
+          التحليل ده تقييم سوق عام — محتاج تختار عميل معيّن عشان يتحوّل لفرصة، وبعدين لصفقة بمحرك التسعير الحقيقي (walkAwayPrice/breakEvenPrice).
+        </p>
+      )}
 
       {analysis.needsReview && details?.ruleBasedComparison && (
         <section className="mt-6">
@@ -222,15 +233,17 @@ export default async function AnalysisDetailPage({ params }: { params: Promise<{
                             <SourceRefs refs={claimRefs(r)} />
                           </span>
                         </span>
-                        <Link
-                          href={`/governance/risks?${new URLSearchParams({
-                            title: `${claimText(r)} — ${analysis.product.nameAr} × ${analysis.market.countryNameAr}`,
-                            category: "امتثال",
-                          }).toString()}`}
-                          className="shrink-0 text-xs text-primary hover:underline"
-                        >
-                          🚩 سجّل كمخاطرة
-                        </Link>
+                        {canCreateRisk && (
+                          <Link
+                            href={`/governance/risks?${new URLSearchParams({
+                              title: `${claimText(r)} — ${analysis.product.nameAr} × ${analysis.market.countryNameAr}`,
+                              category: "امتثال",
+                            }).toString()}`}
+                            className="shrink-0 text-xs text-primary hover:underline"
+                          >
+                            🚩 سجّل كمخاطرة
+                          </Link>
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -257,21 +270,25 @@ export default async function AnalysisDetailPage({ params }: { params: Promise<{
             <section className="mt-6">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-medium text-foreground">الالتزامات التنظيمية</h2>
-                <Link
-                  href={`/compliance/requirements?${new URLSearchParams({ productId: analysis.productId, marketId: analysis.marketId }).toString()}`}
-                  className="text-xs text-primary hover:underline"
-                >
-                  📋 سجّل متطلبات دخول هذا السوق
-                </Link>
+                {canCreateRequirement && (
+                  <Link
+                    href={`/compliance/requirements?${new URLSearchParams({ productId: analysis.productId, marketId: analysis.marketId }).toString()}`}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    📋 سجّل متطلبات دخول هذا السوق
+                  </Link>
+                )}
               </div>
               <Card className="mt-3">
                 <CardContent>
                   <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/80">{details.regulatoryNotes}</p>
                 </CardContent>
               </Card>
-              <p className="mt-1 text-xs text-muted-foreground">
-                النص فوق ده فقرة عامة من الـAI — الزرار بياخدك لصفحة تسجيل متطلبات حقيقية (منتج+سوق متملّيين)، إنت بتحدد كل شهادة/متطلب باسمه بنفسك بعد قراءة الفقرة.
-              </p>
+              {canCreateRequirement && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  النص فوق ده فقرة عامة من الـAI — الزرار بياخدك لصفحة تسجيل متطلبات حقيقية (منتج+سوق متملّيين)، إنت بتحدد كل شهادة/متطلب باسمه بنفسك بعد قراءة الفقرة.
+                </p>
+              )}
             </section>
           )}
 
