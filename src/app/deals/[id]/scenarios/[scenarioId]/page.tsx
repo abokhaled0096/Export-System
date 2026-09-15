@@ -11,6 +11,7 @@ import OpenComplianceCaseForm from "./OpenComplianceCaseForm";
 import OpenSourcingRequestForm from "./OpenSourcingRequestForm";
 import { complianceCaseStatusLabel } from "@/lib/complianceLabels";
 import { sourcingRequestStatusLabel } from "@/lib/procurementLabels";
+import { containerTypeLabel } from "@/lib/logisticsLabels";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -86,7 +87,7 @@ export default async function ScenarioDetailPage({
   });
 
   // وحدة 4 — مواصفات منتج الصفقة (لو موجودة)، لملء select "المواصفة" في فورم فتح طلب التوريد.
-  const deal = await prisma.deal.findUniqueOrThrow({ where: { id }, select: { productId: true } });
+  const deal = await prisma.deal.findUniqueOrThrow({ where: { id }, select: { productId: true, marketId: true } });
   const specifications = await prisma.productSpecification.findMany({
     where: { orgId, productId: deal.productId },
     select: { id: true, version: true, status: true },
@@ -108,6 +109,85 @@ export default async function ScenarioDetailPage({
     return sum + amountInScenarioCurrency;
   }, 0);
   const totalRiskCost = scenario.riskItems.reduce((sum, item) => sum + Number(item.expectedCost), 0);
+
+  // وحدة 6 — اقتصاديات الكونتينر: عدد الحاويات الحقيقي اللي محتاجينه لكمية السيناريو دي، وتكلفة
+  // الشحن الحقيقية من عروض أسعار مسجَّلة فعليًا. سعة كل نوع حاوية (avgMaxPayload) بتتحسب من
+  // متوسط Container.maxPayload لحاويات فعلية سابقة في المنظمة دي — مش رقم قياسي مُخمَّن من
+  // الإنترنت، لأن السعة الفعلية بتختلف باختلاف الشركة الناقلة والحاوية بالظبط (نفس مبدأ "ممنوع
+  // تلفيق بيانات" اللي اتطبّق على التقويم الموسمي في تحليل الأسواق).
+  const canViewContainerStats = (await getPermissionScope(user.roleId, "Shipment", "View")) !== null;
+  const canViewFreightQuotes = (await getPermissionScope(user.roleId, "FreightQuote", "View")) !== null;
+
+  let market: { countryNameAr: string; mainPorts: string[] } | null = null;
+  let containerStats: { containerType: string; avgMaxPayload: number; sampleSize: number }[] = [];
+  let freightOptions: { containerType: string; currency: string; totalPerContainer: number; routeLabel: string; provider: string }[] = [];
+
+  if (canViewContainerStats || canViewFreightQuotes) {
+    market = await prisma.market.findUnique({ where: { id: deal.marketId }, select: { countryNameAr: true, mainPorts: true } });
+
+    if (canViewContainerStats) {
+      const grouped = await prisma.container.groupBy({
+        by: ["containerType"],
+        where: { orgId, maxPayload: { not: null } },
+        _avg: { maxPayload: true },
+        _count: { _all: true },
+      });
+      containerStats = grouped.map((g) => ({
+        containerType: g.containerType,
+        avgMaxPayload: Number(g._avg.maxPayload ?? 0),
+        sampleSize: g._count._all,
+      }));
+    }
+
+    if (canViewFreightQuotes && market) {
+      const mainPorts = market.mainPorts;
+      const portsMatch = (a: string, b: string) => {
+        const x = a.trim().toLowerCase();
+        const y = b.trim().toLowerCase();
+        return x.length > 0 && y.length > 0 && (x === y || x.includes(y) || y.includes(x));
+      };
+      const routes = await prisma.route.findMany({
+        where: { orgId },
+        include: { freightQuotes: { where: { status: "Approved" }, include: { provider: true } } },
+      });
+      const matchingRoutes = routes.filter((r) => mainPorts.some((p) => portsMatch(r.destinationPort, p)));
+      const quoteCost = (q: { originCharges: unknown; mainFreight: unknown; destinationCharges: unknown; insurance: unknown }) => {
+        const n = (v: unknown) => (v === null || v === undefined ? 0 : Number(v));
+        return n(q.originCharges) + n(q.mainFreight) + n(q.destinationCharges) + n(q.insurance);
+      };
+      const cheapest = new Map<string, { containerType: string; currency: string; totalPerContainer: number; routeLabel: string; provider: string }>();
+      for (const route of matchingRoutes) {
+        for (const q of route.freightQuotes) {
+          if (!q.containerType || !q.currency) continue;
+          const currency = q.currency.trim().toUpperCase();
+          const key = `${q.containerType}:${currency}`;
+          const cost = quoteCost(q);
+          const current = cheapest.get(key);
+          if (!current || cost < current.totalPerContainer) {
+            cheapest.set(key, {
+              containerType: q.containerType,
+              currency,
+              totalPerContainer: cost,
+              routeLabel: `${route.originPort} ← ${route.destinationPort}`,
+              provider: q.provider.name,
+            });
+          }
+        }
+      }
+      freightOptions = Array.from(cheapest.values());
+    }
+  }
+
+  const quantitySaleableNum = Number(scenario.quantitySaleable);
+  const containerRows = freightOptions.map((f) => {
+    const stats = containerStats.find((c) => c.containerType === f.containerType);
+    const containersNeeded = stats && stats.avgMaxPayload > 0 ? Math.ceil(quantitySaleableNum / stats.avgMaxPayload) : null;
+    const totalFreightCost = containersNeeded ? containersNeeded * f.totalPerContainer : null;
+    const costPerKg = totalFreightCost && quantitySaleableNum > 0 ? totalFreightCost / quantitySaleableNum : null;
+    const utilizationPct = containersNeeded && stats ? (quantitySaleableNum / (containersNeeded * stats.avgMaxPayload)) * 100 : null;
+    return { ...f, stats, containersNeeded, totalFreightCost, costPerKg, utilizationPct };
+  });
+  const payloadOnlyStats = containerStats.filter((c) => !freightOptions.some((f) => f.containerType === c.containerType));
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-10">
@@ -302,6 +382,80 @@ export default async function ScenarioDetailPage({
           </div>
         )}
       </section>
+
+      {(canViewContainerStats || canViewFreightQuotes) && (
+        <section className="mt-8">
+          <h2 className="text-lg font-medium text-foreground">🧮 اقتصاديات الكونتينر</h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            سعة كل نوع حاوية محسوبة من متوسط حاويات فعلية سابقة في شحناتكم ({market?.countryNameAr ? `المسار لموانئ ${market.countryNameAr}` : "كل الموانئ"}) —
+            مش رقم قياسي مفترض من الإنترنت، لأن السعة الفعلية بتختلف حسب الشركة الناقلة. الأرقام هنا للمقارنة والتقدير — انسخ الرقم اللي تختاره يدويًا لبند &quot;شحن دولي&quot; فوق بعد ما تراجعه.
+          </p>
+
+          {containerRows.length === 0 && payloadOnlyStats.length === 0 ? (
+            <div className="mt-3 rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
+              لسه مفيش عروض أسعار شحن معتمدة لموانئ هذا السوق و/أو مفيش حاويات فعلية سابقة مسجَّلة بوزن أقصى — التقدير محتاج{" "}
+              <Link href="/logistics/quotes" className="text-primary hover:underline">عرض سعر</Link> و/أو{" "}
+              <Link href="/logistics" className="text-primary hover:underline">شحنة فعلية سابقة</Link> فيها بيانات حاوية.
+            </div>
+          ) : (
+            <>
+              {containerRows.length > 0 && (
+                <div className="mt-3 overflow-x-auto rounded-xl border border-border bg-card">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>نوع الحاوية</TableHead>
+                        <TableHead>خط الشحن (أرخص عرض)</TableHead>
+                        <TableHead>تكلفة الحاوية الواحدة</TableHead>
+                        <TableHead>سعة فعلية متوسطة</TableHead>
+                        <TableHead>عدد الحاويات المطلوب</TableHead>
+                        <TableHead>إجمالي تكلفة الشحن</TableHead>
+                        <TableHead>التكلفة/كجم</TableHead>
+                        <TableHead>نسبة الاستخدام</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {containerRows.map((r) => (
+                        <TableRow key={`${r.containerType}:${r.currency}`}>
+                          <TableCell>{containerTypeLabel[r.containerType] ?? r.containerType}</TableCell>
+                          <TableCell className="text-foreground/80">
+                            {r.provider} <span className="text-xs text-muted-foreground">({r.routeLabel})</span>
+                          </TableCell>
+                          <TableCell className="font-mono text-foreground/80">
+                            {r.totalPerContainer.toLocaleString()} {r.currency}
+                          </TableCell>
+                          <TableCell className="font-mono text-foreground/80">
+                            {r.stats ? `${r.stats.avgMaxPayload.toLocaleString()} كجم (${r.stats.sampleSize} حاوية سابقة)` : "غير معروف"}
+                          </TableCell>
+                          <TableCell className="font-mono text-foreground/80">{r.containersNeeded ?? "—"}</TableCell>
+                          <TableCell className="font-mono font-medium text-foreground">
+                            {r.totalFreightCost ? `${r.totalFreightCost.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${r.currency}` : "—"}
+                          </TableCell>
+                          <TableCell className="font-mono text-foreground/80">
+                            {r.costPerKg ? `${r.costPerKg.toFixed(4)} ${r.currency}` : "—"}
+                          </TableCell>
+                          <TableCell className="font-mono text-foreground/80">
+                            {r.utilizationPct ? `${r.utilizationPct.toFixed(0)}%` : "—"}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+
+              {payloadOnlyStats.length > 0 && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  سعة فعلية معروفة بلا عرض سعر مطابق لموانئ هذا السوق:{" "}
+                  {payloadOnlyStats
+                    .map((s) => `${containerTypeLabel[s.containerType] ?? s.containerType} (${s.avgMaxPayload.toLocaleString()} كجم من ${s.sampleSize} حاوية سابقة)`)
+                    .join("، ")}
+                </p>
+              )}
+            </>
+          )}
+        </section>
+      )}
 
       <section className="mt-8">
         <div className="flex items-center justify-between">
