@@ -15,7 +15,8 @@ const STATUS_STYLE: Record<string, string> = {
   Closed: "bg-emerald-100 text-emerald-700 hover:bg-emerald-100",
 };
 
-export default async function RisksPage() {
+export default async function RisksPage({ searchParams }: { searchParams: Promise<{ title?: string; category?: string }> }) {
+  const { title, category } = await searchParams;
   const user = await requireCurrentUser();
 
   try {
@@ -50,7 +51,7 @@ export default async function RisksPage() {
       </div>
 
       <div className="mt-6">
-        <RiskForm users={userOptions} currentUserId={user.id} />
+        <RiskForm users={userOptions} currentUserId={user.id} defaultTitle={title} defaultCategory={category} />
       </div>
 
       <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card">

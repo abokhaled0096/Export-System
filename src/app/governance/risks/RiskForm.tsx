@@ -11,7 +11,17 @@ const initialState: RiskFormState = {};
 
 export type UserOption = { id: string; label: string };
 
-export default function RiskForm({ users, currentUserId }: { users: UserOption[]; currentUserId: string }) {
+export default function RiskForm({
+  users,
+  currentUserId,
+  defaultTitle,
+  defaultCategory,
+}: {
+  users: UserOption[];
+  currentUserId: string;
+  defaultTitle?: string;
+  defaultCategory?: string;
+}) {
   const [state, formAction, pending] = useActionState(createRiskRegisterItem, initialState);
 
   return (
@@ -20,14 +30,14 @@ export default function RiskForm({ users, currentUserId }: { users: UserOption[]
         <Label htmlFor="risk-title" className="text-xs">
           العنوان *
         </Label>
-        <Input id="risk-title" name="title" />
+        <Input id="risk-title" name="title" defaultValue={defaultTitle} />
         {state.errors?.title && <span className="text-xs text-destructive">{state.errors.title[0]}</span>}
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="risk-category" className="text-xs">
           الفئة *
         </Label>
-        <Select name="category" defaultValue="مالي">
+        <Select name="category" defaultValue={defaultCategory ?? "مالي"}>
           <SelectTrigger id="risk-category">
             <SelectValue />
           </SelectTrigger>

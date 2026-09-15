@@ -214,12 +214,23 @@ export default async function AnalysisDetailPage({ params }: { params: Promise<{
                 <CardContent>
                   <ul className="flex flex-col gap-1.5 text-sm text-foreground/80">
                     {details.keyRisks.map((r, i) => (
-                      <li key={i} className="flex gap-2">
-                        <span className="text-rose-600">⚠</span>
-                        <span>
-                          {claimText(r)}
-                          <SourceRefs refs={claimRefs(r)} />
+                      <li key={i} className="flex items-start justify-between gap-2">
+                        <span className="flex gap-2">
+                          <span className="text-rose-600">⚠</span>
+                          <span>
+                            {claimText(r)}
+                            <SourceRefs refs={claimRefs(r)} />
+                          </span>
                         </span>
+                        <Link
+                          href={`/governance/risks?${new URLSearchParams({
+                            title: `${claimText(r)} — ${analysis.product.nameAr} × ${analysis.market.countryNameAr}`,
+                            category: "امتثال",
+                          }).toString()}`}
+                          className="shrink-0 text-xs text-primary hover:underline"
+                        >
+                          🚩 سجّل كمخاطرة
+                        </Link>
                       </li>
                     ))}
                   </ul>
