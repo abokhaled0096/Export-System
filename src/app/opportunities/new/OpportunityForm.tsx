@@ -34,11 +34,15 @@ export default function OpportunityForm({
   const [state, formAction, pending] = useActionState(createOpportunity, initialState);
 
   // حفظ تلقائي محلي في المتصفح — راجع src/lib/useFormDraft.ts وBACKLOG.md § فقدان بيانات صامت.
-  const draft = useFormDraft("opportunity-new");
+  // default* (من رابط صريح زي "حوّل لفرصة" من صفحة تحليل، أو "+ فرصة جديدة" من صفحة شركة معيّنة)
+  // بتتمرّر كـoverrides عشان تتطبّق فوق أي مسودة قديمة مسترجعة بترتيب مضمون (راجع useFormDraft) —
+  // مش أولوية render-time كانت بتقفل الحقل على قيمة الرابط للأبد وتمنع أي تعديل بعد كده.
+  const draft = useFormDraft("opportunity-new", { companyId: defaultCompanyId ?? "", productId: defaultProductId ?? "", marketId: defaultMarketId ?? "", currency: defaultCurrency ?? "" });
   const val = (name: string) => draft.values[name] ?? "";
-  const companyId = val("companyId") || defaultCompanyId || "";
-  const productId = val("productId") || defaultProductId || "";
-  const marketId = val("marketId") || defaultMarketId || "";
+
+  const companyId = val("companyId");
+  const productId = val("productId");
+  const marketId = val("marketId");
 
   return (
     <form action={formAction} className="flex max-w-xl flex-col gap-5">
@@ -159,7 +163,7 @@ export default function OpportunityForm({
             id="currency"
             name="currency"
             placeholder="EUR"
-            value={val("currency") || defaultCurrency || ""}
+            value={val("currency")}
             onChange={(e) => draft.setField("currency", e.target.value)}
           />
         </div>
