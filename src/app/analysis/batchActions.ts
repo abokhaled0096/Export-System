@@ -163,9 +163,15 @@ export async function processNextBatchItem(batchId: string): Promise<BatchView> 
   // Mode في التطوير بيولّد نداءين للـeffect) من معالجة نفس التركيبة مرتين وزيادة العدّاد مرتين
   // (اتلاحظ حيًا: succeededCount+failedCount بقوا أكبر من totalPairs). لو حد تاني سبقنا وكلايم
   // التركيبة، claimed.count بيبقى 0 ونرجّع الحالة الحالية بلا معالجة إضافية.
+  // claimedAt بيتخزّن عشان يُستخدم كـfencing token وقت الكتابة النهائية تحت — لو نداء تاني (أبطأ
+  // من حد الاسترداد فوق) استرجع التركيبة دي وعالجها من الأول، claimedAt بتاعنا هيبقى قديم ومش
+  // مطابق للـstartedAt الجديد، فكتابتنا النهائية هتتجاهَل بدل ما تتراكب فوق نتيجة أحدث أو تزوّد
+  // العدّاد مرتين. ده سيناريو نادر بس ممكن نظريًا: موديل متعدد fallback + retries على كل واحد
+  // ممكن يعدّي نظريًا حد الـ10 دقايق (راجع STUCK_RUNNING_THRESHOLD_MS)، فالتأمين ده مش زيادة.
+  const claimedAt = new Date();
   const claimed = await prisma.aiAnalysisBatchItem.updateMany({
     where: { id: next.id, status: "Pending" },
-    data: { status: "Running", startedAt: new Date() },
+    data: { status: "Running", startedAt: claimedAt },
   });
   if (claimed.count === 0) {
     return getBatchView(batchId);
@@ -195,10 +201,15 @@ export async function processNextBatchItem(batchId: string): Promise<BatchView> 
   }
 
   await withScopedTransaction(async (tx) => {
-    await tx.aiAnalysisBatchItem.update({
-      where: { id: next.id },
+    // status+startedAt سوا في الشرط (مش id بس) — fencing token. لو نداء تاني استرجع التركيبة دي
+    // (claimedAt بتاعنا بقى قديم) وعالجها من الأول، الكتابة دي بترجع count=0 ومفيش عدّاد بيتزوّد
+    // مرتين ولا نتيجة أحدث بتتكتب فوقها نتيجة قديمة.
+    const finalized = await tx.aiAnalysisBatchItem.updateMany({
+      where: { id: next.id, status: "Running", startedAt: claimedAt },
       data: { status: succeeded ? "Succeeded" : "Failed", resultId, errorMessage, completedAt: new Date() },
     });
+    if (finalized.count === 0) return;
+
     const updatedBatch = await tx.aiAnalysisBatch.update({
       where: { id: batch.id },
       data: succeeded ? { succeededCount: { increment: 1 } } : { failedCount: { increment: 1 } },
