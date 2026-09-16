@@ -1,5 +1,12 @@
 import { Prisma } from "@/generated/prisma/client";
 
+export const exchangeRateTypeLabel: Record<string, string> = {
+  Spot: "فوري",
+  Budget: "موازنة",
+  Contracted: "تعاقدي",
+  Actual: "فعلي",
+};
+
 export const bankTransactionTypeLabel: Record<string, string> = {
   Deposit: "إيداع",
   Withdrawal: "سحب",

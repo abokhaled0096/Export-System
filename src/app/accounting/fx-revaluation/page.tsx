@@ -3,6 +3,9 @@ import { requireCurrentUser } from "@/lib/session";
 import { requirePermission } from "@/lib/permissions";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
 import RunFxRevaluationButton from "./RunFxRevaluationButton";
+import ExchangeRateForm from "./ExchangeRateForm";
+import { exchangeRateTypeLabel } from "@/lib/treasuryLabels";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export const dynamic = "force-dynamic";
 
@@ -67,6 +70,12 @@ export default async function FxRevaluationPage({ searchParams }: { searchParams
     select: { id: true, entryNumber: true },
   });
 
+  const recentRates = await prisma.exchangeRate.findMany({
+    where: { orgId, quoteCurrency: org.functionalCurrency },
+    orderBy: { rateDate: "desc" },
+    take: 10,
+  });
+
   const openForeignInvoices = await prisma.invoice.count({
     where: { orgId, currency: { not: org.functionalCurrency }, status: { notIn: ["Draft", "Cancelled", "Paid"] }, journalEntryId: { not: null }, issueDate: { lte: period.endDate } },
   });
@@ -116,6 +125,45 @@ export default async function FxRevaluationPage({ searchParams }: { searchParams
         ) : (
           <RunFxRevaluationButton periodId={period.id} />
         )}
+      </div>
+
+      <h2 className="mt-8 text-lg font-semibold text-foreground">أسعار الصرف مقابل {org.functionalCurrency}</h2>
+      <p className="mt-1 text-xs text-muted-foreground">
+        إعادة التقييم فوق محتاجة سعر مسجَّل لكل عملة أجنبية عندها فواتير مفتوحة — سجّل سعر &quot;اليوم&quot; هنا لو مفيش
+        معاملة حقيقية بالعملة دي حديثًا.
+      </p>
+      <div className="mt-2">
+        <ExchangeRateForm />
+      </div>
+      <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>العملة الأجنبية</TableHead>
+              <TableHead>السعر</TableHead>
+              <TableHead>التاريخ</TableHead>
+              <TableHead>النوع</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {recentRates.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={4} className="py-6 text-center text-muted-foreground">
+                  لسه مفيش أسعار صرف مسجّلة مقابل {org.functionalCurrency}.
+                </TableCell>
+              </TableRow>
+            ) : (
+              recentRates.map((r) => (
+                <TableRow key={r.id}>
+                  <TableCell className="font-mono text-foreground">{r.baseCurrency}</TableCell>
+                  <TableCell className="font-mono text-foreground">{r.rate.toString()}</TableCell>
+                  <TableCell className="text-foreground/80">{r.rateDate.toISOString().slice(0, 10)}</TableCell>
+                  <TableCell className="text-foreground/80">{exchangeRateTypeLabel[r.rateType]}</TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
       </div>
     </main>
   );

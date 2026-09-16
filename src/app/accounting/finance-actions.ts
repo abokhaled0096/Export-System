@@ -354,6 +354,63 @@ export async function runFxRevaluationAction(periodId: string) {
   return result;
 }
 
+// ==================== ExchangeRate ====================
+
+const EXCHANGE_RATE_TYPES = ["Spot", "Budget", "Contracted", "Actual"] as const;
+
+const ExchangeRateSchema = z.object({
+  baseCurrency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase(),
+  quoteCurrency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase(),
+  rate: z.coerce.number().positive("السعر مطلوب"),
+  rateDate: z.coerce.date({ error: "تاريخ السعر مطلوب" }),
+  rateType: z.enum(EXCHANGE_RATE_TYPES, "اختار نوع سعر صحيح"),
+});
+
+export type ExchangeRateFormState = { errors?: Record<string, string[]>; formError?: string };
+
+/** تسجيل سعر صرف "اليوم" مستقل عن أي معاملة — بند من BACKLOG.md § وحدة 8. لحد دلوقتي كان
+ * `ExchangeRate` بيتسجّل بس كأثر جانبي لإصدار فاتورة/تحصيل دفعة بعملة أجنبية، فلو مفيش معاملة
+ * حقيقية بعملة معيّنة، مفيش طريقة تدخل سعرها الحالي — وإعادة التقييم الدورية
+ * (`revalueForeignCurrencyReceivablesPayables`) بتتخطّى أي فاتورة مفتوحة بعملة زي كده
+ * (`skippedNoRateCount`) بدل ما تُعاد ترجمتها. */
+export async function createExchangeRateAction(_prevState: ExchangeRateFormState, formData: FormData): Promise<ExchangeRateFormState> {
+  const parsed = ExchangeRateSchema.safeParse({
+    baseCurrency: formData.get("baseCurrency"),
+    quoteCurrency: formData.get("quoteCurrency"),
+    rate: formData.get("rate"),
+    rateDate: formData.get("rateDate"),
+    rateType: formData.get("rateType"),
+  });
+  if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
+
+  if (parsed.data.baseCurrency === parsed.data.quoteCurrency) {
+    return { formError: "لازم تختار عملتين مختلفتين." };
+  }
+
+  const user = await requireCurrentUser();
+  try {
+    await requirePermission(user.roleId, "ExchangeRate", "Create");
+    await withScopedTransaction(async (tx) => {
+      const rate = await tx.exchangeRate.create({ data: { orgId: user.orgId, ...parsed.data } });
+      await logAudit(tx, {
+        orgId: user.orgId,
+        userId: user.id,
+        action: "exchangeRate.created",
+        entityType: "ExchangeRate",
+        entityId: rate.id,
+        afterValue: { ...parsed.data, rate: parsed.data.rate.toString() },
+      });
+    });
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "createExchangeRateAction", error: e });
+    return { formError: businessRuleMessage(e, "حصل خطأ أثناء تسجيل سعر الصرف — حاول تاني.") };
+  }
+
+  revalidatePath("/accounting/fx-revaluation");
+  return {};
+}
+
 // ==================== TaxRecord ====================
 
 const TAX_TYPES = ["VATOutput", "VATInput", "WithholdingTax", "PayrollTax"] as const;
