@@ -73,6 +73,70 @@ export async function createBudget(_prevState: BudgetFormState, formData: FormDa
   return {};
 }
 
+/** بند من BACKLOG.md § وحدة 8: "Budget بلا نسخ/تكرار من سنة لسنة". بينسخ كل بنود الموازنة من
+ * فترة مصدر لفترة هدف — نقطة بداية قابلة للتعديل بعدها، مش قفل نهائي. بند موجود بالفعل في
+ * الفترة الهدف (نفس budgetType/costCenterId/currency — القيد الفريد على Budget) بيتخطّى بصمت
+ * بدل ما يترفض بخطأ FK، عشان تشغيل النسخ أكتر من مرة يبقى آمن (idempotent) ومايكسرش بنود
+ * اتعدّلت بإيد بالفعل. */
+export async function copyBudgetFromPeriodAction(fromPeriodId: string, toPeriodId: string): Promise<{ copiedCount: number; skippedCount: number; formError?: string }> {
+  const user = await requireCurrentUser();
+  await requirePermission(user.roleId, "Budget", "Create");
+
+  if (fromPeriodId === toPeriodId) {
+    return { copiedCount: 0, skippedCount: 0, formError: "لازم تختار فترة مصدر مختلفة عن الفترة الهدف." };
+  }
+
+  let result: { copiedCount: number; skippedCount: number };
+  try {
+    result = await withScopedTransaction(async (tx) => {
+      const [fromPeriod, toPeriod] = await Promise.all([
+        tx.accountingPeriod.findFirst({ where: { id: fromPeriodId } }),
+        tx.accountingPeriod.findFirst({ where: { id: toPeriodId } }),
+      ]);
+      if (!fromPeriod || !toPeriod) throw new Error("فترة المصدر أو الهدف غير موجودة.");
+
+      const sourceBudgets = await tx.budget.findMany({ where: { orgId: user.orgId, periodId: fromPeriodId } });
+      const existingTargetBudgets = await tx.budget.findMany({
+        where: { orgId: user.orgId, periodId: toPeriodId },
+        select: { budgetType: true, costCenterId: true, currency: true },
+      });
+      const existingKey = (b: { budgetType: string; costCenterId: string | null; currency: string }) => `${b.budgetType}:${b.costCenterId ?? ""}:${b.currency}`;
+      const existingKeys = new Set(existingTargetBudgets.map(existingKey));
+
+      let copiedCount = 0;
+      let skippedCount = 0;
+      for (const source of sourceBudgets) {
+        const key = existingKey(source);
+        if (existingKeys.has(key)) {
+          skippedCount++;
+          continue;
+        }
+        const copy = await tx.budget.create({
+          data: { orgId: user.orgId, periodId: toPeriodId, budgetType: source.budgetType, costCenterId: source.costCenterId, amount: source.amount, currency: source.currency },
+        });
+        await logAudit(tx, {
+          orgId: user.orgId,
+          userId: user.id,
+          action: "budget.copiedFromPeriod",
+          entityType: "Budget",
+          entityId: copy.id,
+          afterValue: { fromPeriodId, toPeriodId, budgetType: source.budgetType, amount: source.amount.toString() },
+        });
+        existingKeys.add(key); // يمنع نسخ مكرّر لو fromPeriodId نفسه فيه أكتر من صف بنفس المفتاح (مستحيل نظريًا بالقيد الفريد، دفاع إضافي بس)
+        copiedCount++;
+      }
+      return { copiedCount, skippedCount };
+    });
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "copyBudgetFromPeriodAction", error: e });
+    return { copiedCount: 0, skippedCount: 0, formError: businessRuleMessage(e, "حصل خطأ أثناء نسخ الموازنة — حاول تاني.") };
+  }
+
+  revalidatePath("/accounting/budgets");
+  return result;
+}
+
 // ==================== FixedAsset ====================
 
 const FIXED_ASSET_CATEGORIES = ["Equipment", "Vehicle", "Furniture", "Building", "ComputerHardware", "Other"] as const;

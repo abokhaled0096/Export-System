@@ -4,6 +4,7 @@ import { requirePermission } from "@/lib/permissions";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
 import { BUDGET_TYPE_ACCOUNT_RULES, type BudgetActualRule } from "@/lib/budget";
 import BudgetForm, { type PeriodOption, type CostCenterOption } from "./BudgetForm";
+import CopyBudgetForm from "./CopyBudgetForm";
 import { budgetTypeLabel } from "@/lib/treasuryLabels";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
@@ -86,8 +87,9 @@ export default async function BudgetsPage() {
         <p className="mt-1 text-sm text-muted-foreground">{budgets.length} بند — الفعلي محسوب من الدفتر مباشرة</p>
       </div>
 
-      <div className="mt-6">
+      <div className="mt-6 flex flex-col gap-4">
         <BudgetForm periods={periodOptions} costCenters={costCenterOptions} />
+        <CopyBudgetForm periods={periodOptions} />
       </div>
 
       <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card">
