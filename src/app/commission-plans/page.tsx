@@ -54,7 +54,7 @@ export default async function CommissionPlansPage({ searchParams }: { searchPara
             <TableRow>
               <TableHead>الاسم</TableHead>
               <TableHead>الأساس</TableHead>
-              <TableHead>النسبة %</TableHead>
+              <TableHead>النسبة % / الشرايح</TableHead>
               <TableHead>يُستحق عند</TableHead>
             </TableRow>
           </TableHeader>
@@ -66,14 +66,25 @@ export default async function CommissionPlansPage({ searchParams }: { searchPara
                 </TableCell>
               </TableRow>
             ) : (
-              records.map((p) => (
-                <TableRow key={p.id}>
-                  <TableCell className="text-foreground">{p.name}</TableCell>
-                  <TableCell className="text-foreground/80">{commissionBasisLabel[p.basis]}</TableCell>
-                  <TableCell className="font-mono text-foreground/80">{p.ratePct?.toString() ?? "—"}</TableCell>
-                  <TableCell className="text-foreground/80">{commissionTriggerEventLabel[p.triggerEvent]}</TableCell>
-                </TableRow>
-              ))
+              records.map((p) => {
+                const tiers = Array.isArray(p.tiers) ? (p.tiers as { minAmount: number; maxAmount?: number; ratePct: number }[]) : null;
+                return (
+                  <TableRow key={p.id}>
+                    <TableCell className="text-foreground">{p.name}</TableCell>
+                    <TableCell className="text-foreground/80">{commissionBasisLabel[p.basis]}</TableCell>
+                    <TableCell className="font-mono text-xs text-foreground/80">
+                      {tiers && tiers.length > 0
+                        ? tiers.map((t, i) => (
+                            <div key={i}>
+                              {t.minAmount}–{t.maxAmount ?? "∞"}: {t.ratePct}%
+                            </div>
+                          ))
+                        : (p.ratePct?.toString() ?? "—")}
+                    </TableCell>
+                    <TableCell className="text-foreground/80">{commissionTriggerEventLabel[p.triggerEvent]}</TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>
