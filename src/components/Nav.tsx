@@ -42,6 +42,7 @@ const links = [
   { href: "/accounting/cash-flow", label: "التدفّق النقدي" },
   { href: "/accounting/fixed-assets", label: "الأصول الثابتة" },
   { href: "/accounting/depreciation", label: "الإهلاك الدوري" },
+  { href: "/accounting/fx-revaluation", label: "فروق العملة" },
   { href: "/accounting/budgets", label: "الموازنات" },
   { href: "/accounting/tax-records", label: "الضرائب" },
   { href: "/governance/sod-rules", label: "فصل المهام" },
@@ -157,6 +158,14 @@ export default async function Nav() {
                   className="rounded-lg px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
                 >
                   إعدادات AI
+                </Link>
+              )}
+              {isRoleAdmin && (
+                <Link
+                  href="/admin/accounting-settings"
+                  className="rounded-lg px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  إعدادات المحاسبة
                 </Link>
               )}
             </nav>

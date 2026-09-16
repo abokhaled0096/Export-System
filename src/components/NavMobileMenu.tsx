@@ -109,6 +109,15 @@ export default function NavMobileMenu({
               إعدادات AI
             </Link>
           )}
+          {isRoleAdmin && (
+            <Link
+              href="/admin/accounting-settings"
+              onClick={() => setOpen(false)}
+              className="rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              إعدادات المحاسبة
+            </Link>
+          )}
           <div className="mt-2 flex items-center justify-between border-t border-border pt-2">
             <Link
               href="/account/mfa"

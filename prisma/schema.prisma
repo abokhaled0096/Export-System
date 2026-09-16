@@ -44,6 +44,13 @@ model Organization {
   aiModel              String?
   tavilyApiKeySecretId String? @db.Uuid
 
+  /// عملة التقارير الوظيفية — فاضية (NULL) يعني محاسبة عملة واحدة كلاسيكية زي ما كانت دايمًا
+  /// (كل قيد لازم يكون بعملة واحدة، بلا فروق عملة — صفر تغيير سلوك للمنظمات اللي مفعّلتهاش).
+  /// لو اتحطّت، القيود بقى ممكن تحتوي بنود بعملات مختلفة (كل بند لازم fxRateId من عملته لعملة
+  /// المنظمة دي بالظبط)، والتوازن بيتفحص على القيمة الوظيفية (JournalLine.functionalDebit/Credit)
+  /// مش الخام — راجع migration fx_gain_loss_engine وsrc/lib/fxRevaluation.ts.
+  functionalCurrency String? @db.Char(3)
+
   users                    User[]
   products                 Product[]
   markets                  Market[]
@@ -4278,6 +4285,12 @@ model JournalLine {
   credit         Decimal  @default(0) @db.Decimal(14, 2)
   currency       String   @db.Char(3)
   fxRateId       String?  @db.Uuid
+  /// ⚙️ مصانة بـTrigger (compute_journal_line_functional_amounts) — مش إدخال يدوي. لو
+  /// Organization.functionalCurrency فاضية أو currency=functionalCurrency: functionalDebit/Credit
+  /// = debit/credit بالحرف. غير كده: = debit/credit × ExchangeRate.rate (fxRateId لازم يكون من
+  /// baseCurrency=currency هذا البند لـquoteCurrency=functionalCurrency بالظبط، وإلا الترحيل يترفض).
+  functionalDebit  Decimal  @default(0) @db.Decimal(14, 2)
+  functionalCredit Decimal  @default(0) @db.Decimal(14, 2)
   costCenterId   String?  @db.Uuid
   profitCenterId String?  @db.Uuid
   dealId         String?  @db.Uuid

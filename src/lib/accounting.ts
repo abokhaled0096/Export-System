@@ -30,7 +30,14 @@ export type CreateJournalEntryInput = {
   lines: PostingLine[];
 };
 
+/** لو البنود بعملات مختلفة، التوازن الحقيقي (بالقيمة الوظيفية) بيتفحص وقت الترحيل على مستوى
+ * القاعدة (enforce_journal_entry_balanced) — بيحتاج يجيب Organization.functionalCurrency
+ * وأسعار الصرف، فمش هنكرره هنا بلا داعي. التحقق هنا (رفض مبكر، تحسين UX بس) مقصور على القيود
+ * أحادية العملة، اللي لسه الغالبية الساحقة. */
 function assertBalanced(lines: PostingLine[]) {
+  const currencies = new Set(lines.map((l) => l.currency));
+  if (currencies.size > 1) return;
+
   const totalDebit = lines.reduce((sum, l) => sum.add(new Prisma.Decimal(l.debit ?? 0)), new Prisma.Decimal(0));
   const totalCredit = lines.reduce((sum, l) => sum.add(new Prisma.Decimal(l.credit ?? 0)), new Prisma.Decimal(0));
 
@@ -39,10 +46,6 @@ function assertBalanced(lines: PostingLine[]) {
   }
   if (totalDebit.equals(0)) {
     throw new Error("مينفعش إنشاء قيد بلا بنود فعلية.");
-  }
-  const currencies = new Set(lines.map((l) => l.currency));
-  if (currencies.size > 1) {
-    throw new Error("القيود متعددة العملات مش مدعومة لسه — كل البنود لازم تكون بعملة واحدة.");
   }
 }
 
@@ -178,7 +181,7 @@ type GlAccountKey = keyof typeof GL_ACCOUNTS;
 
 /** بيحوّل أكواد الحسابات لـids فعلية، وبيرمي خطأ واضح لو حساب ناقص من شجرة الحسابات
  * (بدل ما القيد يترحّل ناقص أو يفشل برسالة FK غامضة). */
-async function resolveAccountIds(tx: ScopedTx, orgId: string, keys: GlAccountKey[]): Promise<Record<string, string>> {
+export async function resolveAccountIds(tx: ScopedTx, orgId: string, keys: GlAccountKey[]): Promise<Record<string, string>> {
   const codes = keys.map((k) => GL_ACCOUNTS[k]);
   const accounts = await tx.chartOfAccount.findMany({
     where: { orgId, accountCode: { in: codes } },
@@ -198,7 +201,7 @@ async function resolveAccountIds(tx: ScopedTx, orgId: string, keys: GlAccountKey
 
 /** بيدوّر على فترة محاسبية مفتوحة بتغطي التاريخ ده — الترحيل التلقائي محتاج فترة صالحة،
  * والـTrigger enforce_entry_date_within_period بيرفض أي تاريخ برّه نطاق فترته. */
-async function findOpenPeriodFor(tx: ScopedTx, orgId: string, date: Date): Promise<string> {
+export async function findOpenPeriodFor(tx: ScopedTx, orgId: string, date: Date): Promise<string> {
   const period = await tx.accountingPeriod.findFirst({
     where: { orgId, status: "Open", startDate: { lte: date }, endDate: { gte: date } },
     select: { id: true, periodName: true },
@@ -221,6 +224,10 @@ export type InvoiceForPosting = {
   issueDate: Date;
   dealId: string | null;
   supplierId: string | null;
+  /// لازم لو Organization.functionalCurrency مفعّلة وcurrency الفاتورة مختلفة عنها — بيتسجّل
+  /// على بند AR/AP نفسه، وده اللي بيحفظ "سعر الإصدار" لحساب فرق العملة المحقَّق لاحقًا وقت
+  /// التخصيص الفعلي (postPaymentAllocated) — راجع migration 20260916120000.
+  fxRateId?: string;
 };
 
 /**
@@ -241,7 +248,9 @@ export async function postInvoiceIssued(tx: ScopedTx, invoice: InvoiceForPosting
     isSales ? (hasTax ? ["AR", "REVENUE", "VAT_OUTPUT"] : ["AR", "REVENUE"]) : hasTax ? ["COGS", "VAT_INPUT", "AP"] : ["COGS", "AP"]
   );
 
-  const dims = { dealId: invoice.dealId ?? undefined, supplierId: invoice.supplierId ?? undefined };
+  // fxRateId بيتحط على كل بنود القيد (مش بس AR/AP) — كلهم بعملة الفاتورة نفسها، فكلهم محتاجين
+  // نفس الترجمة للقيمة الوظيفية لو العملة مختلفة عن عملة المنظمة (compute_journal_line_functional_amounts).
+  const dims = { dealId: invoice.dealId ?? undefined, supplierId: invoice.supplierId ?? undefined, fxRateId: invoice.fxRateId };
   const lines: PostingLine[] = isSales
     ? [
         { accountId: acc.AR, debit: invoice.totalAmount, currency: invoice.currency, description: `فاتورة مبيعات ${invoice.invoiceNumber}`, ...dims },
@@ -275,36 +284,144 @@ export type PaymentForPosting = {
   currency: string;
   paymentDate: Date;
   supplierId: string | null;
+  /// راجع InvoiceForPosting.fxRateId — نفس المبدأ، لكن هنا "سعر التحصيل/السداد" مش "سعر
+  /// الإصدار". الفرق بين الاتنين (لنفس الفاتورة، وقت التخصيص) هو فرق العملة المحقَّق.
+  fxRateId?: string;
 };
 
 /**
  * بيرحّل قيد التحصيل/السداد:
- * - وارد (تحصيل من عميل): مدين نقدية / دائن ذمم مدينة
- * - صادر (سداد لمورّد): مدين ذمم دائنة / دائن نقدية
+ * - Organization.functionalCurrency فاضية (السلوك القديم بالحرف): وارد → مدين نقدية/دائن ذمم
+ *   مدينة مباشرة؛ صادر → مدين ذمم دائنة/دائن نقدية مباشرة.
+ * - functionalCurrency مفعّلة: الطرف التاني بقى حساب "دفعات معلَّقة" (PAYMENT_CLEARING) بدل
+ *   AR/AP مباشرة — الفاتورة (فواتيرها) ما زالت متعرفش وقت التحصيل، بيتحدَّدوا لاحقًا وبنسب
+ *   مختلفة عبر PaymentAllocation. الإفراج الفعلي عن AR/AP (وحساب فرق العملة المحقَّق) بيحصل
+ *   في postPaymentAllocated وقت التخصيص الفعلي — راجع migration 20260916120000.
  */
 export async function postPaymentCleared(tx: ScopedTx, payment: PaymentForPosting, preparedBy: string): Promise<string> {
+  const org = await tx.organization.findUniqueOrThrow({ where: { id: payment.orgId }, select: { functionalCurrency: true } });
   const periodId = await findOpenPeriodFor(tx, payment.orgId, payment.paymentDate);
   const isInbound = payment.direction === "Inbound";
-  const acc = await resolveAccountIds(tx, payment.orgId, isInbound ? ["CASH", "AR"] : ["AP", "CASH"]);
+  const dims = { supplierId: payment.supplierId ?? undefined, fxRateId: payment.fxRateId };
 
-  const dims = { supplierId: payment.supplierId ?? undefined };
-  const lines: PostingLine[] = isInbound
-    ? [
-        { accountId: acc.CASH, debit: payment.amount, currency: payment.currency, description: `تحصيل ${payment.paymentNumber}`, ...dims },
-        { accountId: acc.AR, credit: payment.amount, currency: payment.currency, description: `تحصيل ${payment.paymentNumber}`, ...dims },
-      ]
-    : [
-        { accountId: acc.AP, debit: payment.amount, currency: payment.currency, description: `سداد ${payment.paymentNumber}`, ...dims },
-        { accountId: acc.CASH, credit: payment.amount, currency: payment.currency, description: `سداد ${payment.paymentNumber}`, ...dims },
-      ];
+  let lines: PostingLine[];
+  let sourceModule: string;
+  if (org.functionalCurrency) {
+    const acc = await resolveAccountIds(tx, payment.orgId, ["CASH", "PAYMENT_CLEARING"]);
+    lines = isInbound
+      ? [
+          { accountId: acc.CASH, debit: payment.amount, currency: payment.currency, description: `تحصيل ${payment.paymentNumber}`, ...dims },
+          { accountId: acc.PAYMENT_CLEARING, credit: payment.amount, currency: payment.currency, description: `تحصيل معلَّق ${payment.paymentNumber} — لحد ما يتخصّص على فاتورة`, ...dims },
+        ]
+      : [
+          { accountId: acc.PAYMENT_CLEARING, debit: payment.amount, currency: payment.currency, description: `سداد معلَّق ${payment.paymentNumber} — لحد ما يتخصّص على فاتورة`, ...dims },
+          { accountId: acc.CASH, credit: payment.amount, currency: payment.currency, description: `سداد ${payment.paymentNumber}`, ...dims },
+        ];
+    sourceModule = "PaymentClearing";
+  } else {
+    const acc = await resolveAccountIds(tx, payment.orgId, isInbound ? ["CASH", "AR"] : ["AP", "CASH"]);
+    lines = isInbound
+      ? [
+          { accountId: acc.CASH, debit: payment.amount, currency: payment.currency, description: `تحصيل ${payment.paymentNumber}`, ...dims },
+          { accountId: acc.AR, credit: payment.amount, currency: payment.currency, description: `تحصيل ${payment.paymentNumber}`, ...dims },
+        ]
+      : [
+          { accountId: acc.AP, debit: payment.amount, currency: payment.currency, description: `سداد ${payment.paymentNumber}`, ...dims },
+          { accountId: acc.CASH, credit: payment.amount, currency: payment.currency, description: `سداد ${payment.paymentNumber}`, ...dims },
+        ];
+    sourceModule = isInbound ? "AR" : "AP";
+  }
 
   return postJournalEntry(tx, {
     orgId: payment.orgId,
     entryDate: payment.paymentDate,
     periodId,
     sourceType: "Automatic",
-    sourceModule: isInbound ? "AR" : "AP",
+    sourceModule,
     description: `${isInbound ? "تحصيل" : "سداد"} ${payment.paymentNumber}`,
+    preparedBy,
+    lines,
+  });
+}
+
+export type AllocationForPosting = {
+  orgId: string;
+  paymentId: string;
+  invoiceId: string;
+  allocatedAmount: Prisma.Decimal;
+  allocationDate: Date;
+};
+
+/**
+ * بيرحّل قيد الإفراج عن AR/AP وقت التخصيص الفعلي لدفعة على فاتورة، وبيحسب فرق العملة المحقَّق
+ * (الفرق بين "سعر إصدار الفاتورة" و"سعر تحصيل/سداد الدفعة" لنفس المبلغ المخصَّص بالظبط) —
+ * راجع migration 20260916120000 والتعليق الطويل فوق postPaymentCleared لسبب التصميم.
+ *
+ * بيرجّع null (بلا أي قيد) في 3 حالات كلها آمنة تمامًا تُترَك للتوافق الخلفي: (1) المنظمة
+ * مفعّلتش functionalCurrency أصلًا — الفاتورة اتصفّت بالفعل مباشرة وقت postPaymentCleared،
+ * مفيش حاجة تانية تتعمل هنا. (2) الدفعة/الفاتورة لسه مترحّلتش (نادر، سباق توقيت). (3) عملة
+ * الفاتورة/الدفعة أصلًا هي عملة المنظمة الوظيفية — مفيش فرق عملة ممكن يحصل، فمفيش داعي لقيد إضافي.
+ */
+export async function postPaymentAllocated(tx: ScopedTx, alloc: AllocationForPosting, preparedBy: string): Promise<string | null> {
+  const org = await tx.organization.findUniqueOrThrow({ where: { id: alloc.orgId }, select: { functionalCurrency: true } });
+  if (!org.functionalCurrency) return null;
+
+  const [payment, invoice] = await Promise.all([
+    tx.payment.findUniqueOrThrow({ where: { id: alloc.paymentId } }),
+    tx.invoice.findUniqueOrThrow({ where: { id: alloc.invoiceId } }),
+  ]);
+  if (!payment.journalEntryId || !invoice.journalEntryId) return null;
+  if (invoice.currency === org.functionalCurrency) return null;
+
+  const isInbound = payment.direction === "Inbound";
+  const acc = await resolveAccountIds(tx, alloc.orgId, isInbound ? ["PAYMENT_CLEARING", "AR", "FX_GAIN_LOSS"] : ["PAYMENT_CLEARING", "AP", "FX_GAIN_LOSS"]);
+
+  const clearingLine = await tx.journalLine.findFirstOrThrow({ where: { journalEntryId: payment.journalEntryId, accountId: acc.PAYMENT_CLEARING } });
+  const arApAccountId = isInbound ? acc.AR : acc.AP;
+  const invoiceLine = await tx.journalLine.findFirstOrThrow({ where: { journalEntryId: invoice.journalEntryId, accountId: arApAccountId } });
+
+  // نسبة الترجمة الفعلية لكل بند (وظيفي ÷ خام) — بديل عن إعادة جلب ExchangeRate.rate نفسها،
+  // بيدّي نفس النتيجة بالظبط لأن compute_journal_line_functional_amounts خطي (functional = خام × rate).
+  const clearingRatio = isInbound
+    ? clearingLine.functionalCredit.div(clearingLine.credit)
+    : clearingLine.functionalDebit.div(clearingLine.debit);
+  const invoiceRatio = isInbound ? invoiceLine.functionalDebit.div(invoiceLine.debit) : invoiceLine.functionalCredit.div(invoiceLine.credit);
+
+  const clearingFunctional = alloc.allocatedAmount.mul(clearingRatio);
+  const arApFunctional = alloc.allocatedAmount.mul(invoiceRatio);
+  const fxDiff = clearingFunctional.sub(arApFunctional); // موجب = ربح، سالب = خسارة
+
+  const periodId = await findOpenPeriodFor(tx, alloc.orgId, alloc.allocationDate);
+  const description = `تخصيص ${payment.paymentNumber} على فاتورة ${invoice.invoiceNumber}`;
+  const dims = { dealId: invoice.dealId ?? undefined, supplierId: invoice.supplierId ?? undefined };
+
+  // بند فرق العملة بعملة المنظمة الوظيفية مباشرة (بلا fxRateId) — مش تدفّق نقدي بعملة أجنبية،
+  // مجرد إعادة قياس محاسبية، نفس منطق بند إعادة التقييم في src/lib/fxRevaluation.ts.
+  const fxLine: PostingLine | null = fxDiff.gt(0)
+    ? { accountId: acc.FX_GAIN_LOSS, credit: fxDiff, currency: org.functionalCurrency, description: `${description} — ربح فروق عملة`, ...dims }
+    : fxDiff.lt(0)
+      ? { accountId: acc.FX_GAIN_LOSS, debit: fxDiff.neg(), currency: org.functionalCurrency, description: `${description} — خسارة فروق عملة`, ...dims }
+      : null;
+
+  const lines: PostingLine[] = isInbound
+    ? [
+        { accountId: acc.PAYMENT_CLEARING, debit: alloc.allocatedAmount, currency: payment.currency, fxRateId: clearingLine.fxRateId ?? undefined, description, ...dims },
+        { accountId: acc.AR, credit: alloc.allocatedAmount, currency: invoice.currency, fxRateId: invoiceLine.fxRateId ?? undefined, description, ...dims },
+        ...(fxLine ? [fxLine] : []),
+      ]
+    : [
+        { accountId: acc.AP, debit: alloc.allocatedAmount, currency: invoice.currency, fxRateId: invoiceLine.fxRateId ?? undefined, description, ...dims },
+        { accountId: acc.PAYMENT_CLEARING, credit: alloc.allocatedAmount, currency: payment.currency, fxRateId: clearingLine.fxRateId ?? undefined, description, ...dims },
+        ...(fxLine ? [fxLine] : []),
+      ];
+
+  return postJournalEntry(tx, {
+    orgId: alloc.orgId,
+    entryDate: alloc.allocationDate,
+    periodId,
+    sourceType: "Automatic",
+    sourceModule: isInbound ? "AR" : "AP",
+    description,
     preparedBy,
     lines,
   });

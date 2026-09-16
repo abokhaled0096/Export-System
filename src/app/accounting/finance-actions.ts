@@ -8,6 +8,7 @@ import { requireCurrentUser } from "@/lib/session";
 import { requirePermission } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 import { postFixedAssetAcquisition, runDepreciationForPeriod, postAssetDisposal, postTaxPayment, computeVatBalance } from "@/lib/accounting";
+import { revalueForeignCurrencyReceivablesPayables } from "@/lib/fxRevaluation";
 import { logError, isNextControlFlowError, businessRuleMessage } from "@/lib/errorLog";
 import { isGlBackedTax } from "@/lib/treasuryLabels";
 
@@ -252,6 +253,40 @@ export async function runDepreciationAction(periodId: string) {
 
   revalidatePath("/accounting/depreciation");
   revalidatePath("/accounting/fixed-assets");
+  return result;
+}
+
+// ==================== FX Revaluation ====================
+
+/** تشغيل إعادة تقييم فروق العملة الدورية لفترة معيّنة — قيد واحد مجمّع لكل الفواتير المفتوحة
+ * بعملة أجنبية. Idempotent على مستوى الفترة (راجع src/lib/fxRevaluation.ts). */
+export async function runFxRevaluationAction(periodId: string) {
+  const user = await requireCurrentUser();
+  await requirePermission(user.roleId, "FXRevaluation", "Create");
+
+  let result: { journalEntryId: string | null; revaluedInvoiceCount: number; skippedNoRateCount: number };
+  try {
+    result = await withScopedTransaction(async (tx) => {
+      const r = await revalueForeignCurrencyReceivablesPayables(tx, user.orgId, periodId, user.id);
+      if (r.journalEntryId) {
+        await logAudit(tx, {
+          orgId: user.orgId,
+          userId: user.id,
+          action: "fxRevaluation.run",
+          entityType: "JournalEntry",
+          entityId: r.journalEntryId,
+          afterValue: { periodId, revaluedInvoiceCount: r.revaluedInvoiceCount, skippedNoRateCount: r.skippedNoRateCount },
+        });
+      }
+      return r;
+    });
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "runFxRevaluationAction", error: e });
+    throw new Error(businessRuleMessage(e, "حصل خطأ أثناء تشغيل إعادة تقييم فروق العملة."));
+  }
+
+  revalidatePath("/accounting/fx-revaluation");
   return result;
 }
 

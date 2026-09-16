@@ -23,4 +23,8 @@ export const GL_ACCOUNTS = {
   DEPRECIATION_EXPENSE: "6060",
   ASSET_DISPOSAL_GAIN_LOSS: "7010",
   SALES_COMMISSIONS: "6020",
+  /// محرك فروق العملة (migration 20260916120000) — راجع src/lib/accounting.ts §
+  /// postPaymentCleared/postPaymentAllocated وsrc/lib/fxRevaluation.ts.
+  PAYMENT_CLEARING: "1035",
+  FX_GAIN_LOSS: "7020",
 } as const;

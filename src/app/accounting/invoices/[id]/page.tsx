@@ -50,6 +50,9 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
   });
   if (!invoice) notFound();
 
+  const org = await prisma.organization.findUniqueOrThrow({ where: { id: user.orgId }, select: { functionalCurrency: true } });
+  const needsFxRate = !!org.functionalCurrency && invoice.currency !== org.functionalCurrency;
+
   // ⚠️ مش Promise.all — راجع BACKLOG.md (P2028).
   const validatedDocuments =
     invoice.invoiceType === "SalesInvoice" && invoice.status === "Draft" && !invoice.documentId
@@ -154,7 +157,13 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
       )}
 
       <div className="mt-5">
-        <InvoiceActions invoiceId={invoice.id} status={invoice.status} />
+        <InvoiceActions
+          invoiceId={invoice.id}
+          status={invoice.status}
+          needsFxRate={needsFxRate}
+          functionalCurrency={org.functionalCurrency ?? undefined}
+          currency={invoice.currency}
+        />
       </div>
 
       <h2 className="mt-8 text-lg font-semibold text-foreground">الدفعات المخصَّصة</h2>

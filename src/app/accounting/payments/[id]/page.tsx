@@ -41,6 +41,9 @@ export default async function PaymentDetailPage({ params }: { params: Promise<{ 
   });
   if (!payment) notFound();
 
+  const org = await prisma.organization.findUniqueOrThrow({ where: { id: user.orgId }, select: { functionalCurrency: true } });
+  const needsFxRate = !!org.functionalCurrency && payment.currency !== org.functionalCurrency;
+
   const allocated = payment.allocations.reduce((sum, a) => sum.add(a.allocatedAmount), new Prisma.Decimal(0));
   const unallocated = payment.amount.sub(allocated);
 
@@ -131,7 +134,14 @@ export default async function PaymentDetailPage({ params }: { params: Promise<{ 
       </dl>
 
       <div className="mt-5">
-        <PaymentActions paymentId={payment.id} status={payment.status} direction={payment.direction} />
+        <PaymentActions
+          paymentId={payment.id}
+          status={payment.status}
+          direction={payment.direction}
+          needsFxRate={needsFxRate}
+          functionalCurrency={org.functionalCurrency ?? undefined}
+          currency={payment.currency}
+        />
       </div>
 
       <h2 className="mt-8 text-lg font-semibold text-foreground">تخصيص الدفعة على الفواتير</h2>

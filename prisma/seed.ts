@@ -120,6 +120,8 @@ const PERMISSIONS: { resource: string; action: "View" | "Create" | "Edit" | "Del
   { resource: "FixedAsset", action: "Edit" }, // تسجيل التخلص من أصل
   { resource: "DepreciationEntry", action: "Create" }, // تشغيل الإهلاك الدوري
   { resource: "DepreciationEntry", action: "View" },
+  // محرك فروق العملة (16 سبتمبر، migration 20260916120000).
+  { resource: "FXRevaluation", action: "Create" }, // تشغيل إعادة تقييم فروق العملة الدورية
   { resource: "TaxRecord", action: "Create" },
   { resource: "TaxRecord", action: "View" },
   { resource: "TaxRecord", action: "Edit" }, // اعتماد الإقرار + تسجيل السداد
@@ -495,6 +497,7 @@ const ROLE_GRANTS: Record<string, { resources: string[]; scope: "Own" | "Team" |
       "FixedAsset.Edit",
       "DepreciationEntry.Create",
       "DepreciationEntry.View",
+      "FXRevaluation.Create",
       "TaxRecord.Create",
       "TaxRecord.View",
       "TaxRecord.Edit",

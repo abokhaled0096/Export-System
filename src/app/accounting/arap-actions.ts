@@ -8,7 +8,7 @@ import { requireCurrentUser } from "@/lib/session";
 import { requirePermission, getPermissionScope } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 import { notifySoDViolationAttempt } from "@/lib/notification";
-import { postInvoiceIssued, postPaymentCleared, reverseJournalEntry } from "@/lib/accounting";
+import { postInvoiceIssued, postPaymentCleared, postPaymentAllocated, reverseJournalEntry } from "@/lib/accounting";
 import { accrueCommissionOnCollection } from "@/lib/commissionEngine";
 import { logError, isNextControlFlowError, businessRuleMessage, isIdempotencyKeyConflict } from "@/lib/errorLog";
 import { requireAal2 } from "@/lib/mfa";
@@ -380,7 +380,11 @@ export async function createInvoice(_prevState: InvoiceFormState, formData: Form
 
 /** إصدار الفاتورة — بيرحّل القيد المحاسبي تلقائيًا. ⚠️ Trigger enforce_invoice_eta_validated
  * بيرفض إصدار فاتورة مبيعات بلا مستند ETA معتمد (قيد قانوني مصري، غرامة 20 ألف + 1000 يوميًا). */
-export async function issueInvoiceAction(invoiceId: string) {
+/** fxRate مطلوب بس لو Organization.functionalCurrency مفعّلة وعملة الفاتورة مختلفة عنها —
+ * بيتحوَّل لـExchangeRate جديد (baseCurrency=عملة الفاتورة، quoteCurrency=العملة الوظيفية)
+ * ويتسجّل على بند AR/AP نفسه، نفس نمط CostItem.fxRate بالحرف. سعر الإصدار ده هو اللي هيتقارن
+ * بسعر التحصيل وقت التخصيص الفعلي لحساب فرق العملة المحقَّق (postPaymentAllocated). */
+export async function issueInvoiceAction(invoiceId: string, fxRate?: string) {
   const user = await requireCurrentUser();
   await requirePermission(user.roleId, "Invoice", "Edit");
 
@@ -389,11 +393,22 @@ export async function issueInvoiceAction(invoiceId: string) {
       const invoice = await tx.invoice.findUniqueOrThrow({ where: { id: invoiceId } });
       if (invoice.status !== "Draft") throw new Error(`الفاتورة ${invoice.invoiceNumber} حالتها ${invoice.status} — المسودات بس اللي تتصدر.`);
 
+      const org = await tx.organization.findUniqueOrThrow({ where: { id: user.orgId }, select: { functionalCurrency: true } });
+      const needsFxRate = !!org.functionalCurrency && invoice.currency !== org.functionalCurrency;
+      if (needsFxRate && !fxRate) throw new Error(`الفاتورة بعملة ${invoice.currency} مختلفة عن عملة المنظمة الوظيفية (${org.functionalCurrency}) — لازم سعر صرف.`);
+      let fxRateId: string | undefined;
+      if (needsFxRate && fxRate) {
+        const exchangeRate = await tx.exchangeRate.create({
+          data: { orgId: user.orgId, baseCurrency: invoice.currency, quoteCurrency: org.functionalCurrency!, rate: fxRate, rateDate: invoice.issueDate, rateType: "Spot" },
+        });
+        fxRateId = exchangeRate.id;
+      }
+
       // البوابة القانونية الأول: تحويل الحالة لـIssued هو اللي بيشغّل Trigger الـETA. لو اتأخرت
       // بعد الترحيل، الـtransaction هترجع صح برضه لكن المستخدم هيشوف رسالة خطأ من الطبقة الغلط.
       await tx.invoice.update({ where: { id: invoiceId }, data: { status: "Issued" } });
 
-      const journalEntryId = await postInvoiceIssued(tx, invoice, user.id);
+      const journalEntryId = await postInvoiceIssued(tx, { ...invoice, fxRateId }, user.id);
       await tx.invoice.update({ where: { id: invoiceId }, data: { journalEntryId } });
 
       // تكامل: أمر البيع بيتحوّل لـInvoiced تلقائيًا (نفس نمط مزامنة Batch.qualityStatus).
@@ -564,8 +579,9 @@ export async function createPayment(_prevState: PaymentFormState, formData: Form
 }
 
 /** تحصيل/سداد الدفعة — بيرحّل القيد المحاسبي، والـTrigger بيزامن حالات الفواتير المخصَّصة تلقائيًا.
- * approvedBy بيتسجّل هنا — أساس قاعدة فصل المهام لما وحدة 9 تتبني. */
-export async function clearPaymentAction(paymentId: string) {
+ * approvedBy بيتسجّل هنا — أساس قاعدة فصل المهام لما وحدة 9 تتبني. fxRate مطلوب بس لو
+ * Organization.functionalCurrency مفعّلة وعملة الدفعة مختلفة عنها — راجع تعليق issueInvoiceAction. */
+export async function clearPaymentAction(paymentId: string, fxRate?: string) {
   const user = await requireCurrentUser();
   await requirePermission(user.roleId, "Payment", "Edit");
 
@@ -574,7 +590,18 @@ export async function clearPaymentAction(paymentId: string) {
       const payment = await tx.payment.findUniqueOrThrow({ where: { id: paymentId } });
       if (payment.status !== "Pending") throw new Error(`الدفعة ${payment.paymentNumber} حالتها ${payment.status} — المعلّقة بس اللي تتحصّل.`);
 
-      const journalEntryId = await postPaymentCleared(tx, payment, user.id);
+      const org = await tx.organization.findUniqueOrThrow({ where: { id: user.orgId }, select: { functionalCurrency: true } });
+      const needsFxRate = !!org.functionalCurrency && payment.currency !== org.functionalCurrency;
+      if (needsFxRate && !fxRate) throw new Error(`الدفعة بعملة ${payment.currency} مختلفة عن عملة المنظمة الوظيفية (${org.functionalCurrency}) — لازم سعر صرف.`);
+      let fxRateId: string | undefined;
+      if (needsFxRate && fxRate) {
+        const exchangeRate = await tx.exchangeRate.create({
+          data: { orgId: user.orgId, baseCurrency: payment.currency, quoteCurrency: org.functionalCurrency!, rate: fxRate, rateDate: payment.paymentDate, rateType: "Spot" },
+        });
+        fxRateId = exchangeRate.id;
+      }
+
+      const journalEntryId = await postPaymentCleared(tx, { ...payment, fxRateId }, user.id);
       await tx.payment.update({ where: { id: paymentId }, data: { status: "Cleared", journalEntryId, approvedBy: user.id } });
 
       await logAudit(tx, {
@@ -586,14 +613,20 @@ export async function clearPaymentAction(paymentId: string) {
         afterValue: { journalEntryId },
       });
 
-      // التخصيصات اللي كانت موجودة قبل التحصيل ده (كانت بلا أثر عمولة لحد دلوقتي — المسار
-      // العكسي، تخصيص لدفعة محصّلة بالفعل، بيتغطّى في createPaymentAllocation فوق).
-      if (payment.direction === "Inbound") {
-        const allocations = await tx.paymentAllocation.findMany({
-          where: { paymentId },
-          include: { invoice: { select: { dealId: true } } },
-        });
-        for (const allocation of allocations) {
+      // التخصيصات اللي كانت موجودة قبل التحصيل ده — المسار العكسي (تخصيص لدفعة محصّلة بالفعل)
+      // بيتغطّى في createPaymentAllocation تحت. postPaymentAllocated بترجع null بأمان لو
+      // functionalCurrency مش مفعّلة أو مفيش فرق عملة ممكن (نفس عملة المنظمة).
+      const allocations = await tx.paymentAllocation.findMany({
+        where: { paymentId },
+        include: { invoice: { select: { dealId: true } } },
+      });
+      for (const allocation of allocations) {
+        await postPaymentAllocated(
+          tx,
+          { orgId: user.orgId, paymentId, invoiceId: allocation.invoiceId, allocatedAmount: allocation.allocatedAmount, allocationDate: new Date() },
+          user.id
+        );
+        if (payment.direction === "Inbound") {
           await accrueCommissionOnCollection(tx, {
             orgId: user.orgId,
             dealId: allocation.invoice.dealId,
@@ -712,14 +745,21 @@ export async function createPaymentAllocation(paymentId: string, _prevState: All
       });
       // الدفعة كانت محصّلة بالفعل قبل التخصيص ده (ترتيب نادر بس ممكن) — العكس (تخصيص لدفعة
       // معلّقة، بعدين تتحصّل) بيتغطّى من clearPaymentAction تحت، مش هنا.
-      if (payment.status === "Cleared" && payment.direction === "Inbound") {
-        await accrueCommissionOnCollection(tx, {
-          orgId: user.orgId,
-          dealId: invoice.dealId,
-          allocatedAmount: parsed.data.allocatedAmount,
-          currency: payment.currency,
-          performedByUserId: user.id,
-        });
+      if (payment.status === "Cleared") {
+        await postPaymentAllocated(
+          tx,
+          { orgId: user.orgId, paymentId, invoiceId: parsed.data.invoiceId, allocatedAmount: new Prisma.Decimal(parsed.data.allocatedAmount), allocationDate: new Date() },
+          user.id
+        );
+        if (payment.direction === "Inbound") {
+          await accrueCommissionOnCollection(tx, {
+            orgId: user.orgId,
+            dealId: invoice.dealId,
+            allocatedAmount: parsed.data.allocatedAmount,
+            currency: payment.currency,
+            performedByUserId: user.id,
+          });
+        }
       }
     });
   } catch (e) {
