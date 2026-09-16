@@ -587,7 +587,11 @@ const STANDARD_CHART_OF_ACCOUNTS: {
 ];
 
 async function main() {
-  let org = await prisma.organization.findFirst();
+  // ⚠️ findFirst() بلا فلترة كان بيلقط أول صف في الجدول بالترتيب الفيزيائي — مع تراكم عشرات
+  // منظمات RLS Test/scratch عبر الجلسات (prisma/rls-test.ts وسكريبتات اختبار مؤقتة)، ده أدى
+  // فعليًا (16 سبتمبر) لتشغيل الـseed على منظمة تجريبية عشوائية بدل منظمة الإنتاج الحقيقية —
+  // راجع BACKLOG.md § وحدة 8. الفلترة بـlegalName هنا لازم تطابق قيمة الـcreate تحت بالحرف.
+  let org = await prisma.organization.findFirst({ where: { legalName: "Abu Heiba Export Co." } });
   if (org) {
     console.log("✓ Organization موجودة بالفعل:", org.id);
   } else {
