@@ -675,8 +675,16 @@ export async function bouncePaymentAction(paymentId: string) {
 
   try {
     await withScopedTransaction(async (tx) => {
-      const payment = await tx.payment.findUniqueOrThrow({ where: { id: paymentId } });
+      const payment = await tx.payment.findUniqueOrThrow({ where: { id: paymentId }, include: { allocations: { select: { id: true } } } });
       if (payment.status !== "Cleared") throw new Error(`الدفعة ${payment.paymentNumber} حالتها ${payment.status} — المحصّلة بس اللي ترتد.`);
+      // ⚠️ لو الدفعة اتخصّصت بالفعل على فاتورة (postPaymentAllocated)، عكس قيد التحصيل الأصلي
+      // بس مش كافي — قيد التخصيص (اللي فرّج عن AR/AP فعليًا وحسب فرق العملة) هيفضل واقف من غير
+      // عكس مقابل، وحساب "دفعات معلَّقة" هيفضل غير متزن نهائيًا. مفيش فعل "إلغاء تخصيص" في
+      // النظام لسه، فالأسلم رفض الارتداد لحد ما التخصيصات تتشال (اكتُشف 16 سبتمبر أثناء تصميم
+      // محرك فروق العملة — راجع BACKLOG.md).
+      if (payment.allocations.length > 0) {
+        throw new Error(`الدفعة ${payment.paymentNumber} اتخصّصت بالفعل على ${payment.allocations.length} فاتورة — مفيش طريقة لإلغاء التخصيص لسه، فمينفعش ترتد قبل ما يتحل ده.`);
+      }
 
       if (payment.journalEntryId) {
         await reverseJournalEntry(tx, { journalEntryId: payment.journalEntryId, preparedBy: user.id });
