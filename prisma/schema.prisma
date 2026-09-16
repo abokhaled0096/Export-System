@@ -1140,19 +1140,25 @@ model CommissionEntry {
   currency       String?               @db.Char(3)
   status         CommissionEntryStatus @default(Accrued)
   journalEntryId String?               @db.Uuid
+  /// التخصيص (PaymentAllocation) اللي ولّد العمولة دي تلقائيًا عبر accrueCommissionOnCollection
+  /// (خطط OnCollection بس). null لو العمولة اتسجّلت يدويًا أو بتريجر حدث تاني. لازم يتشال (delete)
+  /// لو التخصيص نفسه اتلغى — بس لو لسه Accrued (مش Approved/Paid، راجع deletePaymentAllocationAction).
+  paymentAllocationId String?           @db.Uuid
   createdAt      DateTime              @default(now())
   updatedAt      DateTime              @updatedAt
 
-  organization Organization   @relation(fields: [orgId], references: [id])
-  plan         CommissionPlan @relation(fields: [planId], references: [id])
-  deal         Deal?          @relation(fields: [dealId], references: [id])
-  salesOrder   SalesOrder?    @relation(fields: [salesOrderId], references: [id])
-  user         User           @relation(fields: [userId], references: [id])
-  journalEntry JournalEntry?  @relation(fields: [journalEntryId], references: [id])
+  organization      Organization       @relation(fields: [orgId], references: [id])
+  plan              CommissionPlan     @relation(fields: [planId], references: [id])
+  deal               Deal?             @relation(fields: [dealId], references: [id])
+  salesOrder         SalesOrder?       @relation(fields: [salesOrderId], references: [id])
+  user               User              @relation(fields: [userId], references: [id])
+  journalEntry       JournalEntry?     @relation(fields: [journalEntryId], references: [id])
+  paymentAllocation  PaymentAllocation? @relation(fields: [paymentAllocationId], references: [id])
 
   @@index([orgId])
   @@index([dealId])
   @@index([planId])
+  @@index([paymentAllocationId])
 }
 
 enum CustomerServiceCaseType {
@@ -4272,6 +4278,7 @@ model JournalEntry {
   depreciationEntries DepreciationEntry[]
   fixedAssetDisposals FixedAsset[]        @relation("FixedAssetDisposal")
   commissionEntries   CommissionEntry[]
+  paymentAllocations  PaymentAllocation[]
 
   @@unique([orgId, entryNumber])
   @@index([orgId])
@@ -4542,11 +4549,16 @@ model PaymentAllocation {
   paymentId       String   @db.Uuid
   invoiceId       String   @db.Uuid
   allocatedAmount Decimal  @db.Decimal(14, 2)
+  /// قيد فرق العملة المحقَّق اللي postPaymentAllocated رحّله وقت التخصيص (null لو مفيش —
+  /// functionalCurrency مش مفعّلة، أو نفس عملة المنظمة). لازم يتعكس لو التخصيص اتلغى.
+  journalEntryId  String?  @db.Uuid
   createdAt       DateTime @default(now())
 
-  organization Organization @relation(fields: [orgId], references: [id])
-  payment      Payment      @relation(fields: [paymentId], references: [id])
-  invoice      Invoice      @relation(fields: [invoiceId], references: [id])
+  organization Organization  @relation(fields: [orgId], references: [id])
+  payment      Payment       @relation(fields: [paymentId], references: [id])
+  invoice      Invoice       @relation(fields: [invoiceId], references: [id])
+  journalEntry JournalEntry? @relation(fields: [journalEntryId], references: [id])
+  commissionEntries CommissionEntry[]
 
   @@unique([paymentId, invoiceId])
   @@index([orgId])

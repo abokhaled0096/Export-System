@@ -15,14 +15,15 @@ import { logAudit } from "@/lib/audit";
  * الإنشاء دايمًا `status: "Accrued"` — نفس قاعدة الإنشاء اليدوي بالحرف، لسه محتاج اعتماد إداري
  * صريح (`approveCommissionEntryAction`) قبل أي سداد فعلي، فمفيش أثر مالي مباشر من الأتمتة دي.
  *
- * ⚠️ ارتداد الدفعة (`bouncePaymentAction`) مش بيرجع أي عمولة اتحسبت هنا — خارج نطاق البند ده،
- * ومحتاج تصميم عكسي منفصل (خصوصًا لو العمولة بقت `Approved`/`Paid` بالفعل وقت الارتداد).
+ * ⚠️ ارتداد الدفعة (`bouncePaymentAction`) مش بيرجع أي عمولة اتحسبت هنا لسه — خارج نطاق البند ده
+ * (الارتداد أصلًا مرفوض طول ما فيه تخصيصات، راجع `deletePaymentAllocationAction` في arap-actions.ts
+ * اللي بيشيل العمولة دي فعليًا لو اتلغى التخصيص اللي ولّدها وهي لسه Accrued).
  */
 export async function accrueCommissionOnCollection(
   tx: ScopedTx,
-  params: { orgId: string; dealId: string | null; allocatedAmount: number; currency: string; performedByUserId: string }
+  params: { orgId: string; dealId: string | null; allocatedAmount: number; currency: string; performedByUserId: string; paymentAllocationId: string }
 ): Promise<void> {
-  const { orgId, dealId, allocatedAmount, currency, performedByUserId } = params;
+  const { orgId, dealId, allocatedAmount, currency, performedByUserId, paymentAllocationId } = params;
   if (!dealId) return;
 
   const deal = await tx.deal.findUnique({ where: { id: dealId }, include: { opportunity: { select: { ownerId: true } } } });
@@ -40,7 +41,7 @@ export async function accrueCommissionOnCollection(
   if (amount <= 0) return;
 
   const entry = await tx.commissionEntry.create({
-    data: { orgId, planId: plan.id, dealId, userId: ownerId, amount, currency, status: "Accrued" },
+    data: { orgId, planId: plan.id, dealId, userId: ownerId, amount, currency, status: "Accrued", paymentAllocationId },
   });
   await logAudit(tx, {
     orgId,
@@ -48,6 +49,6 @@ export async function accrueCommissionOnCollection(
     action: "commissionEntry.autoAccruedOnCollection",
     entityType: "CommissionEntry",
     entityId: entry.id,
-    afterValue: { planId: plan.id, dealId, userId: ownerId, amount, currency },
+    afterValue: { planId: plan.id, dealId, userId: ownerId, amount, currency, paymentAllocationId },
   });
 }

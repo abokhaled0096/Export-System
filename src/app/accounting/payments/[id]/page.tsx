@@ -6,6 +6,7 @@ import { requirePermission } from "@/lib/permissions";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
 import PaymentActions from "./PaymentActions";
 import AllocationForm, { type OpenInvoiceOption } from "./AllocationForm";
+import DeleteAllocationButton from "./DeleteAllocationButton";
 import { paymentDirectionLabel, paymentMethodLabel, paymentStatusLabel, paymentStatusStyle } from "@/lib/arapLabels";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -156,12 +157,13 @@ export default async function PaymentDetailPage({ params }: { params: Promise<{ 
               <TableHead>الفاتورة</TableHead>
               <TableHead>إجمالي الفاتورة</TableHead>
               <TableHead>المبلغ المخصَّص</TableHead>
+              <TableHead></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {payment.allocations.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={3} className="py-6 text-center text-muted-foreground">
+                <TableCell colSpan={4} className="py-6 text-center text-muted-foreground">
                   الدفعة لسه متخصّصتش على أي فاتورة.
                 </TableCell>
               </TableRow>
@@ -175,6 +177,9 @@ export default async function PaymentDetailPage({ params }: { params: Promise<{ 
                   </TableCell>
                   <TableCell className="font-mono text-foreground/80">{a.invoice.totalAmount.toFixed(2)}</TableCell>
                   <TableCell className="font-mono text-foreground">{a.allocatedAmount.toFixed(2)}</TableCell>
+                  <TableCell>
+                    <DeleteAllocationButton allocationId={a.id} />
+                  </TableCell>
                 </TableRow>
               ))
             )}

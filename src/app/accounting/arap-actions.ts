@@ -621,11 +621,14 @@ export async function clearPaymentAction(paymentId: string, fxRate?: string) {
         include: { invoice: { select: { dealId: true } } },
       });
       for (const allocation of allocations) {
-        await postPaymentAllocated(
+        const journalEntryId = await postPaymentAllocated(
           tx,
           { orgId: user.orgId, paymentId, invoiceId: allocation.invoiceId, allocatedAmount: allocation.allocatedAmount, allocationDate: new Date() },
           user.id
         );
+        if (journalEntryId) {
+          await tx.paymentAllocation.update({ where: { id: allocation.id }, data: { journalEntryId } });
+        }
         if (payment.direction === "Inbound") {
           await accrueCommissionOnCollection(tx, {
             orgId: user.orgId,
@@ -633,6 +636,7 @@ export async function clearPaymentAction(paymentId: string, fxRate?: string) {
             allocatedAmount: Number(allocation.allocatedAmount),
             currency: payment.currency,
             performedByUserId: user.id,
+            paymentAllocationId: allocation.id,
           });
         }
       }
@@ -679,11 +683,11 @@ export async function bouncePaymentAction(paymentId: string) {
       if (payment.status !== "Cleared") throw new Error(`الدفعة ${payment.paymentNumber} حالتها ${payment.status} — المحصّلة بس اللي ترتد.`);
       // ⚠️ لو الدفعة اتخصّصت بالفعل على فاتورة (postPaymentAllocated)، عكس قيد التحصيل الأصلي
       // بس مش كافي — قيد التخصيص (اللي فرّج عن AR/AP فعليًا وحسب فرق العملة) هيفضل واقف من غير
-      // عكس مقابل، وحساب "دفعات معلَّقة" هيفضل غير متزن نهائيًا. مفيش فعل "إلغاء تخصيص" في
-      // النظام لسه، فالأسلم رفض الارتداد لحد ما التخصيصات تتشال (اكتُشف 16 سبتمبر أثناء تصميم
-      // محرك فروق العملة — راجع BACKLOG.md).
+      // عكس مقابل، وحساب "دفعات معلَّقة" هيفضل غير متزن نهائيًا. الأسلم رفض الارتداد لحد ما
+      // التخصيصات تتشال أولًا (عبر deletePaymentAllocationAction تحت) — بدل عكس تلقائي هنا قد
+      // يتعارض مع تخصيصات جزئية على فواتير مختلفة.
       if (payment.allocations.length > 0) {
-        throw new Error(`الدفعة ${payment.paymentNumber} اتخصّصت بالفعل على ${payment.allocations.length} فاتورة — مفيش طريقة لإلغاء التخصيص لسه، فمينفعش ترتد قبل ما يتحل ده.`);
+        throw new Error(`الدفعة ${payment.paymentNumber} اتخصّصت بالفعل على ${payment.allocations.length} فاتورة — لازم تلغي التخصيصات دي الأول (زرار "إلغاء التخصيص" جوه كل فاتورة) قبل ما ترتد.`);
       }
 
       if (payment.journalEntryId) {
@@ -754,11 +758,14 @@ export async function createPaymentAllocation(paymentId: string, _prevState: All
       // الدفعة كانت محصّلة بالفعل قبل التخصيص ده (ترتيب نادر بس ممكن) — العكس (تخصيص لدفعة
       // معلّقة، بعدين تتحصّل) بيتغطّى من clearPaymentAction تحت، مش هنا.
       if (payment.status === "Cleared") {
-        await postPaymentAllocated(
+        const journalEntryId = await postPaymentAllocated(
           tx,
           { orgId: user.orgId, paymentId, invoiceId: parsed.data.invoiceId, allocatedAmount: new Prisma.Decimal(parsed.data.allocatedAmount), allocationDate: new Date() },
           user.id
         );
+        if (journalEntryId) {
+          await tx.paymentAllocation.update({ where: { id: allocation.id }, data: { journalEntryId } });
+        }
         if (payment.direction === "Inbound") {
           await accrueCommissionOnCollection(tx, {
             orgId: user.orgId,
@@ -766,6 +773,7 @@ export async function createPaymentAllocation(paymentId: string, _prevState: All
             allocatedAmount: parsed.data.allocatedAmount,
             currency: payment.currency,
             performedByUserId: user.id,
+            paymentAllocationId: allocation.id,
           });
         }
       }
@@ -779,6 +787,67 @@ export async function createPaymentAllocation(paymentId: string, _prevState: All
   revalidatePath(`/accounting/payments/${paymentId}`);
   revalidatePath("/accounting/invoices");
   return {};
+}
+
+/** إلغاء تخصيص دفعة على فاتورة — بند من BACKLOG.md § وحدة 8 ("مفيش فعل إلغاء تخصيص دفعة").
+ * لازم قبل أي ارتداد لدفعة اتخصّصت بالفعل (راجع bouncePaymentAction فوق). بيعكس قيد فرق العملة
+ * اللي اتسجّل وقت التخصيص (لو موجود)، وبيشيل أي عمولة اتسجّلت تلقائيًا نتيجة التخصيص ده لسه
+ * Accrued — لو أي عمولة اتاعتمدت أو اتدفعت بالفعل، الإلغاء يترفض صراحة بدل ما يمسح أثر مالي
+ * حقيقي بصمت. حذف صف PaymentAllocation نفسه بيخلّي Trigger sync_invoice_payment_status
+ * يعيد حساب Invoice.amountPaid/status تلقائيًا (نفس التريجر اللي بيديره وقت الإنشاء). */
+export async function deletePaymentAllocationAction(allocationId: string) {
+  const user = await requireCurrentUser();
+  await requirePermission(user.roleId, "Payment", "Edit");
+
+  let paymentId: string | undefined;
+  try {
+    await withScopedTransaction(async (tx) => {
+      const allocation = await tx.paymentAllocation.findFirstOrThrow({
+        where: { id: allocationId, orgId: user.orgId },
+        include: { commissionEntries: { select: { id: true, status: true } } },
+      });
+      paymentId = allocation.paymentId;
+
+      const nonAccrued = allocation.commissionEntries.filter((c) => c.status !== "Accrued");
+      if (nonAccrued.length > 0) {
+        throw new Error("في عمولة اتخصمت أو اتدفعت مبنية على التخصيص ده — مينفعش يتلغى قبل ما تتراجع العمولة نفسها الأول.");
+      }
+
+      for (const c of allocation.commissionEntries) {
+        await tx.commissionEntry.delete({ where: { id: c.id } });
+        await logAudit(tx, {
+          orgId: user.orgId,
+          userId: user.id,
+          action: "commissionEntry.removedOnUnallocate",
+          entityType: "CommissionEntry",
+          entityId: c.id,
+          beforeValue: { paymentAllocationId: allocationId },
+        });
+      }
+
+      if (allocation.journalEntryId) {
+        await reverseJournalEntry(tx, { journalEntryId: allocation.journalEntryId, preparedBy: user.id });
+      }
+
+      await tx.paymentAllocation.delete({ where: { id: allocationId } });
+      await logAudit(tx, {
+        orgId: user.orgId,
+        userId: user.id,
+        action: "paymentAllocation.deleted",
+        entityType: "PaymentAllocation",
+        entityId: allocationId,
+        beforeValue: { paymentId: allocation.paymentId, invoiceId: allocation.invoiceId, allocatedAmount: allocation.allocatedAmount.toString() },
+      });
+    });
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "deletePaymentAllocationAction", error: e });
+    throw new Error(businessRuleMessage(e, "حصل خطأ أثناء إلغاء التخصيص."));
+  }
+
+  if (paymentId) revalidatePath(`/accounting/payments/${paymentId}`);
+  revalidatePath("/accounting/payments");
+  revalidatePath("/accounting/invoices");
 }
 
 /** ربط مستند ETA بفاتورة مسودة. لازم يكون إجراء منفصل عن الإنشاء لأن المستند القانوني غالبًا
