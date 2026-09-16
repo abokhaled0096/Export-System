@@ -64,10 +64,17 @@ export async function createCommissionPlan(_prevState: CommissionPlanFormState, 
   });
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
 
+  if (parsed.data.basis !== "Tiered" && parsed.data.ratePct === undefined) {
+    return { errors: { ratePct: ["النسبة % مطلوبة للأساس ده"] } };
+  }
+
   // الشرايح لها معنى لأساس Tiered بس — بتتجاهل بصمت لأي أساس تاني حتى لو اتملّت غلط في الفورم
   // (مخفية أصلًا في الواجهة إلا لما تختار Tiered، راجع CommissionPlanForm.tsx).
   const tiersResult = parsed.data.basis === "Tiered" ? parseTiers(formData) : {};
   if (tiersResult.error) return { formError: tiersResult.error };
+  if (parsed.data.basis === "Tiered" && !tiersResult.tiers) {
+    return { formError: "لازم تدخل شريحة واحدة على الأقل لأساس متدرّج." };
+  }
 
   const user = await requireCurrentUser();
   try {

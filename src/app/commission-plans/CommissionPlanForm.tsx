@@ -50,6 +50,7 @@ export default function CommissionPlanForm() {
               النسبة %
             </Label>
             <Input id="ratePct" name="ratePct" type="number" min="0" max="100" step="0.01" className="w-24" />
+            {state.errors?.ratePct && <span className="text-xs text-destructive">{state.errors.ratePct[0]}</span>}
           </div>
         )}
         <div className="flex flex-col gap-1.5">
