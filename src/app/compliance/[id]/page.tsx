@@ -95,6 +95,22 @@ export default async function ComplianceCaseDetailPage({ params }: { params: Pro
     where: { orgId, OR: [{ companyId: kase.deal.customerId }, { productId: kase.productId }] },
     orderBy: { createdAt: "desc" },
   });
+  // شيك ليست الشهادات: مش قائمة "شهادات مطلوبة" مُخمَّنة — دي هتحتاج مصدر تشريعي موثوق لكل دولة
+  // (نفس مبدأ "ممنوع تلفيق" المتكرر في المشروع). بدل كده، حالة حقيقية لكل نوع شهادة معروف في
+  // النظام (14 نوع من enum CertificateType) لمنتج الحالة دي بالتحديد: مسجّلة؟ سارية؟ بتغطي سوق
+  // الحالة دي بالاسم المسجّل في marketsCovered (نص حر، مطابقة بسيطة Case-insensitive)؟
+  const productCertificates = certificates.filter((c) => c.productId === kase.productId);
+  const marketNames = [kase.market.countryNameAr, kase.market.countryNameEn].map((n) => n.trim().toLowerCase());
+  const certificateChecklist = (Object.keys(certificateTypeLabel) as (keyof typeof certificateTypeLabel)[]).map((type) => {
+    const matches = productCertificates.filter((c) => c.certificateType === type);
+    // لو أكتر من شهادة لنفس النوع، السارية بتتقدَّم — الأحدث لو مفيش سارية خالص.
+    const best =
+      matches.find((c) => c.status === "Valid") ??
+      matches.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0] ??
+      null;
+    const coversMarket = best ? best.marketsCovered.some((m) => marketNames.includes(m.trim().toLowerCase())) : false;
+    return { type, best, coversMarket };
+  });
   const pendingWaivers = await prisma.approval.findMany({
     where: { orgId, subjectType: "Gate.waiver", decision: "Pending", subjectId: { in: kase.gates.map((g) => g.id) } },
   });
@@ -356,6 +372,44 @@ export default async function ComplianceCaseDetailPage({ params }: { params: Pro
                   </TableRow>
                 ))
               )}
+            </TableBody>
+          </Table>
+        </div>
+      </section>
+
+      <section className="mt-8">
+        <h2 className="text-lg font-medium text-foreground">✅ شيك ليست الشهادات</h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          حالة كل نوع شهادة معروف لمنتج الحالة دي — مش قائمة &quot;شهادات مطلوبة قانونًا&quot; (ده محتاج مرجع تشريعي لكل دولة، غير متاح هنا)،
+          بس حالة حقيقية مبنية على شهاداتكم المسجّلة فعليًا: مسجّلة ولا لأ، سارية ولا لأ، وبتغطي سوق {kase.market.countryNameAr} بالاسم ولا لأ.
+        </p>
+        <div className="mt-3 overflow-x-auto rounded-xl border border-border bg-card">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>نوع الشهادة</TableHead>
+                <TableHead>الحالة</TableHead>
+                <TableHead>الانتهاء</TableHead>
+                <TableHead>تغطي {kase.market.countryNameAr}؟</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {certificateChecklist.map(({ type, best, coversMarket }) => (
+                <TableRow key={type}>
+                  <TableCell className="text-foreground/80">{certificateTypeLabel[type]}</TableCell>
+                  <TableCell>
+                    {best ? (
+                      <Badge className={certificateStatusStyle[best.status]}>{certificateStatusLabel[best.status]}</Badge>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">غير مسجّلة</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-foreground/80">
+                    {best?.expiryDate ? best.expiryDate.toLocaleDateString("ar-EG") : "—"}
+                  </TableCell>
+                  <TableCell className="text-foreground/80">{best ? (coversMarket ? "نعم" : "لا") : "—"}</TableCell>
+                </TableRow>
+              ))}
             </TableBody>
           </Table>
         </div>
