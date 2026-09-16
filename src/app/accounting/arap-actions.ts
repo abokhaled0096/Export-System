@@ -9,6 +9,7 @@ import { requirePermission, getPermissionScope } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 import { notifySoDViolationAttempt } from "@/lib/notification";
 import { postInvoiceIssued, postPaymentCleared, reverseJournalEntry } from "@/lib/accounting";
+import { accrueCommissionOnCollection } from "@/lib/commissionEngine";
 import { logError, isNextControlFlowError, businessRuleMessage, isIdempotencyKeyConflict } from "@/lib/errorLog";
 import { requireAal2 } from "@/lib/mfa";
 import { encryptSecret, updateSecret } from "@/lib/vault";
@@ -584,6 +585,24 @@ export async function clearPaymentAction(paymentId: string) {
         entityId: paymentId,
         afterValue: { journalEntryId },
       });
+
+      // التخصيصات اللي كانت موجودة قبل التحصيل ده (كانت بلا أثر عمولة لحد دلوقتي — المسار
+      // العكسي، تخصيص لدفعة محصّلة بالفعل، بيتغطّى في createPaymentAllocation فوق).
+      if (payment.direction === "Inbound") {
+        const allocations = await tx.paymentAllocation.findMany({
+          where: { paymentId },
+          include: { invoice: { select: { dealId: true } } },
+        });
+        for (const allocation of allocations) {
+          await accrueCommissionOnCollection(tx, {
+            orgId: user.orgId,
+            dealId: allocation.invoice.dealId,
+            allocatedAmount: Number(allocation.allocatedAmount),
+            currency: payment.currency,
+            performedByUserId: user.id,
+          });
+        }
+      }
     });
   } catch (e) {
     if (isNextControlFlowError(e)) throw e;
@@ -677,6 +696,8 @@ export async function createPaymentAllocation(paymentId: string, _prevState: All
     const scopedPrisma = await getScopedPrisma();
     const invoice = await scopedPrisma.invoice.findFirst({ where: { id: parsed.data.invoiceId } });
     if (!invoice) return { formError: "الفاتورة غير موجودة." };
+    const payment = await scopedPrisma.payment.findFirst({ where: { id: paymentId } });
+    if (!payment) return { formError: "الدفعة غير موجودة." };
     await withScopedTransaction(async (tx) => {
       const allocation = await tx.paymentAllocation.create({
         data: { orgId: user.orgId, paymentId, ...parsed.data },
@@ -689,6 +710,17 @@ export async function createPaymentAllocation(paymentId: string, _prevState: All
         entityId: allocation.id,
         afterValue: { paymentId, ...parsed.data },
       });
+      // الدفعة كانت محصّلة بالفعل قبل التخصيص ده (ترتيب نادر بس ممكن) — العكس (تخصيص لدفعة
+      // معلّقة، بعدين تتحصّل) بيتغطّى من clearPaymentAction تحت، مش هنا.
+      if (payment.status === "Cleared" && payment.direction === "Inbound") {
+        await accrueCommissionOnCollection(tx, {
+          orgId: user.orgId,
+          dealId: invoice.dealId,
+          allocatedAmount: parsed.data.allocatedAmount,
+          currency: payment.currency,
+          performedByUserId: user.id,
+        });
+      }
     });
   } catch (e) {
     if (isNextControlFlowError(e)) throw e;
