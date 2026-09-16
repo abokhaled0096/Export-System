@@ -68,6 +68,18 @@ export default function SalesTargetForm({
         {state.errors?.period && <span className="text-xs text-destructive">{state.errors.period[0]}</span>}
       </div>
       <div className="flex flex-col gap-1.5">
+        <Label htmlFor="periodStart" className="text-xs">
+          من (لحساب الفعلي)
+        </Label>
+        <Input id="periodStart" name="periodStart" type="date" className="w-36" />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="periodEnd" className="text-xs">
+          إلى (لحساب الفعلي)
+        </Label>
+        <Input id="periodEnd" name="periodEnd" type="date" className="w-36" />
+      </div>
+      <div className="flex flex-col gap-1.5">
         <Label htmlFor="targetType" className="text-xs">
           النوع
         </Label>

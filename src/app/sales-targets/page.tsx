@@ -4,6 +4,7 @@ import { getScopedPrisma } from "@/lib/scoped-prisma";
 import { PAGE_SIZE, parsePage } from "@/lib/pagination";
 import Pagination from "@/components/Pagination";
 import SalesTargetForm from "./SalesTargetForm";
+import RecomputeActualButton from "./RecomputeActualButton";
 import { salesTargetTypeLabel } from "@/lib/salesTargetLabels";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
@@ -61,26 +62,40 @@ export default async function SalesTargetsPage({ searchParams }: { searchParams:
               <TableHead>الفترة</TableHead>
               <TableHead>النوع</TableHead>
               <TableHead>القيمة المستهدفة</TableHead>
+              <TableHead>القيمة الفعلية</TableHead>
+              <TableHead>الإنجاز</TableHead>
+              <TableHead></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {records.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="py-6 text-center text-muted-foreground">
+                <TableCell colSpan={7} className="py-6 text-center text-muted-foreground">
                   لسه مفيش أهداف مسجّلة.
                 </TableCell>
               </TableRow>
             ) : (
-              records.map((t) => (
-                <TableRow key={t.id}>
-                  <TableCell className="text-foreground">{t.user?.fullName ?? t.team?.name ?? "—"}</TableCell>
-                  <TableCell className="text-foreground/80">{t.period}</TableCell>
-                  <TableCell className="text-foreground/80">{salesTargetTypeLabel[t.targetType]}</TableCell>
-                  <TableCell className="font-mono text-foreground/80">
-                    {t.targetValue.toString()} {t.currency ?? ""}
-                  </TableCell>
-                </TableRow>
-              ))
+              records.map((t) => {
+                const canCompute = !!t.periodStart && !!t.periodEnd && (t.targetType === "DealsCount" || t.targetType === "Volume" || !!t.currency);
+                const achievementPct = t.actualValue && t.targetValue.gt(0) ? t.actualValue.div(t.targetValue).mul(100).toFixed(0) : null;
+                return (
+                  <TableRow key={t.id}>
+                    <TableCell className="text-foreground">{t.user?.fullName ?? t.team?.name ?? "—"}</TableCell>
+                    <TableCell className="text-foreground/80">{t.period}</TableCell>
+                    <TableCell className="text-foreground/80">{salesTargetTypeLabel[t.targetType]}</TableCell>
+                    <TableCell className="font-mono text-foreground/80">
+                      {t.targetValue.toString()} {t.targetType === "Revenue" ? (t.currency ?? "") : ""}
+                    </TableCell>
+                    <TableCell className="font-mono text-foreground/80">
+                      {t.actualValue !== null ? `${t.actualValue.toString()} ${t.targetType === "Revenue" ? (t.currency ?? "") : ""}` : canCompute ? "—" : "غير قابل للحساب"}
+                    </TableCell>
+                    <TableCell className={`font-mono ${achievementPct && Number(achievementPct) >= 100 ? "text-emerald-700" : "text-foreground/80"}`}>
+                      {achievementPct ? `${achievementPct}%` : "—"}
+                    </TableCell>
+                    <TableCell>{canCompute && <RecomputeActualButton targetId={t.id} />}</TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>

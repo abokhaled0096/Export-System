@@ -1060,14 +1060,19 @@ enum SalesTargetType {
   DealsCount
 }
 
-/// period نص حر ("2026-Q3"/"سبتمبر 2026") — الـERD ما حددش صيغة. actualValue (⚙️) اتشال من الفورم
-/// — بلا محرك تجميع فعلي من Deal/SalesOrder، نفس فلسفة "لا تُعطِ رقم محسوب بلا محرك حقيقي".
+/// period نص حر ("2026-Q3"/"سبتمبر 2026") — تسمية بشرية بس، مش مصدر حساب. periodStart/periodEnd
+/// (16 سبتمبر) هما المدى الفعلي المُستخدَم في محرك التجميع (src/lib/salesTargetEngine.ts) —
+/// نص حر زي "Q3" مالوش صيغة موحّدة قابلة للتحليل بأمان (فصلية تقويمية ولا مالية؟ أي شهر؟)، فمفيش
+/// طريقة نحسب actualValue منه بلا تخمين. هدف قديم بلا periodStart/periodEnd يفضل actualValue
+/// بتاعه null (مش قابل للحساب) لحد ما يتحدَّث بمدى صريح.
 model SalesTarget {
   id          String          @id @default(dbgenerated("uuidv7()")) @db.Uuid
   orgId       String          @db.Uuid
   userId      String?         @db.Uuid
   teamId      String?         @db.Uuid
   period      String
+  periodStart DateTime?
+  periodEnd   DateTime?
   targetType  SalesTargetType
   targetValue Decimal         @db.Decimal(14, 2)
   currency    String?         @db.Char(3)
