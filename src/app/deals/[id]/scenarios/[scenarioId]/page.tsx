@@ -116,7 +116,12 @@ export default async function ScenarioDetailPage({
   // الإنترنت، لأن السعة الفعلية بتختلف باختلاف الشركة الناقلة والحاوية بالظبط (نفس مبدأ "ممنوع
   // تلفيق بيانات" اللي اتطبّق على التقويم الموسمي في تحليل الأسواق).
   const canViewContainerStats = (await getPermissionScope(user.roleId, "Shipment", "View")) !== null;
-  const canViewFreightQuotes = (await getPermissionScope(user.roleId, "FreightQuote", "View")) !== null;
+  // ⚠️ لازم Route.View وFreightQuote.View مع بعض — نفس التحذير المكرَّر في /logistics/routes/[id]:
+  // القسم ده بيعرض بيانات Route (الموانئ/شركة الشحن) مش بس FreightQuote، فمفيش ضمان إن دور جديد
+  // بعدين هيدّي الاتنين مع بعض دايمًا.
+  const canViewFreightQuotes =
+    (await getPermissionScope(user.roleId, "Route", "View")) !== null &&
+    (await getPermissionScope(user.roleId, "FreightQuote", "View")) !== null;
 
   let market: { countryNameAr: string; mainPorts: string[] } | null = null;
   let containerStats: { containerType: string; avgMaxPayload: number; sampleSize: number }[] = [];
