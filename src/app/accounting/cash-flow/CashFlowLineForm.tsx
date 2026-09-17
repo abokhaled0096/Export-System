@@ -10,7 +10,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 const initialState: CashFlowLineFormState = {};
 
-export default function CashFlowLineForm({ weeks, currency }: { weeks: string[]; currency: string }) {
+export default function CashFlowLineForm({
+  weeks,
+  currency,
+  costCenters,
+  profitCenters,
+}: {
+  weeks: string[];
+  currency: string;
+  costCenters: Array<{ id: string; code: string; name: string }>;
+  profitCenters: Array<{ id: string; code: string; name: string }>;
+}) {
   const [state, formAction, pending] = useActionState(upsertCashFlowLine, initialState);
 
   return (
@@ -63,6 +73,44 @@ export default function CashFlowLineForm({ weeks, currency }: { weeks: string[];
         </Label>
         <Input id="cf-notes" name="notes" className="w-48" />
       </div>
+      {costCenters.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="cf-cc" className="text-xs">
+            مركز التكلفة
+          </Label>
+          <Select name="costCenterId">
+            <SelectTrigger id="cf-cc" className="w-40">
+              <SelectValue>{(value: string) => costCenters.find((c) => c.id === value)?.name ?? "— بدون —"}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {costCenters.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.code} — {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+      {profitCenters.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="cf-pc" className="text-xs">
+            مركز الربحية
+          </Label>
+          <Select name="profitCenterId">
+            <SelectTrigger id="cf-pc" className="w-40">
+              <SelectValue>{(value: string) => profitCenters.find((p) => p.id === value)?.name ?? "— بدون —"}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {profitCenters.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.code} — {p.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
       <Button type="submit" disabled={pending}>
         {pending ? "جاري الحفظ..." : "حفظ التوقّع"}
       </Button>

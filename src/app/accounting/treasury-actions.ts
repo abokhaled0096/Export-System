@@ -1151,6 +1151,8 @@ const CashFlowLineSchema = z.object({
   amount: z.coerce.number(),
   currency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase(),
   notes: z.string().trim().optional().or(z.literal("")),
+  costCenterId: z.string().trim().optional().or(z.literal("")),
+  profitCenterId: z.string().trim().optional().or(z.literal("")),
 });
 
 export type CashFlowLineFormState = { errors?: Record<string, string[]>; formError?: string };
@@ -1167,34 +1169,51 @@ export async function upsertCashFlowLine(
     amount: formData.get("amount"),
     currency: formData.get("currency"),
     notes: formData.get("notes") || undefined,
+    costCenterId: formData.get("costCenterId") || undefined,
+    profitCenterId: formData.get("profitCenterId") || undefined,
   });
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
 
   const user = await requireCurrentUser();
-  const { weekStartDate, category, amount, currency, notes } = parsed.data;
+  const { weekStartDate, category, amount, currency, notes, costCenterId, profitCenterId } = parsed.data;
 
   try {
     await requirePermission(user.roleId, "CashFlowForecastLine", "Create");
     await withScopedTransaction(async (tx) => {
-      await tx.cashFlowForecastLine.upsert({
+      // مفيش upsert بمفتاح مركّب هنا — costCenterId/profitCenterId nullable، وPrisma
+      // مش بيسمح بـnull جوه شكل الـcompound unique lookup (بحث بمساواة مع NULL
+      // مبيطابقش حاجة أصلًا في SQL). findFirst بيقبل null عادي كفلتر، فبنستخدمه
+      // للتحقق يدويًا قبل create/update.
+      const existing = await tx.cashFlowForecastLine.findFirst({
         where: {
-          orgId_weekStartDate_category_currency: {
-            orgId: user.orgId,
-            weekStartDate: new Date(weekStartDate),
-            category,
-            currency,
-          },
-        },
-        create: {
           orgId: user.orgId,
           weekStartDate: new Date(weekStartDate),
           category,
-          amount: new Prisma.Decimal(amount),
           currency,
-          notes: notes || undefined,
+          costCenterId: costCenterId || null,
+          profitCenterId: profitCenterId || null,
         },
-        update: { amount: new Prisma.Decimal(amount), notes: notes || undefined },
+        select: { id: true },
       });
+      if (existing) {
+        await tx.cashFlowForecastLine.update({
+          where: { id: existing.id },
+          data: { amount: new Prisma.Decimal(amount), notes: notes || undefined },
+        });
+      } else {
+        await tx.cashFlowForecastLine.create({
+          data: {
+            orgId: user.orgId,
+            weekStartDate: new Date(weekStartDate),
+            category,
+            amount: new Prisma.Decimal(amount),
+            currency,
+            notes: notes || undefined,
+            costCenterId: costCenterId || undefined,
+            profitCenterId: profitCenterId || undefined,
+          },
+        });
+      }
     });
   } catch (e) {
     if (isNextControlFlowError(e)) throw e;

@@ -62,6 +62,11 @@ export default async function CashFlowPage({ searchParams }: { searchParams: Sea
     );
   }
 
+  const [costCenters, profitCenters] = await Promise.all([
+    prisma.costCenter.findMany({ where: { orgId }, select: { id: true, code: true, name: true }, orderBy: { code: "asc" } }),
+    prisma.profitCenter.findMany({ where: { orgId }, select: { id: true, code: true, name: true }, orderBy: { code: "asc" } }),
+  ]);
+
   const accountsInCurrency = accounts.filter((a) => a.currency === currency);
   const accountIds = accountsInCurrency.map((a) => a.id);
 
@@ -94,7 +99,14 @@ export default async function CashFlowPage({ searchParams }: { searchParams: Sea
   });
   const manualLines = await prisma.cashFlowForecastLine.findMany({
     where: { orgId, currency, weekStartDate: { gte: horizonStart, lt: horizonEnd } },
-    select: { weekStartDate: true, category: true, amount: true, notes: true },
+    select: {
+      weekStartDate: true,
+      category: true,
+      amount: true,
+      notes: true,
+      costCenter: { select: { code: true, name: true } },
+      profitCenter: { select: { code: true, name: true } },
+    },
   });
   // الفعلي: الدفعات المحصّلة فعلًا في الأسبوع — مشتق من الدفتر، مش مكتوب بإيد.
   const clearedPayments = await prisma.payment.findMany({
@@ -142,6 +154,24 @@ export default async function CashFlowPage({ searchParams }: { searchParams: Sea
     const c = cell(p.paymentDate, category);
     if (c) c.actual = c.actual.add(p.amount);
   }
+
+  // توزيع التوقّعات اليدوية حسب مركز التكلفة/الربحية — عرض تجميعي بس، مش فلتر على الشبكة
+  // الرئيسية (بند بلا مركز بيتجمّع تحت "بلا مركز").
+  function groupByDimension(dim: "costCenter" | "profitCenter") {
+    const totals = new Map<string, { label: string; net: Prisma.Decimal }>();
+    for (const line of manualLines) {
+      const d = line[dim];
+      const key = d ? `${d.code}` : "__none__";
+      const label = d ? `${d.code} — ${d.name}` : "بلا مركز";
+      const signed = isCashOutflowCategory(line.category) ? line.amount.neg() : line.amount;
+      const existing = totals.get(key);
+      totals.set(key, { label, net: existing ? existing.net.add(signed) : signed });
+    }
+    return [...totals.values()].sort((a, b) => a.label.localeCompare(b.label));
+  }
+  const costCenterBreakdown = groupByDimension("costCenter");
+  const profitCenterBreakdown = groupByDimension("profitCenter");
+  const hasDimensionedLines = manualLines.some((l) => l.costCenter || l.profitCenter);
 
   // صافي الأسبوع = المتوقّع + اليدوي، بإشارة الفئة. الفعلي بيتعرض للمقارنة مش للتراكم،
   // عشان ما نجمعش نفس الحدث مرتين (المتوقّع بيتحقق كفعلي، مش بيتضاف عليه).
@@ -218,7 +248,7 @@ export default async function CashFlowPage({ searchParams }: { searchParams: Sea
       </div>
 
       <div className="mt-6">
-        <CashFlowLineForm weeks={weekOptions} currency={currency} />
+        <CashFlowLineForm weeks={weekOptions} currency={currency} costCenters={costCenters} profitCenters={profitCenters} />
       </div>
 
       <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card">
@@ -279,6 +309,41 @@ export default async function CashFlowPage({ searchParams }: { searchParams: Sea
           </TableBody>
         </Table>
       </div>
+
+      {hasDimensionedLines && (
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <div className="overflow-x-auto rounded-xl border border-border bg-card p-4">
+            <h3 className="text-sm font-semibold text-foreground">التوقّع اليدوي حسب مركز التكلفة</h3>
+            <Table className="mt-2">
+              <TableBody>
+                {costCenterBreakdown.map((row) => (
+                  <TableRow key={row.label}>
+                    <TableCell className="text-xs text-foreground/80">{row.label}</TableCell>
+                    <TableCell className={`font-mono text-xs font-medium ${row.net.lt(0) ? "text-rose-700" : "text-emerald-700"}`}>
+                      {row.net.toFixed(2)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <div className="overflow-x-auto rounded-xl border border-border bg-card p-4">
+            <h3 className="text-sm font-semibold text-foreground">التوقّع اليدوي حسب مركز الربحية</h3>
+            <Table className="mt-2">
+              <TableBody>
+                {profitCenterBreakdown.map((row) => (
+                  <TableRow key={row.label}>
+                    <TableCell className="text-xs text-foreground/80">{row.label}</TableCell>
+                    <TableCell className={`font-mono text-xs font-medium ${row.net.lt(0) ? "text-rose-700" : "text-emerald-700"}`}>
+                      {row.net.toFixed(2)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
 
       <p className="mt-3 text-xs text-muted-foreground">
         الرقم الأساسي في كل خانة = متوقّع النظام (فواتير مستحقة + أقساط) + التوقّع اليدوي. &quot;فعلي&quot; مشتق من الدفعات المحصّلة —

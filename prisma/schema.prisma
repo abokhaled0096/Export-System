@@ -534,15 +534,15 @@ model ProductMarketAnalysis {
   /// IS NULL) بيمنع وجود أكتر من نسخة نشطة واحدة لنفس التركيبة — راجع migration
   /// 20260909120000_product_market_analysis_versioning. مفيش تمثيل للفهرس هنا (نفس نمط
   /// Market.orgId_countryCode_active_key — Prisma DSL مش بيدعم partial unique index).
-  supersededAt DateTime?
+  supersededAt     DateTime?
   /// تاريخ انتهاء صلاحية التحليل الافتراضي (+90 يوم من الإنشاء) — بعده الواجهة بتعرض تحذير
   /// "قديم، يحتاج إعادة تحليل" بدل ما تفضل تعرضه وكأنه حديث لحد الأبد.
-  validUntil   DateTime? @default(dbgenerated("(now() + interval '90 days')"))
+  validUntil       DateTime?         @default(dbgenerated("(now() + interval '90 days')"))
   /// true لو تقييم الـAI (opportunityScore/riskScore) بعيد أكتر من 25 نقطة عن اقتراح محرك القواعد
   /// (computeOpportunityRiskSuggestion — مبني على بيانات حقيقية: مخاطرة السوق، مواسم التوفّر،
   /// منافسين) — إشارة "راجع الرقم ده قبل ما تاخد قرار عليه"، مش رفض. بيتحسب وقت الحفظ بس
   /// (aiDetails.ruleBasedComparison فيه التفاصيل الكاملة)، مش عمود مُشتقّ حي.
-  needsReview  Boolean   @default(false)
+  needsReview      Boolean           @default(false)
 
   product Product @relation(fields: [productId], references: [id])
   market  Market  @relation(fields: [marketId], references: [id])
@@ -580,7 +580,7 @@ model AiAnalysisBatch {
   orgId          String            @db.Uuid
   kind           BatchAnalysisKind
   year           Int
-  status         AiBatchStatus       @default(Pending)
+  status         AiBatchStatus     @default(Pending)
   totalPairs     Int
   succeededCount Int               @default(0)
   failedCount    Int               @default(0)
@@ -1130,30 +1130,30 @@ enum CommissionEntryStatus {
 /// (Trigger enforce_commission_entry_paid) — الترحيل الفعلي عبر payCommissionEntryAction
 /// (src/lib/accounting.ts: postCommissionPayment)، مش تغيير حالة مجرد.
 model CommissionEntry {
-  id             String                @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  orgId          String                @db.Uuid
-  planId         String                @db.Uuid
-  dealId         String?               @db.Uuid
-  salesOrderId   String?               @db.Uuid
-  userId         String                @db.Uuid
-  amount         Decimal               @db.Decimal(14, 2)
-  currency       String?               @db.Char(3)
-  status         CommissionEntryStatus @default(Accrued)
-  journalEntryId String?               @db.Uuid
+  id                  String                @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId               String                @db.Uuid
+  planId              String                @db.Uuid
+  dealId              String?               @db.Uuid
+  salesOrderId        String?               @db.Uuid
+  userId              String                @db.Uuid
+  amount              Decimal               @db.Decimal(14, 2)
+  currency            String?               @db.Char(3)
+  status              CommissionEntryStatus @default(Accrued)
+  journalEntryId      String?               @db.Uuid
   /// التخصيص (PaymentAllocation) اللي ولّد العمولة دي تلقائيًا عبر accrueCommissionOnCollection
   /// (خطط OnCollection بس). null لو العمولة اتسجّلت يدويًا أو بتريجر حدث تاني. لازم يتشال (delete)
   /// لو التخصيص نفسه اتلغى — بس لو لسه Accrued (مش Approved/Paid، راجع deletePaymentAllocationAction).
-  paymentAllocationId String?           @db.Uuid
-  createdAt      DateTime              @default(now())
-  updatedAt      DateTime              @updatedAt
+  paymentAllocationId String?               @db.Uuid
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
 
   organization      Organization       @relation(fields: [orgId], references: [id])
   plan              CommissionPlan     @relation(fields: [planId], references: [id])
-  deal               Deal?             @relation(fields: [dealId], references: [id])
-  salesOrder         SalesOrder?       @relation(fields: [salesOrderId], references: [id])
-  user               User              @relation(fields: [userId], references: [id])
-  journalEntry       JournalEntry?     @relation(fields: [journalEntryId], references: [id])
-  paymentAllocation  PaymentAllocation? @relation(fields: [paymentAllocationId], references: [id])
+  deal              Deal?              @relation(fields: [dealId], references: [id])
+  salesOrder        SalesOrder?        @relation(fields: [salesOrderId], references: [id])
+  user              User               @relation(fields: [userId], references: [id])
+  journalEntry      JournalEntry?      @relation(fields: [journalEntryId], references: [id])
+  paymentAllocation PaymentAllocation? @relation(fields: [paymentAllocationId], references: [id])
 
   @@index([orgId])
   @@index([dealId])
@@ -4289,27 +4289,27 @@ model JournalEntry {
 /// الشريحة دي (هتُستخدم لما وحدات لاحقة تترحّل تلقائيًا عبر src/lib/accounting.ts). ده اللي بيخلي
 /// "ربح الصفقة الحقيقي" محسوب من دفتر الأستاذ فعليًا مش تقدير DealScenario — docs/ERD.md §11 مقدمة.
 model JournalLine {
-  id             String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  orgId          String   @db.Uuid
-  journalEntryId String   @db.Uuid
-  accountId      String   @db.Uuid
-  debit          Decimal  @default(0) @db.Decimal(14, 2)
-  credit         Decimal  @default(0) @db.Decimal(14, 2)
-  currency       String   @db.Char(3)
-  fxRateId       String?  @db.Uuid
+  id               String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId            String   @db.Uuid
+  journalEntryId   String   @db.Uuid
+  accountId        String   @db.Uuid
+  debit            Decimal  @default(0) @db.Decimal(14, 2)
+  credit           Decimal  @default(0) @db.Decimal(14, 2)
+  currency         String   @db.Char(3)
+  fxRateId         String?  @db.Uuid
   /// ⚙️ مصانة بـTrigger (compute_journal_line_functional_amounts) — مش إدخال يدوي. لو
   /// Organization.functionalCurrency فاضية أو currency=functionalCurrency: functionalDebit/Credit
   /// = debit/credit بالحرف. غير كده: = debit/credit × ExchangeRate.rate (fxRateId لازم يكون من
   /// baseCurrency=currency هذا البند لـquoteCurrency=functionalCurrency بالظبط، وإلا الترحيل يترفض).
   functionalDebit  Decimal  @default(0) @db.Decimal(14, 2)
   functionalCredit Decimal  @default(0) @db.Decimal(14, 2)
-  costCenterId   String?  @db.Uuid
-  profitCenterId String?  @db.Uuid
-  dealId         String?  @db.Uuid
-  shipmentId     String?  @db.Uuid
-  supplierId     String?  @db.Uuid
-  description    String?
-  createdAt      DateTime @default(now())
+  costCenterId     String?  @db.Uuid
+  profitCenterId   String?  @db.Uuid
+  dealId           String?  @db.Uuid
+  shipmentId       String?  @db.Uuid
+  supplierId       String?  @db.Uuid
+  description      String?
+  createdAt        DateTime @default(now())
 
   organization Organization   @relation(fields: [orgId], references: [id])
   journalEntry JournalEntry   @relation(fields: [journalEntryId], references: [id])
@@ -4342,10 +4342,11 @@ model CostCenter {
   type      CostCenterType
   createdAt DateTime       @default(now())
 
-  organization Organization  @relation(fields: [orgId], references: [id])
-  journalLines JournalLine[]
-  budgets      Budget[]
-  fixedAssets  FixedAsset[]
+  organization          Organization           @relation(fields: [orgId], references: [id])
+  journalLines          JournalLine[]
+  budgets               Budget[]
+  fixedAssets           FixedAsset[]
+  cashFlowForecastLines CashFlowForecastLine[]
 
   @@unique([orgId, code])
   @@index([orgId])
@@ -4366,8 +4367,9 @@ model ProfitCenter {
   scope     ProfitCenterScope
   createdAt DateTime          @default(now())
 
-  organization Organization  @relation(fields: [orgId], references: [id])
-  journalLines JournalLine[]
+  organization          Organization           @relation(fields: [orgId], references: [id])
+  journalLines          JournalLine[]
+  cashFlowForecastLines CashFlowForecastLine[]
 
   @@unique([orgId, code])
   @@index([orgId])
@@ -4554,10 +4556,10 @@ model PaymentAllocation {
   journalEntryId  String?  @db.Uuid
   createdAt       DateTime @default(now())
 
-  organization Organization  @relation(fields: [orgId], references: [id])
-  payment      Payment       @relation(fields: [paymentId], references: [id])
-  invoice      Invoice       @relation(fields: [invoiceId], references: [id])
-  journalEntry JournalEntry? @relation(fields: [journalEntryId], references: [id])
+  organization      Organization      @relation(fields: [orgId], references: [id])
+  payment           Payment           @relation(fields: [paymentId], references: [id])
+  invoice           Invoice           @relation(fields: [invoiceId], references: [id])
+  journalEntry      JournalEntry?     @relation(fields: [journalEntryId], references: [id])
   commissionEntries CommissionEntry[]
 
   @@unique([paymentId, invoiceId])
@@ -4675,14 +4677,14 @@ model BankReconciliation {
 /// قرض. `bankAccountId` (القرض نزل فين) و`outstandingPrincipal` (أهم رقم في القرض) مش
 /// موجودين في الـERD — اتضافوا هنا. `outstandingPrincipal` مصان بـTrigger.
 model Loan {
-  id                   String     @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  orgId                String     @db.Uuid
+  id                   String                  @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId                String                  @db.Uuid
   lenderName           String
-  bankAccountId        String     @db.Uuid
-  principal            Decimal    @db.Decimal(14, 2)
-  outstandingPrincipal Decimal    @default(0) @db.Decimal(14, 2)
-  currency             String     @db.Char(3)
-  interestRatePct      Decimal?   @db.Decimal(6, 3)
+  bankAccountId        String                  @db.Uuid
+  principal            Decimal                 @db.Decimal(14, 2)
+  outstandingPrincipal Decimal                 @default(0) @db.Decimal(14, 2)
+  currency             String                  @db.Char(3)
+  interestRatePct      Decimal?                @db.Decimal(6, 3)
   /// الاتنان لازم يتحددوا مع بعض عشان زرار "توليد جدول الأقساط" يظهر — لو أي واحد فاضي،
   /// الجدولة تفضل يدوية بالكامل (createLoanInstallment) زي ما كانت دايمًا.
   numberOfInstallments Int?
@@ -4690,11 +4692,11 @@ model Loan {
   startDate            DateTime
   maturityDate         DateTime
   collateral           String?
-  status               LoanStatus @default(Active)
+  status               LoanStatus              @default(Active)
   disbursedAt          DateTime?
-  journalEntryId       String?    @db.Uuid
-  createdAt            DateTime   @default(now())
-  updatedAt            DateTime   @updatedAt
+  journalEntryId       String?                 @db.Uuid
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
 
   organization Organization      @relation(fields: [orgId], references: [id])
   bankAccount  BankAccount       @relation(fields: [bankAccountId], references: [id])
@@ -4734,20 +4736,26 @@ model LoanInstallment {
 /// وقت العرض؛ رقم "فعلي" مكتوب بإيد رقم مخترع. OpeningCash/ClosingCash ممنوعين كإدخال
 /// يدوي بـTrigger — دول أرصدة محسوبة مش تدفّقات.
 model CashFlowForecastLine {
-  id            String           @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  orgId         String           @db.Uuid
-  weekStartDate DateTime         @db.Date
-  category      CashFlowCategory
-  amount        Decimal          @db.Decimal(14, 2)
-  currency      String           @db.Char(3)
-  notes         String?
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
+  id             String           @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId          String           @db.Uuid
+  weekStartDate  DateTime         @db.Date
+  category       CashFlowCategory
+  amount         Decimal          @db.Decimal(14, 2)
+  currency       String           @db.Char(3)
+  notes          String?
+  costCenterId   String?          @db.Uuid
+  profitCenterId String?          @db.Uuid
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
 
-  organization Organization @relation(fields: [orgId], references: [id])
+  organization Organization  @relation(fields: [orgId], references: [id])
+  costCenter   CostCenter?   @relation(fields: [costCenterId], references: [id])
+  profitCenter ProfitCenter? @relation(fields: [profitCenterId], references: [id])
 
-  @@unique([orgId, weekStartDate, category, currency])
+  @@unique([orgId, weekStartDate, category, currency, costCenterId, profitCenterId])
   @@index([orgId])
+  @@index([costCenterId])
+  @@index([profitCenterId])
 }
 
 // ==================== وحدة 8 — الشريحة الرابعة والأخيرة: الموازنات والأصول والضرائب ====================
