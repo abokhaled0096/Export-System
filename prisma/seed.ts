@@ -692,6 +692,10 @@ async function main() {
     { entityType: "CAPA", fromStage: "VerificationPending", toStage: "Ineffective" },
     { entityType: "CAPA", fromStage: "Effective", toStage: "Closed" },
     { entityType: "CAPA", fromStage: "Ineffective", toStage: "Closed" },
+    // إعادة فتح CAPA غير فعّالة للعمل تاني بدل ما تفضل عالقة — BACKLOG.md § وحدة 9/CAPA
+    // (17 سبتمبر). "Ineffective" مكانش ليها أي مخرج غير الإقفال المباشر، رغم إن ده يعني
+    // عمليًا "الحل اللي اتنفّذ فشل" — المفروض يرجع لمرحلة العمل يتصحّح، مش يتقفل كده.
+    { entityType: "CAPA", fromStage: "Ineffective", toStage: "InProgress" },
     { entityType: "Product", fromStage: "Draft", toStage: "Verified" },
     { entityType: "Product", fromStage: "Draft", toStage: "NeedsReview" },
     { entityType: "Product", fromStage: "NeedsReview", toStage: "Verified" },
