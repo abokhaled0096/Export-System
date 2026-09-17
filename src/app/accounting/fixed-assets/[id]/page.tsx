@@ -41,11 +41,14 @@ export default async function FixedAssetDetailPage({ params }: { params: Promise
   });
   if (!asset) notFound();
 
-  let running = new Prisma.Decimal(0);
-  const scheduleRows = asset.depreciationEntries.map((d) => {
-    running = running.add(d.amount);
-    return { entry: d, cumulative: running };
-  });
+  const scheduleRows = asset.depreciationEntries.reduce<Array<{ entry: (typeof asset.depreciationEntries)[number]; cumulative: Prisma.Decimal }>>(
+    (acc, entry) => {
+      const previous = acc.length > 0 ? acc[acc.length - 1].cumulative : new Prisma.Decimal(0);
+      acc.push({ entry, cumulative: previous.add(entry.amount) });
+      return acc;
+    },
+    []
+  );
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-10">

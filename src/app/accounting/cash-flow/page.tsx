@@ -158,14 +158,15 @@ export default async function CashFlowPage({ searchParams }: { searchParams: Sea
     return { week: w, row, net, actualNet };
   });
 
-  let runningBalance = openingCash;
-  const withBalances = weekly.map((w) => {
-    const opening = runningBalance;
-    runningBalance = runningBalance.add(w.net);
-    return { ...w, opening, closing: runningBalance };
-  });
+  const withBalances = weekly.reduce<Array<(typeof weekly)[number] & { opening: Prisma.Decimal; closing: Prisma.Decimal }>>((acc, w) => {
+    const opening = acc.length > 0 ? acc[acc.length - 1].closing : openingCash;
+    const closing = opening.add(w.net);
+    acc.push({ ...w, opening, closing });
+    return acc;
+  }, []);
 
   const lowestWeek = withBalances.reduce((lowest, w) => (w.closing.lt(lowest.closing) ? w : lowest), withBalances[0]);
+  const finalBalance = withBalances.length > 0 ? withBalances[withBalances.length - 1].closing : openingCash;
   const weekOptions = weeks.map((w) => weekKey(w));
 
   return (
@@ -203,8 +204,8 @@ export default async function CashFlowPage({ searchParams }: { searchParams: Sea
         </div>
         <div className="rounded-xl border border-border bg-card p-5">
           <p className="text-xs text-muted-foreground">الرصيد المتوقّع بعد 13 أسبوع</p>
-          <p className={`mt-1 font-mono text-2xl font-semibold ${runningBalance.lt(0) ? "text-rose-700" : "text-foreground"}`}>
-            {runningBalance.toFixed(2)}
+          <p className={`mt-1 font-mono text-2xl font-semibold ${finalBalance.lt(0) ? "text-rose-700" : "text-foreground"}`}>
+            {finalBalance.toFixed(2)}
           </p>
         </div>
         <div className={`rounded-xl border p-5 ${lowestWeek.closing.lt(0) ? "border-rose-300 bg-rose-50" : "border-border bg-card"}`}>
