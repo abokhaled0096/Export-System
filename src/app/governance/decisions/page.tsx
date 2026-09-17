@@ -2,6 +2,7 @@ import { requireCurrentUser } from "@/lib/session";
 import { requirePermission } from "@/lib/permissions";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
 import DecisionForm, { type UserOption } from "./DecisionForm";
+import DecisionEditControl from "./DecisionEditControl";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export const dynamic = "force-dynamic";
@@ -53,12 +54,13 @@ export default async function DecisionsPage() {
               <TableHead>اتخذه</TableHead>
               <TableHead>السياق</TableHead>
               <TableHead>النتيجة</TableHead>
+              <TableHead />
             </TableRow>
           </TableHeader>
           <TableBody>
             {decisions.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="py-6 text-center text-muted-foreground">
+                <TableCell colSpan={6} className="py-6 text-center text-muted-foreground">
                   لسه مفيش قرارات مسجّلة.
                 </TableCell>
               </TableRow>
@@ -70,6 +72,9 @@ export default async function DecisionsPage() {
                   <TableCell className="text-foreground/80">{d.decidedByUser.fullName}</TableCell>
                   <TableCell className="text-foreground/80">{d.context ?? "—"}</TableCell>
                   <TableCell className="text-foreground/80">{d.outcome ?? "—"}</TableCell>
+                  <TableCell>
+                    <DecisionEditControl entryId={d.id} title={d.title} context={d.context} outcome={d.outcome} />
+                  </TableCell>
                 </TableRow>
               ))
             )}

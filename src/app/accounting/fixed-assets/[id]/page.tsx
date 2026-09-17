@@ -5,6 +5,7 @@ import { requireCurrentUser } from "@/lib/session";
 import { requirePermission } from "@/lib/permissions";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
 import DisposalForm from "./DisposalForm";
+import FixedAssetEditForm from "./FixedAssetEditForm";
 import { fixedAssetCategoryLabel, fixedAssetStatusLabel, fixedAssetStatusStyle, depreciationMethodLabel } from "@/lib/treasuryLabels";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -41,6 +42,7 @@ export default async function FixedAssetDetailPage({ params }: { params: Promise
   });
   if (!asset) notFound();
 
+  const costCenters = await prisma.costCenter.findMany({ where: { orgId: user.orgId }, orderBy: { code: "asc" }, select: { id: true, code: true, name: true } });
   const org = await prisma.organization.findUniqueOrThrow({ where: { id: user.orgId }, select: { functionalCurrency: true } });
   const needsFxRate = !!org.functionalCurrency && asset.currency !== org.functionalCurrency;
 
@@ -63,6 +65,10 @@ export default async function FixedAssetDetailPage({ params }: { params: Promise
         <h1 className="font-mono text-2xl font-semibold text-foreground">{asset.assetCode}</h1>
         <span className="text-lg text-foreground">{asset.nameAr}</span>
         <Badge className={fixedAssetStatusStyle[asset.status]}>{fixedAssetStatusLabel[asset.status]}</Badge>
+      </div>
+
+      <div className="mt-3">
+        <FixedAssetEditForm assetId={asset.id} nameAr={asset.nameAr} nameEn={asset.nameEn} costCenterId={asset.costCenterId} costCenters={costCenters} />
       </div>
 
       <dl className="mt-6 grid gap-4 rounded-xl border border-border bg-card p-5 sm:grid-cols-3">

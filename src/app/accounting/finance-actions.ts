@@ -73,6 +73,49 @@ export async function createBudget(_prevState: BudgetFormState, formData: FormDa
   return {};
 }
 
+const BudgetEditSchema = z.object({
+  amount: z.coerce.number().positive("المبلغ مطلوب"),
+});
+
+export type BudgetEditFormState = { errors?: Record<string, string[]>; formError?: string; success?: boolean };
+
+/** تعديل عام — المبلغ بس. عمدًا مش `periodId`/`budgetType`/`costCenterId`/`currency`: الأربعة دول
+ * بيشكّلوا هوية البند نفسه (`@@unique([orgId, periodId, budgetType, costCenterId, currency])`) —
+ * تغييرهم فعليًا معناه "نقل" البند لخانة تانية ممكن تصطدم ببند موجود بالفعل، مش تعديل قيمته. */
+export async function updateBudgetAction(
+  budgetId: string,
+  _prevState: BudgetEditFormState,
+  formData: FormData
+): Promise<BudgetEditFormState> {
+  const parsed = BudgetEditSchema.safeParse({ amount: formData.get("amount") });
+  if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
+
+  const user = await requireCurrentUser();
+  try {
+    await requirePermission(user.roleId, "Budget", "Edit");
+    await withScopedTransaction(async (tx) => {
+      const before = await tx.budget.findUniqueOrThrow({ where: { id: budgetId }, select: { amount: true } });
+      await tx.budget.update({ where: { id: budgetId }, data: { amount: new Prisma.Decimal(parsed.data.amount) } });
+      await logAudit(tx, {
+        orgId: user.orgId,
+        userId: user.id,
+        action: "budget.updated",
+        entityType: "Budget",
+        entityId: budgetId,
+        beforeValue: { amount: before.amount.toString() },
+        afterValue: { amount: parsed.data.amount },
+      });
+    });
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "updateBudgetAction", error: e });
+    return { formError: businessRuleMessage(e, "حصل خطأ أثناء تعديل بند الموازنة — حاول تاني.") };
+  }
+
+  revalidatePath("/accounting/budgets");
+  return { success: true };
+}
+
 /** بند من BACKLOG.md § وحدة 8: "Budget بلا نسخ/تكرار من سنة لسنة". بينسخ كل بنود الموازنة من
  * فترة مصدر لفترة هدف — نقطة بداية قابلة للتعديل بعدها، مش قفل نهائي. بند موجود بالفعل في
  * الفترة الهدف (نفس budgetType/costCenterId/currency — القيد الفريد على Budget) بيتخطّى بصمت
@@ -232,6 +275,63 @@ export async function createFixedAsset(_prevState: FixedAssetFormState, formData
     await logError({ orgId: user.orgId, userId: user.id, action: "createFixedAsset", error: e });
     return { formError: businessRuleMessage(e, "حصل خطأ أثناء تسجيل الأصل — حاول تاني.") };
   }
+}
+
+const FixedAssetEditSchema = z.object({
+  nameAr: z.string().trim().min(1, "الاسم العربي مطلوب"),
+  nameEn: z.string().trim().min(1, "الاسم الإنجليزي مطلوب"),
+  costCenterId: z.string().uuid().optional().or(z.literal("")),
+});
+
+export type FixedAssetEditFormState = { errors?: Record<string, string[]>; formError?: string; success?: boolean };
+
+/** تعديل عام — الاسمين ومركز التكلفة بس. عمدًا مش `purchaseValue`/`purchaseDate`/`currency`/
+ * `usefulLifeMonths`/`depreciationMethod`: كلهم أساس حساب الإهلاك التاريخي (`accumulatedDepreciation`/
+ * `netBookValue` مصانين بـTrigger من `DepreciationEntry` المرحّلة فعليًا) — تغييرهم بعد أي فترة
+ * إهلاك هيخلّي القيم المرحّلة سابقًا غير متّسقة مع الأساس الجديد بصمت. `assetCode` معرّف فريد. */
+export async function updateFixedAssetAction(
+  assetId: string,
+  _prevState: FixedAssetEditFormState,
+  formData: FormData
+): Promise<FixedAssetEditFormState> {
+  const parsed = FixedAssetEditSchema.safeParse({
+    nameAr: formData.get("nameAr"),
+    nameEn: formData.get("nameEn"),
+    costCenterId: formData.get("costCenterId") || undefined,
+  });
+  if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
+
+  const user = await requireCurrentUser();
+  const { nameAr, nameEn, costCenterId } = parsed.data;
+
+  try {
+    await requirePermission(user.roleId, "FixedAsset", "Edit");
+    if (costCenterId) {
+      const scopedPrisma = await getScopedPrisma();
+      const costCenter = await scopedPrisma.costCenter.findFirst({ where: { id: costCenterId } });
+      if (!costCenter) return { formError: "مركز التكلفة غير موجود." };
+    }
+    await withScopedTransaction(async (tx) => {
+      const before = await tx.fixedAsset.findUniqueOrThrow({ where: { id: assetId }, select: { nameAr: true, nameEn: true, costCenterId: true } });
+      await tx.fixedAsset.update({ where: { id: assetId }, data: { nameAr, nameEn, costCenterId: costCenterId || null } });
+      await logAudit(tx, {
+        orgId: user.orgId,
+        userId: user.id,
+        action: "fixedAsset.updated",
+        entityType: "FixedAsset",
+        entityId: assetId,
+        beforeValue: before,
+        afterValue: { nameAr, nameEn, costCenterId: costCenterId || null },
+      });
+    });
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "updateFixedAssetAction", error: e });
+    return { formError: businessRuleMessage(e, "حصل خطأ أثناء تعديل الأصل — حاول تاني.") };
+  }
+
+  revalidatePath("/accounting/fixed-assets");
+  return { success: true };
 }
 
 const DisposalSchema = z.object({
@@ -481,6 +581,64 @@ export async function createTaxRecord(_prevState: TaxRecordFormState, formData: 
 
   revalidatePath("/accounting/tax-records");
   return {};
+}
+
+const TaxRecordEditSchema = z.object({
+  amount: z.coerce.number().positive("المبلغ مطلوب").optional(),
+  etaReference: z.string().trim().optional().or(z.literal("")),
+});
+
+export type TaxRecordEditFormState = { errors?: Record<string, string[]>; formError?: string; success?: boolean };
+
+/** تعديل عام — `etaReference` دايمًا (بيوصل من المصلحة بعد التسجيل غالبًا)، و`amount` بس لو
+ * الإقرار لسه `NotFiled` ومش نوع GL-backed (ض.ق.م بتتحسب من رصيد الدفتر مباشرة، تعديلها يدويًا
+ * هيكسر اتساقها مع `computeVatBalance`). `taxType`/`periodId` هوية البند (`@@unique`)، ثابتين. */
+export async function updateTaxRecordAction(
+  taxRecordId: string,
+  _prevState: TaxRecordEditFormState,
+  formData: FormData
+): Promise<TaxRecordEditFormState> {
+  const parsed = TaxRecordEditSchema.safeParse({
+    amount: formData.get("amount") || undefined,
+    etaReference: formData.get("etaReference") || undefined,
+  });
+  if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
+
+  const user = await requireCurrentUser();
+  try {
+    await requirePermission(user.roleId, "TaxRecord", "Edit");
+    await withScopedTransaction(async (tx) => {
+      const before = await tx.taxRecord.findUniqueOrThrow({
+        where: { id: taxRecordId },
+        select: { amount: true, etaReference: true, filingStatus: true, taxType: true },
+      });
+      if (parsed.data.amount !== undefined) {
+        if (before.filingStatus !== "NotFiled") throw new Error("مبلغ الإقرار المُقدَّم بالفعل ثابت — لو غلط، اتصل بمصلحة الضرائب مش هنا.");
+        if (isGlBackedTax(before.taxType)) throw new Error("مبلغ ض.ق.م بيتحسب من رصيد الدفتر مباشرة، مش قابل للتعديل اليدوي.");
+      }
+      await tx.taxRecord.update({
+        where: { id: taxRecordId },
+        data: { amount: parsed.data.amount !== undefined ? new Prisma.Decimal(parsed.data.amount) : undefined, etaReference: parsed.data.etaReference || null },
+      });
+      await logAudit(tx, {
+        orgId: user.orgId,
+        userId: user.id,
+        action: "taxRecord.updated",
+        entityType: "TaxRecord",
+        entityId: taxRecordId,
+        beforeValue: { amount: before.amount.toString(), etaReference: before.etaReference },
+        afterValue: { amount: parsed.data.amount, etaReference: parsed.data.etaReference || null },
+      });
+    });
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "updateTaxRecordAction", error: e });
+    return { formError: businessRuleMessage(e, "حصل خطأ أثناء تعديل الإقرار — حاول تاني.") };
+  }
+
+  revalidatePath("/accounting/tax-records");
+  revalidatePath("/accounting/tax-records/report");
+  return { success: true };
 }
 
 /** اعتماد إقرار ض.ق.م — المبلغ بيتحسب هنا داخل الـTransaction من `computeVatBalance()` مباشرة،

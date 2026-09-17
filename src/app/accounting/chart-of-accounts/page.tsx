@@ -2,6 +2,7 @@ import { requireCurrentUser } from "@/lib/session";
 import { requirePermission } from "@/lib/permissions";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
 import ChartOfAccountForm from "./ChartOfAccountForm";
+import ChartOfAccountEditControl from "./ChartOfAccountEditControl";
 import { accountTypeLabel, normalBalanceLabel } from "@/lib/accountingLabels";
 import { Badge } from "@/components/ui/badge";
 
@@ -16,6 +17,7 @@ type AccountNode = {
   normalBalance: string;
   currency: string | null;
   parentAccountId: string | null;
+  isActive: boolean;
 };
 
 function buildTree(accounts: AccountNode[], parentId: string | null): AccountNode[] {
@@ -33,6 +35,7 @@ function AccountRow({ account, accounts, depth }: { account: AccountNode; accoun
         <Badge variant="secondary">{accountTypeLabel[account.accountType]}</Badge>
         <span className="text-xs text-muted-foreground">{normalBalanceLabel[account.normalBalance]}</span>
         {account.currency && <span className="text-xs text-muted-foreground">{account.currency}</span>}
+        <ChartOfAccountEditControl accountId={account.id} nameAr={account.nameAr} nameEn={account.nameEn} isActive={account.isActive} />
       </div>
       {children.map((c) => (
         <AccountRow key={c.id} account={c} accounts={accounts} depth={depth + 1} />
@@ -61,7 +64,7 @@ export default async function ChartOfAccountsPage() {
 
   const accounts = await prisma.chartOfAccount.findMany({
     where: { orgId },
-    select: { id: true, accountCode: true, nameAr: true, nameEn: true, accountType: true, normalBalance: true, currency: true, parentAccountId: true },
+    select: { id: true, accountCode: true, nameAr: true, nameEn: true, accountType: true, normalBalance: true, currency: true, parentAccountId: true, isActive: true },
     orderBy: { accountCode: "asc" },
   });
 

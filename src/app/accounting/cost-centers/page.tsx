@@ -2,6 +2,7 @@ import { requireCurrentUser } from "@/lib/session";
 import { requirePermission } from "@/lib/permissions";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
 import CostCenterForm from "./CostCenterForm";
+import CostCenterEditControl from "./CostCenterEditControl";
 import { costCenterTypeLabel } from "@/lib/accountingLabels";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
@@ -44,12 +45,13 @@ export default async function CostCentersPage() {
               <TableHead>الكود</TableHead>
               <TableHead>الاسم</TableHead>
               <TableHead>النوع</TableHead>
+              <TableHead />
             </TableRow>
           </TableHeader>
           <TableBody>
             {records.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={3} className="py-6 text-center text-muted-foreground">
+                <TableCell colSpan={4} className="py-6 text-center text-muted-foreground">
                   لسه مفيش مراكز تكلفة مسجّلة.
                 </TableCell>
               </TableRow>
@@ -59,6 +61,9 @@ export default async function CostCentersPage() {
                   <TableCell className="font-mono text-foreground">{c.code}</TableCell>
                   <TableCell className="text-foreground/80">{c.name}</TableCell>
                   <TableCell className="text-foreground/80">{costCenterTypeLabel[c.type]}</TableCell>
+                  <TableCell>
+                    <CostCenterEditControl costCenterId={c.id} name={c.name} type={c.type} />
+                  </TableCell>
                 </TableRow>
               ))
             )}

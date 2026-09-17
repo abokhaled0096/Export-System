@@ -72,6 +72,79 @@ export async function createChartOfAccount(_prevState: ChartOfAccountFormState, 
   return {};
 }
 
+const ChartOfAccountEditSchema = z.object({
+  nameAr: z.string().trim().min(1, "الاسم بالعربي مطلوب"),
+  nameEn: z.string().trim().min(1, "الاسم بالإنجليزي مطلوب"),
+});
+
+export type ChartOfAccountEditFormState = { errors?: Record<string, string[]>; formError?: string; success?: boolean };
+
+/** تعديل عام — الاسمين بس. عمدًا مش `accountCode`/`accountType`/`normalBalance`/`currency`/
+ * `parentAccountId`: `accountCode` مفتاح ثابت مستخدم في `GL_ACCOUNTS` (كود مكتوب في المحرك نفسه،
+ * مش بحث ديناميكي)، والباقي بنية الشجرة وطبيعة الرصيد اللي كل قيد مرحّل بالفعل مبني عليها —
+ * تغييرهم بعد أي ترحيل هيخلّي القيود القديمة غير متّسقة مع تصنيف الحساب الجديد بصمت. */
+export async function updateChartOfAccountAction(
+  accountId: string,
+  _prevState: ChartOfAccountEditFormState,
+  formData: FormData
+): Promise<ChartOfAccountEditFormState> {
+  const parsed = ChartOfAccountEditSchema.safeParse({ nameAr: formData.get("nameAr"), nameEn: formData.get("nameEn") });
+  if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
+
+  const user = await requireCurrentUser();
+  try {
+    await requirePermission(user.roleId, "ChartOfAccount", "Edit");
+    await withScopedTransaction(async (tx) => {
+      const before = await tx.chartOfAccount.findUniqueOrThrow({ where: { id: accountId }, select: { nameAr: true, nameEn: true } });
+      await tx.chartOfAccount.update({ where: { id: accountId }, data: parsed.data });
+      await logAudit(tx, {
+        orgId: user.orgId,
+        userId: user.id,
+        action: "chartOfAccount.updated",
+        entityType: "ChartOfAccount",
+        entityId: accountId,
+        beforeValue: before,
+        afterValue: parsed.data,
+      });
+    });
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "updateChartOfAccountAction", error: e });
+    return { formError: businessRuleMessage(e, "حصل خطأ أثناء تعديل الحساب — حاول تاني.") };
+  }
+
+  revalidatePath("/accounting/chart-of-accounts");
+  return { success: true };
+}
+
+/** تفعيل/إيقاف حساب — نفس نمط toggleBankAccountActiveAction، فعل منفصل بلا فورم. */
+export async function toggleChartOfAccountActiveAction(accountId: string) {
+  const user = await requireCurrentUser();
+  await requirePermission(user.roleId, "ChartOfAccount", "Edit");
+
+  try {
+    await withScopedTransaction(async (tx) => {
+      const account = await tx.chartOfAccount.findUniqueOrThrow({ where: { id: accountId }, select: { isActive: true } });
+      await tx.chartOfAccount.update({ where: { id: accountId }, data: { isActive: !account.isActive } });
+      await logAudit(tx, {
+        orgId: user.orgId,
+        userId: user.id,
+        action: "chartOfAccount.toggledActive",
+        entityType: "ChartOfAccount",
+        entityId: accountId,
+        beforeValue: { isActive: account.isActive },
+        afterValue: { isActive: !account.isActive },
+      });
+    });
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "toggleChartOfAccountActiveAction", error: e });
+    throw new Error(businessRuleMessage(e, "حصل خطأ أثناء تحديث حالة الحساب."));
+  }
+
+  revalidatePath("/accounting/chart-of-accounts");
+}
+
 const AccountingPeriodSchema = z.object({
   periodName: z.string().trim().min(1, "اسم الفترة مطلوب"),
   startDate: z.string().trim().min(1, "تاريخ البداية مطلوب"),
@@ -208,6 +281,49 @@ export async function createCostCenter(_prevState: CostCenterFormState, formData
   return {};
 }
 
+const CostCenterEditSchema = z.object({
+  name: z.string().trim().min(1, "الاسم مطلوب"),
+  type: z.enum(COST_CENTER_TYPES, "اختار نوع مركز تكلفة صحيح"),
+});
+
+export type CostCenterEditFormState = { errors?: Record<string, string[]>; formError?: string; success?: boolean };
+
+/** تعديل عام — الاسم والنوع بس. عمدًا مش `code`: معرّف فريد (`@@unique([orgId, code])`) بيُستخدم
+ * كوسم تحليلي مرتبط بقيود/موازنات/أصول ثابتة قديمة — تغييره بعد الاستخدام يبوّظ أي مرجع نصي خارجي. */
+export async function updateCostCenterAction(
+  costCenterId: string,
+  _prevState: CostCenterEditFormState,
+  formData: FormData
+): Promise<CostCenterEditFormState> {
+  const parsed = CostCenterEditSchema.safeParse({ name: formData.get("name"), type: formData.get("type") });
+  if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
+
+  const user = await requireCurrentUser();
+  try {
+    await requirePermission(user.roleId, "CostCenter", "Edit");
+    await withScopedTransaction(async (tx) => {
+      const before = await tx.costCenter.findUniqueOrThrow({ where: { id: costCenterId }, select: { name: true, type: true } });
+      await tx.costCenter.update({ where: { id: costCenterId }, data: parsed.data });
+      await logAudit(tx, {
+        orgId: user.orgId,
+        userId: user.id,
+        action: "costCenter.updated",
+        entityType: "CostCenter",
+        entityId: costCenterId,
+        beforeValue: before,
+        afterValue: parsed.data,
+      });
+    });
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "updateCostCenterAction", error: e });
+    return { formError: businessRuleMessage(e, "حصل خطأ أثناء تعديل مركز التكلفة — حاول تاني.") };
+  }
+
+  revalidatePath("/accounting/cost-centers");
+  return { success: true };
+}
+
 const PROFIT_CENTER_SCOPES = ["Company", "Division", "Product", "Market"] as const;
 
 const ProfitCenterSchema = z.object({
@@ -248,6 +364,48 @@ export async function createProfitCenter(_prevState: ProfitCenterFormState, form
 
   revalidatePath("/accounting/profit-centers");
   return {};
+}
+
+const ProfitCenterEditSchema = z.object({
+  name: z.string().trim().min(1, "الاسم مطلوب"),
+  scope: z.enum(PROFIT_CENTER_SCOPES, "اختار نطاق مركز ربحية صحيح"),
+});
+
+export type ProfitCenterEditFormState = { errors?: Record<string, string[]>; formError?: string; success?: boolean };
+
+/** تعديل عام — الاسم والنطاق بس. عمدًا مش `code` (نفس منطق CostCenter). */
+export async function updateProfitCenterAction(
+  profitCenterId: string,
+  _prevState: ProfitCenterEditFormState,
+  formData: FormData
+): Promise<ProfitCenterEditFormState> {
+  const parsed = ProfitCenterEditSchema.safeParse({ name: formData.get("name"), scope: formData.get("scope") });
+  if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
+
+  const user = await requireCurrentUser();
+  try {
+    await requirePermission(user.roleId, "ProfitCenter", "Edit");
+    await withScopedTransaction(async (tx) => {
+      const before = await tx.profitCenter.findUniqueOrThrow({ where: { id: profitCenterId }, select: { name: true, scope: true } });
+      await tx.profitCenter.update({ where: { id: profitCenterId }, data: parsed.data });
+      await logAudit(tx, {
+        orgId: user.orgId,
+        userId: user.id,
+        action: "profitCenter.updated",
+        entityType: "ProfitCenter",
+        entityId: profitCenterId,
+        beforeValue: before,
+        afterValue: parsed.data,
+      });
+    });
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "updateProfitCenterAction", error: e });
+    return { formError: businessRuleMessage(e, "حصل خطأ أثناء تعديل مركز الربحية — حاول تاني.") };
+  }
+
+  revalidatePath("/accounting/profit-centers");
+  return { success: true };
 }
 
 const JOURNAL_ENTRY_SOURCE_TYPES = ["Manual", "Automatic", "Recurring", "Reversal", "Accrual", "Adjustment"] as const;

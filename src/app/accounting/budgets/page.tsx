@@ -5,6 +5,7 @@ import { getScopedPrisma } from "@/lib/scoped-prisma";
 import { BUDGET_TYPE_ACCOUNT_RULES, type BudgetActualRule } from "@/lib/budget";
 import BudgetForm, { type PeriodOption, type CostCenterOption } from "./BudgetForm";
 import CopyBudgetForm from "./CopyBudgetForm";
+import BudgetAmountCell from "./BudgetAmountCell";
 import { budgetTypeLabel } from "@/lib/treasuryLabels";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
@@ -121,8 +122,8 @@ export default async function BudgetsPage() {
                     <TableCell className="text-foreground/80">{b.period.periodName}</TableCell>
                     <TableCell className="text-foreground/80">{budgetTypeLabel[b.budgetType]}</TableCell>
                     <TableCell className="text-foreground/80">{b.costCenter ? `${b.costCenter.code} — ${b.costCenter.name}` : "على مستوى المنظمة"}</TableCell>
-                    <TableCell className="font-mono text-foreground/80">
-                      {b.amount.toFixed(2)} {b.currency}
+                    <TableCell>
+                      <BudgetAmountCell budgetId={b.id} amount={b.amount.toFixed(2)} currency={b.currency} />
                     </TableCell>
                     <TableCell className="font-mono text-foreground">{actual.toFixed(2)}</TableCell>
                     <TableCell className={`font-mono font-semibold ${overBudget ? "text-rose-700" : "text-emerald-700"}`}>

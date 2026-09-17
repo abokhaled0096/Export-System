@@ -2,6 +2,7 @@ import { requireCurrentUser } from "@/lib/session";
 import { requirePermission } from "@/lib/permissions";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
 import KpiForm, { type UserOption, type PeriodOption } from "./KpiForm";
+import KpiEditControl from "./KpiEditControl";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export const dynamic = "force-dynamic";
@@ -58,12 +59,13 @@ export default async function KpisPage() {
               <TableHead>المستهدف</TableHead>
               <TableHead>الفعلي</TableHead>
               <TableHead>الإنجاز</TableHead>
+              <TableHead />
             </TableRow>
           </TableHeader>
           <TableBody>
             {kpis.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="py-6 text-center text-muted-foreground">
+                <TableCell colSpan={8} className="py-6 text-center text-muted-foreground">
                   لسه مفيش مؤشرات مسجّلة.
                 </TableCell>
               </TableRow>
@@ -81,6 +83,15 @@ export default async function KpisPage() {
                     <TableCell className="font-mono text-foreground/80">{k.actualValue?.toFixed(2) ?? "—"}</TableCell>
                     <TableCell className={`font-mono font-semibold ${achievement === null ? "text-muted-foreground" : onTrack ? "text-emerald-700" : "text-amber-700"}`}>
                       {achievement === null ? "—" : `${achievement.toFixed(0)}%`}
+                    </TableCell>
+                    <TableCell>
+                      <KpiEditControl
+                        kpiId={k.id}
+                        name={k.name}
+                        category={k.category}
+                        targetValue={k.targetValue.toFixed(2)}
+                        actualValue={k.actualValue?.toFixed(2) ?? null}
+                      />
                     </TableCell>
                   </TableRow>
                 );

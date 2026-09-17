@@ -259,6 +259,56 @@ export async function createDecisionLogEntry(_prevState: DecisionFormState, form
   return {};
 }
 
+const DecisionEditSchema = z.object({
+  title: z.string().trim().min(1, "العنوان مطلوب"),
+  context: z.string().trim().optional().or(z.literal("")),
+  outcome: z.string().trim().optional().or(z.literal("")),
+});
+
+export type DecisionEditFormState = { errors?: Record<string, string[]>; formError?: string; success?: boolean };
+
+/** تعديل عام — العنوان/السياق/النتيجة بس. عمدًا مش `decisionDate`/`decidedBy`: دول سجل تاريخي
+ * لمين اتّخذ القرار وإمتى — تغييرهم بعد التسجيل معناه تزوير سجل قرار، مش تصحيح خطأ كتابي. */
+export async function updateDecisionLogEntryAction(
+  entryId: string,
+  _prevState: DecisionEditFormState,
+  formData: FormData
+): Promise<DecisionEditFormState> {
+  const parsed = DecisionEditSchema.safeParse({
+    title: formData.get("title"),
+    context: formData.get("context") || undefined,
+    outcome: formData.get("outcome") || undefined,
+  });
+  if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
+
+  const user = await requireCurrentUser();
+  const { title, context, outcome } = parsed.data;
+
+  try {
+    await requirePermission(user.roleId, "DecisionLogEntry", "Edit");
+    await withScopedTransaction(async (tx) => {
+      const before = await tx.decisionLogEntry.findUniqueOrThrow({ where: { id: entryId }, select: { title: true, context: true, outcome: true } });
+      await tx.decisionLogEntry.update({ where: { id: entryId }, data: { title, context: context || null, outcome: outcome || null } });
+      await logAudit(tx, {
+        orgId: user.orgId,
+        userId: user.id,
+        action: "decisionLogEntry.updated",
+        entityType: "DecisionLogEntry",
+        entityId: entryId,
+        beforeValue: before,
+        afterValue: { title, context: context || null, outcome: outcome || null },
+      });
+    });
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "updateDecisionLogEntryAction", error: e });
+    return { formError: businessRuleMessage(e, "حصل خطأ أثناء تعديل القرار — حاول تاني.") };
+  }
+
+  revalidatePath("/governance/decisions");
+  return { success: true };
+}
+
 // ==================== RiskRegisterItem ====================
 
 const RiskSchema = z.object({
@@ -387,6 +437,55 @@ export async function createKPI(_prevState: KpiFormState, formData: FormData): P
 
   revalidatePath("/governance/kpis");
   return {};
+}
+
+const KpiEditSchema = z.object({
+  name: z.string().trim().min(1, "الاسم مطلوب"),
+  category: z.string().trim().min(1, "الفئة مطلوبة"),
+  targetValue: z.coerce.number().min(0, "القيمة المستهدفة مطلوبة"),
+  actualValue: z.coerce.number().optional(),
+});
+
+export type KpiEditFormState = { errors?: Record<string, string[]>; formError?: string; success?: boolean };
+
+/** تعديل عام — الاسم/الفئة/المستهدف/الفعلي. `actualValue` إدخال يدوي عمدًا (نفس ملحوظة الإنشاء)
+ * فتعديله هنا طبيعي، مش استثناء. عمدًا مش `ownerId`/`periodId`: هوية "مين مسؤول عن مؤشر إيه في
+ * فترة إيه" — تغييرهم بعد التسجيل يخلط تتبّع الأداء عبر الفترات، مش تصحيح خطأ كتابي. */
+export async function updateKpiAction(kpiId: string, _prevState: KpiEditFormState, formData: FormData): Promise<KpiEditFormState> {
+  const parsed = KpiEditSchema.safeParse({
+    name: formData.get("name"),
+    category: formData.get("category"),
+    targetValue: formData.get("targetValue"),
+    actualValue: formData.get("actualValue") || undefined,
+  });
+  if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
+
+  const user = await requireCurrentUser();
+  const { name, category, targetValue, actualValue } = parsed.data;
+
+  try {
+    await requirePermission(user.roleId, "KPI", "Edit");
+    await withScopedTransaction(async (tx) => {
+      const before = await tx.kPI.findUniqueOrThrow({ where: { id: kpiId }, select: { name: true, category: true, targetValue: true, actualValue: true } });
+      await tx.kPI.update({ where: { id: kpiId }, data: { name, category, targetValue, actualValue: actualValue ?? null } });
+      await logAudit(tx, {
+        orgId: user.orgId,
+        userId: user.id,
+        action: "kpi.updated",
+        entityType: "KPI",
+        entityId: kpiId,
+        beforeValue: { name: before.name, category: before.category, targetValue: before.targetValue.toString(), actualValue: before.actualValue?.toString() ?? null },
+        afterValue: { name, category, targetValue, actualValue: actualValue ?? null },
+      });
+    });
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "updateKpiAction", error: e });
+    return { formError: businessRuleMessage(e, "حصل خطأ أثناء تعديل المؤشر — حاول تاني.") };
+  }
+
+  revalidatePath("/governance/kpis");
+  return { success: true };
 }
 
 // ==================== Notification ====================

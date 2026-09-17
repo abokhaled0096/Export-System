@@ -1,0 +1,55 @@
+"use client";
+
+import { useActionState, useState } from "react";
+import { updateCostCenterAction, type CostCenterEditFormState } from "../actions";
+import { costCenterTypeLabel } from "@/lib/accountingLabels";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+const initialState: CostCenterEditFormState = {};
+const types = Object.keys(costCenterTypeLabel);
+
+export default function CostCenterEditControl({ costCenterId, name, type }: { costCenterId: string; name: string; type: string }) {
+  const [editing, setEditing] = useState(false);
+  const [state, formAction, pending] = useActionState(updateCostCenterAction.bind(null, costCenterId), initialState);
+
+  const [prevState, setPrevState] = useState(state);
+  if (state !== prevState) {
+    setPrevState(state);
+    if (state.success) setEditing(false);
+  }
+
+  if (!editing) {
+    return (
+      <button type="button" className="text-xs text-primary hover:underline" onClick={() => setEditing(true)}>
+        تعديل
+      </button>
+    );
+  }
+
+  return (
+    <form action={formAction} className="flex flex-wrap items-center gap-1.5">
+      <Input name="name" defaultValue={name} className="w-32" />
+      <Select name="type" defaultValue={type}>
+        <SelectTrigger className="w-28">
+          <SelectValue>{(value: string) => costCenterTypeLabel[value] ?? value}</SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          {types.map((t) => (
+            <SelectItem key={t} value={t}>
+              {costCenterTypeLabel[t]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Button type="submit" size="sm" disabled={pending}>
+        {pending ? "..." : "حفظ"}
+      </Button>
+      <Button type="button" size="sm" variant="ghost" onClick={() => setEditing(false)}>
+        إلغاء
+      </Button>
+      {(state.errors?.name || state.formError) && <span className="text-xs text-destructive">{state.errors?.name?.[0] ?? state.formError}</span>}
+    </form>
+  );
+}

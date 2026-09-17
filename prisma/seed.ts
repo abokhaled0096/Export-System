@@ -79,6 +79,7 @@ const PERMISSIONS: { resource: string; action: "View" | "Create" | "Edit" | "Del
   // وحدة 8 — الحسابات والخزينة، الشريحة الأولى: دفتر الأستاذ الأساسي (1 سبتمبر).
   { resource: "ChartOfAccount", action: "Create" },
   { resource: "ChartOfAccount", action: "View" },
+  { resource: "ChartOfAccount", action: "Edit" }, // فورم تعديل بعد الإنشاء (17 سبتمبر) — الاسم فقط + تفعيل/إيقاف
   { resource: "AccountingPeriod", action: "Create" },
   { resource: "AccountingPeriod", action: "View" },
   { resource: "AccountingPeriod", action: "Edit" }, // قفل الفترة (Open→SoftClosed→HardClosed)
@@ -87,8 +88,10 @@ const PERMISSIONS: { resource: string; action: "View" | "Create" | "Edit" | "Del
   { resource: "JournalEntry", action: "Edit" }, // ترحيل القيد (Draft→Posted)
   { resource: "CostCenter", action: "Create" },
   { resource: "CostCenter", action: "View" },
+  { resource: "CostCenter", action: "Edit" }, // فورم تعديل بعد الإنشاء (17 سبتمبر) — الاسم/النوع
   { resource: "ProfitCenter", action: "Create" },
   { resource: "ProfitCenter", action: "View" },
+  { resource: "ProfitCenter", action: "Edit" }, // فورم تعديل بعد الإنشاء (17 سبتمبر) — الاسم/النطاق
   // وحدة 8 — الشريحة التانية: AR/AP (1 سبتمبر).
   { resource: "BankAccount", action: "Create" },
   { resource: "BankAccount", action: "View" },
@@ -115,6 +118,7 @@ const PERMISSIONS: { resource: string; action: "View" | "Create" | "Edit" | "Del
   // وحدة 8 — الشريحة الرابعة والأخيرة: الموازنات والأصول والضرائب (2 سبتمبر).
   { resource: "Budget", action: "Create" },
   { resource: "Budget", action: "View" },
+  { resource: "Budget", action: "Edit" }, // فورم تعديل بعد الإنشاء (17 سبتمبر) — المبلغ فقط
   { resource: "FixedAsset", action: "Create" },
   { resource: "FixedAsset", action: "View" },
   { resource: "FixedAsset", action: "Edit" }, // تسجيل التخلص من أصل
@@ -131,11 +135,13 @@ const PERMISSIONS: { resource: string; action: "View" | "Create" | "Edit" | "Del
   { resource: "SegregationOfDutyRule", action: "View" },
   { resource: "DecisionLogEntry", action: "Create" },
   { resource: "DecisionLogEntry", action: "View" },
+  { resource: "DecisionLogEntry", action: "Edit" }, // فورم تعديل بعد الإنشاء (17 سبتمبر) — العنوان/السياق/النتيجة
   { resource: "RiskRegisterItem", action: "Create" },
   { resource: "RiskRegisterItem", action: "View" },
   { resource: "RiskRegisterItem", action: "Edit" }, // تحويل حالة (Open→Mitigated→Closed)
   { resource: "KPI", action: "Create" },
   { resource: "KPI", action: "View" },
+  { resource: "KPI", action: "Edit" }, // فورم تعديل بعد الإنشاء (17 سبتمبر) — الاسم/الفئة/المستهدف/الفعلي
   { resource: "Notification", action: "View" }, // scope: Own — كل الأدوار
   { resource: "Notification", action: "Edit" }, // تعليم كمقروء
   { resource: "MasterDataChangeRequest", action: "Create" },
@@ -461,6 +467,7 @@ const ROLE_GRANTS: Record<string, { resources: string[]; scope: "Own" | "Team" |
       "SalesOrder.Edit",
       "ChartOfAccount.Create",
       "ChartOfAccount.View",
+      "ChartOfAccount.Edit",
       "AccountingPeriod.Create",
       "AccountingPeriod.View",
       "AccountingPeriod.Edit",
@@ -469,8 +476,10 @@ const ROLE_GRANTS: Record<string, { resources: string[]; scope: "Own" | "Team" |
       "JournalEntry.Edit",
       "CostCenter.Create",
       "CostCenter.View",
+      "CostCenter.Edit",
       "ProfitCenter.Create",
       "ProfitCenter.View",
+      "ProfitCenter.Edit",
       "BankAccount.Create",
       "BankAccount.View",
       "BankAccount.Edit",
@@ -493,6 +502,7 @@ const ROLE_GRANTS: Record<string, { resources: string[]; scope: "Own" | "Team" |
       "CashFlowForecastLine.View",
       "Budget.Create",
       "Budget.View",
+      "Budget.Edit",
       "FixedAsset.Create",
       "FixedAsset.View",
       "FixedAsset.Edit",
@@ -528,9 +538,9 @@ for (const role of SYSTEM_ROLES) {
 }
 
 // سجل القرارات/المخاطر/مؤشرات الأداء — نطاق إشرافي/إداري (نفس الأدوار اللي بتاخد قرارات حساسة).
-ROLE_GRANTS.Finance.resources.push("DecisionLogEntry.Create", "DecisionLogEntry.View", "RiskRegisterItem.Create", "RiskRegisterItem.View", "RiskRegisterItem.Edit", "KPI.Create", "KPI.View");
-ROLE_GRANTS.SalesManager.resources.push("DecisionLogEntry.Create", "DecisionLogEntry.View", "RiskRegisterItem.Create", "RiskRegisterItem.View", "RiskRegisterItem.Edit", "KPI.Create", "KPI.View");
-ROLE_GRANTS.ComplianceOfficer.resources.push("DecisionLogEntry.Create", "DecisionLogEntry.View", "RiskRegisterItem.Create", "RiskRegisterItem.View", "RiskRegisterItem.Edit");
+ROLE_GRANTS.Finance.resources.push("DecisionLogEntry.Create", "DecisionLogEntry.View", "DecisionLogEntry.Edit", "RiskRegisterItem.Create", "RiskRegisterItem.View", "RiskRegisterItem.Edit", "KPI.Create", "KPI.View", "KPI.Edit");
+ROLE_GRANTS.SalesManager.resources.push("DecisionLogEntry.Create", "DecisionLogEntry.View", "DecisionLogEntry.Edit", "RiskRegisterItem.Create", "RiskRegisterItem.View", "RiskRegisterItem.Edit", "KPI.Create", "KPI.View", "KPI.Edit");
+ROLE_GRANTS.ComplianceOfficer.resources.push("DecisionLogEntry.Create", "DecisionLogEntry.View", "DecisionLogEntry.Edit", "RiskRegisterItem.Create", "RiskRegisterItem.View", "RiskRegisterItem.Edit");
 
 // طلب تعديل بيانات أساسية — متاح لأي دور بيصنع بيانات أساسية؛ الاعتماد (Edit) لـAdmin/CompanyOwner بس.
 ROLE_GRANTS.Finance.resources.push("MasterDataChangeRequest.Create", "MasterDataChangeRequest.View");

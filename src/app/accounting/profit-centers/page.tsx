@@ -2,6 +2,7 @@ import { requireCurrentUser } from "@/lib/session";
 import { requirePermission } from "@/lib/permissions";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
 import ProfitCenterForm from "./ProfitCenterForm";
+import ProfitCenterEditControl from "./ProfitCenterEditControl";
 import { profitCenterScopeLabel } from "@/lib/accountingLabels";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
@@ -44,12 +45,13 @@ export default async function ProfitCentersPage() {
               <TableHead>الكود</TableHead>
               <TableHead>الاسم</TableHead>
               <TableHead>النطاق</TableHead>
+              <TableHead />
             </TableRow>
           </TableHeader>
           <TableBody>
             {records.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={3} className="py-6 text-center text-muted-foreground">
+                <TableCell colSpan={4} className="py-6 text-center text-muted-foreground">
                   لسه مفيش مراكز ربحية مسجّلة.
                 </TableCell>
               </TableRow>
@@ -59,6 +61,9 @@ export default async function ProfitCentersPage() {
                   <TableCell className="font-mono text-foreground">{p.code}</TableCell>
                   <TableCell className="text-foreground/80">{p.name}</TableCell>
                   <TableCell className="text-foreground/80">{profitCenterScopeLabel[p.scope]}</TableCell>
+                  <TableCell>
+                    <ProfitCenterEditControl profitCenterId={p.id} name={p.name} scope={p.scope} />
+                  </TableCell>
                 </TableRow>
               ))
             )}

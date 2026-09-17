@@ -7,7 +7,8 @@ import { computeVatBalance } from "@/lib/accounting";
 import ApproveVatButton from "./ApproveVatButton";
 import PayTaxButton, { type BankAccountOption } from "./PayTaxButton";
 import ManualTaxRecordForm, { type PeriodOption } from "./ManualTaxRecordForm";
-import { taxTypeLabel, taxFilingStatusLabel, taxFilingStatusStyle } from "@/lib/treasuryLabels";
+import TaxRecordEditCell from "./TaxRecordEditCell";
+import { taxTypeLabel, taxFilingStatusLabel, taxFilingStatusStyle, isGlBackedTax } from "@/lib/treasuryLabels";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
@@ -162,15 +163,24 @@ export default async function TaxRecordsPage() {
                   </TableCell>
                   <TableCell className="text-foreground/80">{r.etaReference ?? "—"}</TableCell>
                   <TableCell>
-                    {r.filingStatus === "Filed" && (
-                      <PayTaxButton
+                    <div className="flex flex-col items-start gap-1.5">
+                      {r.filingStatus === "Filed" && (
+                        <PayTaxButton
+                          taxRecordId={r.id}
+                          bankAccounts={bankAccountOptions}
+                          needsFxRate={!!org.functionalCurrency && r.currency !== org.functionalCurrency}
+                          currency={r.currency}
+                          functionalCurrency={org.functionalCurrency ?? undefined}
+                        />
+                      )}
+                      <TaxRecordEditCell
                         taxRecordId={r.id}
-                        bankAccounts={bankAccountOptions}
-                        needsFxRate={!!org.functionalCurrency && r.currency !== org.functionalCurrency}
+                        amount={r.amount.toFixed(2)}
                         currency={r.currency}
-                        functionalCurrency={org.functionalCurrency ?? undefined}
+                        etaReference={r.etaReference}
+                        amountEditable={r.filingStatus === "NotFiled" && !isGlBackedTax(r.taxType)}
                       />
-                    )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
