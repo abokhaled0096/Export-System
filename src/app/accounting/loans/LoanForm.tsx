@@ -67,10 +67,34 @@ export default function LoanForm({ accounts }: { accounts: LoanAccountOption[] }
 
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="loan-rate" className="text-xs">
-          سعر الفائدة %
+          سعر الفائدة % (سنوي)
         </Label>
         <Input id="loan-rate" name="interestRatePct" type="number" step="0.001" />
-        <span className="text-[11px] text-muted-foreground">للتوثيق — جدول الأقساط بيتدخّل يدويًا.</span>
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="loan-installments" className="text-xs">
+          عدد الأقساط
+        </Label>
+        <Input id="loan-installments" name="numberOfInstallments" type="number" min="1" step="1" placeholder="12" />
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="loan-method" className="text-xs">
+          طريقة التقسيط
+        </Label>
+        <Select name="amortizationMethod" defaultValue="EqualInstallment">
+          <SelectTrigger id="loan-method">
+            <SelectValue>{(value: string) => (value === "EqualInstallment" ? "قسط ثابت" : "أصل ثابت")}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="EqualInstallment">قسط ثابت</SelectItem>
+            <SelectItem value="EqualPrincipal">أصل ثابت</SelectItem>
+          </SelectContent>
+        </Select>
+        <span className="text-[11px] text-muted-foreground">
+          حدِّد عدد الأقساط وطريقة التقسيط عشان تقدر تولّد الجدول تلقائيًا بعدين — سيبهم فاضيين لو هتدخل الجدول يدويًا.
+        </span>
       </div>
 
       <div className="flex flex-col gap-1.5">

@@ -4588,6 +4588,14 @@ enum LoanStatus {
   Defaulted
 }
 
+/// EqualInstallment (تقسيط بقسط ثابت — Annuity/French، الأشيع تجاريًا): كل قسط نفس المبلغ
+/// الإجمالي، نسبة الفوائد فيه بتقل والأصل بيزيد بمرور الوقت. EqualPrincipal (أصل ثابت):
+/// حصة الأصل ثابتة في كل قسط، والإجمالي بيقل تدريجيًا مع تناقص الفائدة على الرصيد المتبقي.
+enum LoanAmortizationMethod {
+  EqualInstallment
+  EqualPrincipal
+}
+
 enum LoanInstallmentStatus {
   Pending
   Paid
@@ -4675,6 +4683,10 @@ model Loan {
   outstandingPrincipal Decimal    @default(0) @db.Decimal(14, 2)
   currency             String     @db.Char(3)
   interestRatePct      Decimal?   @db.Decimal(6, 3)
+  /// الاتنان لازم يتحددوا مع بعض عشان زرار "توليد جدول الأقساط" يظهر — لو أي واحد فاضي،
+  /// الجدولة تفضل يدوية بالكامل (createLoanInstallment) زي ما كانت دايمًا.
+  numberOfInstallments Int?
+  amortizationMethod   LoanAmortizationMethod?
   startDate            DateTime
   maturityDate         DateTime
   collateral           String?

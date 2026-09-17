@@ -4,7 +4,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { requireCurrentUser } from "@/lib/session";
 import { requirePermission } from "@/lib/permissions";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
-import { DisburseButton, MarkDefaultedButton, PayInstallmentButton, InstallmentForm } from "./LoanActions";
+import { DisburseButton, MarkDefaultedButton, PayInstallmentButton, InstallmentForm, GenerateScheduleButton } from "./LoanActions";
 import { loanStatusLabel, loanStatusStyle, loanInstallmentStatusLabel, isInstallmentOverdue } from "@/lib/treasuryLabels";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -84,8 +84,18 @@ export default async function LoanDetailPage({ params }: { params: Promise<{ id:
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-muted-foreground">سعر الفائدة</dt>
+          <dt className="text-xs text-muted-foreground">سعر الفائدة (سنوي)</dt>
           <dd className="font-mono text-foreground">{loan.interestRatePct ? `${loan.interestRatePct.toFixed(3)}%` : "—"}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-muted-foreground">طريقة التقسيط</dt>
+          <dd className="text-foreground">
+            {loan.amortizationMethod === "EqualInstallment"
+              ? `قسط ثابت — ${loan.numberOfInstallments} قسط`
+              : loan.amortizationMethod === "EqualPrincipal"
+                ? `أصل ثابت — ${loan.numberOfInstallments} قسط`
+                : "غير محدَّدة (جدول يدوي)"}
+          </dd>
         </div>
         <div>
           <dt className="text-xs text-muted-foreground">الضمان</dt>
@@ -122,6 +132,12 @@ export default async function LoanDetailPage({ params }: { params: Promise<{ id:
       <p className="mt-1 text-sm text-muted-foreground">
         أصل مجدول {scheduledPrincipal.toFixed(2)} من {loan.principal.toFixed(2)} — غير مجدول {unscheduled.toFixed(2)}
       </p>
+
+      {loan.status === "Active" && loan.installments.length === 0 && loan.numberOfInstallments && loan.amortizationMethod && (
+        <div className="mt-3">
+          <GenerateScheduleButton loanId={loan.id} />
+        </div>
+      )}
 
       {loan.status === "Active" && (
         <div className="mt-3">

@@ -12,6 +12,7 @@ import { logError, isNextControlFlowError, businessRuleMessage, isIdempotencyKey
 import { requireAal2 } from "@/lib/mfa";
 import { parseCsv, deterministicUuid } from "@/lib/csv";
 import { bankTransactionTypeLabel, isInflow } from "@/lib/treasuryLabels";
+import { generateAmortizationSchedule } from "@/lib/loanAmortization";
 
 // ==================== BankTransaction ====================
 
@@ -747,11 +748,15 @@ export async function closeReconciliationAction(reconciliationId: string) {
 
 // ==================== Loan ====================
 
+const AMORTIZATION_METHODS = ["EqualInstallment", "EqualPrincipal"] as const;
+
 const LoanSchema = z.object({
   lenderName: z.string().trim().min(1, "اسم الجهة المقرضة مطلوب"),
   bankAccountId: z.string().uuid("اختر الحساب اللي القرض هينزل فيه"),
   principal: z.coerce.number().positive("أصل القرض مطلوب"),
   interestRatePct: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
+  numberOfInstallments: z.coerce.number().int().positive("لازم يكون رقم صحيح موجب").optional(),
+  amortizationMethod: z.enum(AMORTIZATION_METHODS, "اختار طريقة تقسيط صحيحة").optional(),
   startDate: z.string().trim().min(1, "تاريخ البداية مطلوب"),
   maturityDate: z.string().trim().min(1, "تاريخ الاستحقاق مطلوب"),
   collateral: z.string().trim().optional().or(z.literal("")),
@@ -765,6 +770,8 @@ export async function createLoan(_prevState: LoanFormState, formData: FormData):
     bankAccountId: formData.get("bankAccountId"),
     principal: formData.get("principal"),
     interestRatePct: formData.get("interestRatePct") || undefined,
+    numberOfInstallments: formData.get("numberOfInstallments") || undefined,
+    amortizationMethod: formData.get("amortizationMethod") || undefined,
     startDate: formData.get("startDate"),
     maturityDate: formData.get("maturityDate"),
     collateral: formData.get("collateral") || undefined,
@@ -772,7 +779,8 @@ export async function createLoan(_prevState: LoanFormState, formData: FormData):
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
 
   const user = await requireCurrentUser();
-  const { bankAccountId, principal, interestRatePct, startDate, maturityDate, collateral, lenderName } = parsed.data;
+  const { bankAccountId, principal, interestRatePct, numberOfInstallments, amortizationMethod, startDate, maturityDate, collateral, lenderName } =
+    parsed.data;
 
   if (new Date(maturityDate) <= new Date(startDate)) {
     return { errors: { maturityDate: ["تاريخ الاستحقاق لازم يكون بعد تاريخ البداية"] } };
@@ -793,6 +801,8 @@ export async function createLoan(_prevState: LoanFormState, formData: FormData):
           outstandingPrincipal: new Prisma.Decimal(0),
           currency: account.currency,
           interestRatePct: interestRatePct !== undefined ? new Prisma.Decimal(interestRatePct) : undefined,
+          numberOfInstallments,
+          amortizationMethod,
           startDate: new Date(startDate),
           maturityDate: new Date(maturityDate),
           collateral: collateral || undefined,
@@ -958,6 +968,64 @@ export async function createLoanInstallment(
 
   revalidatePath(`/accounting/loans/${loanId}`);
   return {};
+}
+
+/**
+ * توليد جدول أقساط تلقائي كامل — بند من BACKLOG.md § وحدة 8 ("جدولة أقساط القروض يدوية
+ * بالكامل"). متاح بس لو القرض عنده `numberOfInstallments`/`amortizationMethod` محدَّدين وقت
+ * الإنشاء (راجع `src/lib/loanAmortization.ts` للصيغة). Idempotent بمعنى "مرة واحدة بس" — لو
+ * فيه أي قسط مسجَّل بالفعل (يدوي أو من توليد سابق)، بيترفض بدل ما يضاعف الجدول؛ لتصحيح جدول
+ * غلط، لازم تتشال الأقساط الحالية الأول (نفس فلسفة runDepreciationForPeriod لكل فترة).
+ */
+export async function generateLoanScheduleAction(loanId: string) {
+  const user = await requireCurrentUser();
+  await requirePermission(user.roleId, "Loan", "Edit");
+
+  try {
+    await withScopedTransaction(async (tx) => {
+      const loan = await tx.loan.findUniqueOrThrow({ where: { id: loanId }, include: { installments: { select: { id: true } } } });
+      if (loan.installments.length > 0) {
+        throw new Error(`القرض من ${loan.lenderName} عنده أقساط مسجَّلة بالفعل — الجدول التلقائي متاح للقروض اللي مفيهاش أي قسط لسه بس.`);
+      }
+      if (!loan.numberOfInstallments || !loan.amortizationMethod) {
+        throw new Error(`القرض من ${loan.lenderName} مفيهوش عدد أقساط وطريقة تقسيط محدَّدين — الجدول التلقائي مش متاح، سجّل الأقساط يدويًا.`);
+      }
+
+      const schedule = generateAmortizationSchedule({
+        principal: Number(loan.principal),
+        interestRatePct: Number(loan.interestRatePct ?? 0),
+        numberOfInstallments: loan.numberOfInstallments,
+        method: loan.amortizationMethod,
+        startDate: loan.startDate,
+      });
+
+      for (const line of schedule) {
+        const installment = await tx.loanInstallment.create({
+          data: {
+            orgId: user.orgId,
+            loanId,
+            dueDate: line.dueDate,
+            principalPortion: new Prisma.Decimal(line.principalPortion),
+            interestPortion: new Prisma.Decimal(line.interestPortion),
+          },
+        });
+        await logAudit(tx, {
+          orgId: user.orgId,
+          userId: user.id,
+          action: "loanInstallment.autoGenerated",
+          entityType: "LoanInstallment",
+          entityId: installment.id,
+          afterValue: { dueDate: line.dueDate, principalPortion: String(line.principalPortion), interestPortion: String(line.interestPortion) },
+        });
+      }
+    });
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "generateLoanScheduleAction", error: e });
+    throw new Error(businessRuleMessage(e, "حصل خطأ أثناء توليد جدول الأقساط."));
+  }
+
+  revalidatePath(`/accounting/loans/${loanId}`);
 }
 
 /**

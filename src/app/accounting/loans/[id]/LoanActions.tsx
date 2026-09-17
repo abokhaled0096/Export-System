@@ -1,7 +1,14 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
-import { disburseLoanAction, markLoanDefaultedAction, payLoanInstallmentAction, createLoanInstallment, type InstallmentFormState } from "../../treasury-actions";
+import {
+  disburseLoanAction,
+  markLoanDefaultedAction,
+  payLoanInstallmentAction,
+  createLoanInstallment,
+  generateLoanScheduleAction,
+  type InstallmentFormState,
+} from "../../treasury-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -102,6 +109,37 @@ export function PayInstallmentButton({ installmentId }: { installmentId: string 
         </p>
       )}
     </>
+  );
+}
+
+export function GenerateScheduleButton({ loanId }: { loanId: string }) {
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-4">
+      <Button
+        disabled={pending}
+        onClick={() => {
+          setError(null);
+          startTransition(async () => {
+            try {
+              await generateLoanScheduleAction(loanId);
+            } catch (e) {
+              setError(e instanceof Error ? e.message : "حصل خطأ.");
+            }
+          });
+        }}
+      >
+        {pending ? "جاري التوليد..." : "توليد جدول الأقساط تلقائيًا"}
+      </Button>
+      <span className="text-xs text-muted-foreground">مرة واحدة بس — لو الجدول غلط، اتشل الأقساط الحالية وولّده تاني.</span>
+      {error && (
+        <p role="alert" className="w-full text-sm text-destructive">
+          {error}
+        </p>
+      )}
+    </div>
   );
 }
 
