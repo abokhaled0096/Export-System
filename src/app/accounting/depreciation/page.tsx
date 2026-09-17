@@ -4,7 +4,7 @@ import { requireCurrentUser } from "@/lib/session";
 import { requirePermission } from "@/lib/permissions";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
 import RunDepreciationButton from "./RunDepreciationButton";
-import { computeStraightLineDepreciation } from "@/lib/depreciation";
+import { computeDepreciation } from "@/lib/depreciation";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export const dynamic = "force-dynamic";
@@ -60,12 +60,21 @@ export default async function DepreciationPage({ searchParams }: { searchParams:
   });
   const postedIds = new Set(alreadyPosted.map((d) => d.assetId));
 
+  // نفس منطق runDepreciationForPeriod — الرصيد المتناقص محتاج يعرف كام فترة فاتت فعليًا
+  // (مش الفترة الحالية بس) عشان يحسب الباقي من العمر الإنتاجي صح (راجع depreciation.ts).
+  const historicalCounts = await prisma.depreciationEntry.groupBy({
+    by: ["assetId"],
+    where: { orgId, assetId: { in: assets.map((a) => a.id) } },
+    _count: { id: true },
+  });
+  const periodsElapsedByAsset = new Map(historicalCounts.map((c) => [c.assetId, c._count.id]));
+
   const preview = assets.map((a) => {
     const done = postedIds.has(a.id);
     let amount = new Prisma.Decimal(0);
     if (!done) {
       try {
-        amount = computeStraightLineDepreciation(a);
+        amount = computeDepreciation({ ...a, periodsElapsed: periodsElapsedByAsset.get(a.id) ?? 0 });
       } catch {
         amount = new Prisma.Decimal(0);
       }

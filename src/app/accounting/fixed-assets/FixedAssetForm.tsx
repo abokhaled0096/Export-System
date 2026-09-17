@@ -3,7 +3,7 @@
 import { useActionState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createFixedAsset, type FixedAssetFormState } from "../finance-actions";
-import { fixedAssetCategoryLabel } from "@/lib/treasuryLabels";
+import { fixedAssetCategoryLabel, depreciationMethodLabel } from "@/lib/treasuryLabels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -103,6 +103,20 @@ export default function FixedAssetForm({ costCenters }: { costCenters: CostCente
         <Input id="fa-life" name="usefulLifeMonths" type="number" step="1" />
         {state.errors?.usefulLifeMonths && <span className="text-xs text-destructive">{state.errors.usefulLifeMonths[0]}</span>}
       </div>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="fa-method" className="text-xs">
+          طريقة الإهلاك
+        </Label>
+        <Select name="depreciationMethod" defaultValue="StraightLine">
+          <SelectTrigger id="fa-method">
+            <SelectValue>{(value: string) => depreciationMethodLabel[value] ?? value}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="StraightLine">{depreciationMethodLabel.StraightLine}</SelectItem>
+            <SelectItem value="DecliningBalance">{depreciationMethodLabel.DecliningBalance}</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
       <div className="flex items-end">
         <Button type="submit" disabled={pending}>
@@ -111,7 +125,7 @@ export default function FixedAssetForm({ costCenters }: { costCenters: CostCente
       </div>
 
       <p className="text-xs text-muted-foreground sm:col-span-2 lg:col-span-3">
-        الشراء بيترحّل تلقائيًا (مدين الأصول الثابتة بالتكلفة / دائن نقدية). الإهلاك بطريقة القسط الثابت بس دلوقتي.
+        الشراء بيترحّل تلقائيًا (مدين الأصول الثابتة بالتكلفة / دائن نقدية).
       </p>
 
       {state.formError && (

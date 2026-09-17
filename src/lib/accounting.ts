@@ -1,7 +1,7 @@
 import { Prisma } from "@/generated/prisma/client";
 import type { ScopedTx } from "@/lib/scoped-prisma";
 import type { JournalEntrySourceType } from "@/generated/prisma/enums";
-import { computeStraightLineDepreciation } from "@/lib/depreciation";
+import { computeDepreciation } from "@/lib/depreciation";
 import { checkBudgetAlerts } from "./budget";
 
 export type PostingLine = {
@@ -669,10 +669,19 @@ export async function runDepreciationForPeriod(
   });
   const alreadyPostedIds = new Set(alreadyPosted.map((d) => d.assetId));
 
+  // عدد الفترات اللي كل أصل اتترحّل له إهلاك بالفعل عبر كل الفترات (مش الفترة الحالية بس) —
+  // مطلوب لمحرك الرصيد المتناقص عشان يعرف الباقي من العمر الإنتاجي (راجع depreciation.ts).
+  const historicalCounts = await tx.depreciationEntry.groupBy({
+    by: ["assetId"],
+    where: { orgId, assetId: { in: assets.map((a) => a.id) } },
+    _count: { id: true },
+  });
+  const periodsElapsedByAsset = new Map(historicalCounts.map((c) => [c.assetId, c._count.id]));
+
   const due = assets.filter((a) => !alreadyPostedIds.has(a.id));
   const lines: { asset: DepreciableAssetForPosting; amount: Prisma.Decimal }[] = [];
   for (const asset of due) {
-    const amount = computeStraightLineDepreciation(asset);
+    const amount = computeDepreciation({ ...asset, periodsElapsed: periodsElapsedByAsset.get(asset.id) ?? 0 });
     if (amount.gt(0)) lines.push({ asset, amount });
   }
 

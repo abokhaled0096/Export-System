@@ -140,6 +140,7 @@ export async function copyBudgetFromPeriodAction(fromPeriodId: string, toPeriodI
 // ==================== FixedAsset ====================
 
 const FIXED_ASSET_CATEGORIES = ["Equipment", "Vehicle", "Furniture", "Building", "ComputerHardware", "Other"] as const;
+const DEPRECIATION_METHODS = ["StraightLine", "DecliningBalance"] as const;
 
 const FixedAssetSchema = z.object({
   nameAr: z.string().trim().min(1, "اسم الأصل مطلوب"),
@@ -150,6 +151,7 @@ const FixedAssetSchema = z.object({
   purchaseValue: z.coerce.number().positive("قيمة الشراء مطلوبة"),
   currency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase(),
   usefulLifeMonths: z.coerce.number().int().positive("العمر الإنتاجي مطلوب (بالشهور)"),
+  depreciationMethod: z.enum(DEPRECIATION_METHODS, "اختار طريقة إهلاك صحيحة"),
 });
 
 export type FixedAssetFormState = { errors?: Record<string, string[]>; formError?: string; assetId?: string };
@@ -166,11 +168,12 @@ export async function createFixedAsset(_prevState: FixedAssetFormState, formData
     purchaseValue: formData.get("purchaseValue"),
     currency: formData.get("currency"),
     usefulLifeMonths: formData.get("usefulLifeMonths"),
+    depreciationMethod: formData.get("depreciationMethod"),
   });
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
 
   const user = await requireCurrentUser();
-  const { nameAr, nameEn, category, costCenterId, purchaseDate, purchaseValue, currency, usefulLifeMonths } = parsed.data;
+  const { nameAr, nameEn, category, costCenterId, purchaseDate, purchaseValue, currency, usefulLifeMonths, depreciationMethod } = parsed.data;
 
   try {
     await requirePermission(user.roleId, "FixedAsset", "Create");
@@ -199,6 +202,7 @@ export async function createFixedAsset(_prevState: FixedAssetFormState, formData
           purchaseValue: new Prisma.Decimal(purchaseValue),
           currency,
           usefulLifeMonths,
+          depreciationMethod,
         },
       });
 
