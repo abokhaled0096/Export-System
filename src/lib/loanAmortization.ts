@@ -23,10 +23,16 @@ export type AmortizationScheduleLine = {
   interestPortion: number;
 };
 
+/** إضافة شهور مع تثبيت اليوم على آخر يوم في الشهر الهدف لو تجاوزه (مش overflow لشهر تاني) —
+ * بلاها، قرض بادئ يوم 29-31 كان بيدّي جدول تواريخ غير منتظم خالص (مثلًا 31 يناير +1 شهر
+ * بيفيض لـ3 مارس بدل 28 فبراير، ﻷن JS Date.setMonth بيلف تلقائي على الشهر اللي بعده). */
 function addMonths(date: Date, months: number): Date {
-  const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
-  d.setUTCMonth(d.getUTCMonth() + months);
-  return d;
+  const year = date.getUTCFullYear();
+  const month = date.getUTCMonth();
+  const day = date.getUTCDate();
+  const firstOfTargetMonth = new Date(Date.UTC(year, month + months, 1));
+  const lastDayOfTargetMonth = new Date(Date.UTC(firstOfTargetMonth.getUTCFullYear(), firstOfTargetMonth.getUTCMonth() + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(firstOfTargetMonth.getUTCFullYear(), firstOfTargetMonth.getUTCMonth(), Math.min(day, lastDayOfTargetMonth)));
 }
 
 function round2(n: number): number {
