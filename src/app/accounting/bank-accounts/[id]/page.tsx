@@ -14,6 +14,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 
 export const dynamic = "force-dynamic";
 
+const zero = () => new Prisma.Decimal(0);
+
 export default async function BankAccountDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const user = await requireCurrentUser();
@@ -44,6 +46,7 @@ export default async function BankAccountDetailPage({ params }: { params: Promis
       payment: { select: { id: true, paymentNumber: true } },
       reconciliation: { select: { id: true, status: true } },
       journalEntry: { select: { id: true, entryNumber: true } },
+      matches: { select: { allocatedAmount: true } },
     },
   });
 
@@ -54,7 +57,11 @@ export default async function BankAccountDetailPage({ params }: { params: Promis
     return acc;
   }, []);
   const currentBalance = rows.length > 0 ? rows[rows.length - 1].balance : account.openingBalance;
-  const unmatchedCount = transactions.filter((t) => !t.paymentId && !t.journalEntryId).length;
+  // مطابقة بالمسار السريع (paymentId)، أو بقيد مباشر (journalEntryId)، أو بمضاهاة جزئية
+  // اتغطى بيها كامل مبلغ الحركة (BankTransactionMatch.allocatedAmount مجمّعة).
+  const isFullyMatched = (t: (typeof transactions)[number]) =>
+    Boolean(t.paymentId) || Boolean(t.journalEntryId) || t.matches.reduce((sum, m) => sum.add(m.allocatedAmount), zero()).gte(t.amount);
+  const unmatchedCount = transactions.filter((t) => !isFullyMatched(t)).length;
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-10">
@@ -170,6 +177,10 @@ export default async function BankAccountDetailPage({ params }: { params: Promis
                       <Link href={`/accounting/journal-entries/${t.journalEntry.id}`} className="font-mono text-xs text-primary hover:underline">
                         {t.journalEntry.entryNumber}
                       </Link>
+                    ) : t.matches.length > 0 ? (
+                      <Badge className={isFullyMatched(t) ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-100" : "bg-amber-100 text-amber-700 hover:bg-amber-100"}>
+                        {isFullyMatched(t) ? "مضاهاة جزئية (مكتملة)" : `مضاهاة جزئية (${t.matches.length})`}
+                      </Badge>
                     ) : (
                       <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">غير مضاهاة</Badge>
                     )}

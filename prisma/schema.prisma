@@ -156,6 +156,7 @@ model Organization {
   masterDataChangeRequests MasterDataChangeRequest[]
   quoteBundles             QuoteBundle[]
   workflowDefinitions      WorkflowDefinition[]
+  bankTransactionMatches   BankTransactionMatch[]
 }
 
 // ==================== الوحدة 9 — الحوكمة والإدارة (13/13 كيان، ERD v4 §12) ====================
@@ -4524,18 +4525,19 @@ model Payment {
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
-  organization     Organization        @relation(fields: [orgId], references: [id])
-  company          Company?            @relation(fields: [companyId], references: [id])
-  supplier         Supplier?           @relation(fields: [supplierId], references: [id])
-  bankAccount      BankAccount         @relation(fields: [bankAccountId], references: [id])
-  fxRate           ExchangeRate?       @relation(fields: [fxRateId], references: [id])
-  journalEntry     JournalEntry?       @relation(fields: [journalEntryId], references: [id])
-  createdByUser    User                @relation("PaymentCreatedBy", fields: [createdBy], references: [id])
-  approvedByUser   User?               @relation("PaymentApprovedBy", fields: [approvedBy], references: [id])
-  allocations      PaymentAllocation[]
-  bankTransactions BankTransaction[]
-  loanInstallments LoanInstallment[]
-  taxRecords       TaxRecord[]
+  organization           Organization           @relation(fields: [orgId], references: [id])
+  company                Company?               @relation(fields: [companyId], references: [id])
+  supplier               Supplier?              @relation(fields: [supplierId], references: [id])
+  bankAccount            BankAccount            @relation(fields: [bankAccountId], references: [id])
+  fxRate                 ExchangeRate?          @relation(fields: [fxRateId], references: [id])
+  journalEntry           JournalEntry?          @relation(fields: [journalEntryId], references: [id])
+  createdByUser          User                   @relation("PaymentCreatedBy", fields: [createdBy], references: [id])
+  approvedByUser         User?                  @relation("PaymentApprovedBy", fields: [approvedBy], references: [id])
+  allocations            PaymentAllocation[]
+  bankTransactions       BankTransaction[]
+  bankTransactionMatches BankTransactionMatch[]
+  loanInstallments       LoanInstallment[]
+  taxRecords             TaxRecord[]
 
   @@unique([orgId, paymentNumber])
   @@unique([orgId, idempotencyKey])
@@ -4636,16 +4638,39 @@ model BankTransaction {
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt
 
-  organization   Organization        @relation(fields: [orgId], references: [id])
-  bankAccount    BankAccount         @relation(fields: [bankAccountId], references: [id])
-  payment        Payment?            @relation(fields: [paymentId], references: [id])
-  reconciliation BankReconciliation? @relation(fields: [reconciliationId], references: [id])
-  journalEntry   JournalEntry?       @relation(fields: [journalEntryId], references: [id])
+  organization   Organization           @relation(fields: [orgId], references: [id])
+  bankAccount    BankAccount            @relation(fields: [bankAccountId], references: [id])
+  payment        Payment?               @relation(fields: [paymentId], references: [id])
+  reconciliation BankReconciliation?    @relation(fields: [reconciliationId], references: [id])
+  journalEntry   JournalEntry?          @relation(fields: [journalEntryId], references: [id])
+  matches        BankTransactionMatch[]
 
   @@unique([orgId, idempotencyKey])
   @@index([orgId])
   @@index([bankAccountId])
   @@index([reconciliationId])
+  @@index([paymentId])
+}
+
+/// مضاهاة بنكية جزئية/متعددة — دفعة واحدة بتقابل عدة حركات، أو العكس. نفس نمط
+/// PaymentAllocation بالحرف. مستقلة عن `BankTransaction.paymentId` (المضاهاة السريعة
+/// 1:1 بكامل المبلغ، لسه شغّالة زي ما هي) — التريجر بيمنع استخدام الاتنين مع بعض على
+/// نفس الحركة عشان الفرق ميتحسبش مرتين. `allocatedAmount` ينفع يكون أقل من مبلغ
+/// الحركة الكامل (تخصيص جزئي)، والتريجر بيمنع تجاوز الإجمالي لمبلغ الحركة.
+model BankTransactionMatch {
+  id                String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId             String   @db.Uuid
+  bankTransactionId String   @db.Uuid
+  paymentId         String   @db.Uuid
+  allocatedAmount   Decimal  @db.Decimal(14, 2)
+  createdAt         DateTime @default(now())
+
+  organization    Organization    @relation(fields: [orgId], references: [id])
+  bankTransaction BankTransaction @relation(fields: [bankTransactionId], references: [id])
+  payment         Payment         @relation(fields: [paymentId], references: [id])
+
+  @@unique([bankTransactionId, paymentId])
+  @@index([orgId])
   @@index([paymentId])
 }
 

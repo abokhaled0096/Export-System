@@ -137,6 +137,78 @@ export async function matchTransactionToPaymentAction(transactionId: string, pay
   revalidatePath("/accounting/reconciliations");
 }
 
+/** مضاهاة جزئية/متعددة (حركة واحدة بتقابل عدة دفعات، أو العكس) — نفس نمط PaymentAllocation.
+ * مستقلة عن matchTransactionToPaymentAction (المسار السريع 1:1 بكامل المبلغ) — التريجر
+ * بيمنع استخدام الاتنين مع بعض على نفس الحركة. */
+export async function addBankTransactionMatchAction(transactionId: string, paymentId: string, allocatedAmount: string) {
+  const user = await requireCurrentUser();
+  await requirePermission(user.roleId, "BankReconciliation", "Edit");
+
+  const amount = Number(allocatedAmount);
+  if (!Number.isFinite(amount) || amount <= 0) throw new Error("مبلغ المضاهاة لازم يكون رقم أكبر من صفر.");
+
+  let bankAccountId = "";
+  try {
+    await withScopedTransaction(async (tx) => {
+      const transaction = await tx.bankTransaction.findUniqueOrThrow({ where: { id: transactionId } });
+      bankAccountId = transaction.bankAccountId;
+
+      const match = await tx.bankTransactionMatch.create({
+        data: { orgId: user.orgId, bankTransactionId: transactionId, paymentId, allocatedAmount: new Prisma.Decimal(amount) },
+      });
+      await logAudit(tx, {
+        orgId: user.orgId,
+        userId: user.id,
+        action: "bankTransaction.partiallyMatched",
+        entityType: "BankTransactionMatch",
+        entityId: match.id,
+        afterValue: { transactionId, paymentId, allocatedAmount: amount },
+      });
+    });
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "addBankTransactionMatchAction", error: e });
+    throw new Error(businessRuleMessage(e, "حصل خطأ أثناء المضاهاة الجزئية."));
+  }
+
+  revalidatePath(`/accounting/bank-accounts/${bankAccountId}`);
+  revalidatePath("/accounting/reconciliations");
+}
+
+/** إلغاء مضاهاة جزئية واحدة — نفس منطق deletePaymentAllocationAction (حذف مباشر، مفيش
+ * أثر مالي معتمد يمنعه لأن المضاهاة البنكية نفسها بلا قيد محاسبي مستقل). */
+export async function removeBankTransactionMatchAction(matchId: string) {
+  const user = await requireCurrentUser();
+  await requirePermission(user.roleId, "BankReconciliation", "Edit");
+
+  let bankAccountId = "";
+  try {
+    await withScopedTransaction(async (tx) => {
+      const match = await tx.bankTransactionMatch.findUniqueOrThrow({
+        where: { id: matchId },
+        include: { bankTransaction: { select: { bankAccountId: true } } },
+      });
+      bankAccountId = match.bankTransaction.bankAccountId;
+
+      await tx.bankTransactionMatch.delete({ where: { id: matchId } });
+      await logAudit(tx, {
+        orgId: user.orgId,
+        userId: user.id,
+        action: "bankTransaction.partialMatchRemoved",
+        entityType: "BankTransactionMatch",
+        entityId: matchId,
+      });
+    });
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "removeBankTransactionMatchAction", error: e });
+    throw new Error(businessRuleMessage(e, "حصل خطأ أثناء إلغاء المضاهاة."));
+  }
+
+  revalidatePath(`/accounting/bank-accounts/${bankAccountId}`);
+  revalidatePath("/accounting/reconciliations");
+}
+
 // ==================== استيراد كشف حساب بنكي (CSV) ====================
 //
 // معاملات مالية حقيقية بالجملة — أعلى درجة حماية متاحة في المشروع لعملية استيراد:

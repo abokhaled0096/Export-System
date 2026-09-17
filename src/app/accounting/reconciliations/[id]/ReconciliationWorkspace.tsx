@@ -6,11 +6,16 @@ import {
   closeReconciliationAction,
   toggleTransactionInReconciliationAction,
   matchTransactionToPaymentAction,
+  addBankTransactionMatchAction,
+  removeBankTransactionMatchAction,
 } from "../../treasury-actions";
 import { bankTransactionTypeLabel, isInflow } from "@/lib/treasuryLabels";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+export type WorkspaceTransactionMatch = { id: string; paymentNumber: string; allocatedAmount: string };
 
 export type WorkspaceTransaction = {
   id: string;
@@ -21,6 +26,7 @@ export type WorkspaceTransaction = {
   included: boolean;
   paymentId: string | null;
   paymentNumber: string | null;
+  matches: WorkspaceTransactionMatch[];
 };
 
 export type WorkspacePayment = { id: string; label: string; amount: string };
@@ -43,6 +49,8 @@ export default function ReconciliationWorkspace({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [matchTarget, setMatchTarget] = useState<Record<string, string>>({});
+  const [partialTarget, setPartialTarget] = useState<Record<string, string>>({});
+  const [partialAmount, setPartialAmount] = useState<Record<string, string>>({});
 
   function run(fn: () => Promise<void>) {
     setError(null);
@@ -93,67 +101,137 @@ export default function ReconciliationWorkspace({
             مفيش حركات على الحساب ده لحد تاريخ الكشف.
           </p>
         ) : (
-          transactions.map((t) => (
-            <div
-              key={t.id}
-              className={`flex flex-wrap items-center gap-3 rounded-xl border p-3 ${
-                t.included ? "border-primary/40 bg-primary/5" : "border-border bg-card"
-              }`}
-            >
-              <span className="w-24 font-mono text-xs text-foreground/70">{t.date}</span>
-              <span className="w-24 text-sm text-foreground/80">{bankTransactionTypeLabel[t.type]}</span>
-              <span className={`w-28 font-mono text-sm ${isInflow(t.type) ? "text-emerald-700" : "text-rose-700"}`}>
-                {isInflow(t.type) ? "+" : "−"}
-                {t.amount}
-              </span>
-              <span className="flex-1 truncate text-sm text-muted-foreground">{t.description}</span>
+          transactions.map((t) => {
+            const matchedSum = t.matches.reduce((sum, m) => sum + Number(m.allocatedAmount), 0);
+            const remaining = Number(t.amount) - matchedSum;
+            const hasPartialMatches = t.matches.length > 0;
 
-              {t.paymentNumber ? (
-                <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">مضاهاة {t.paymentNumber}</Badge>
-              ) : isClosed ? (
-                <Badge className="bg-secondary text-secondary-foreground hover:bg-secondary">غير مضاهاة</Badge>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <Select
-                    value={matchTarget[t.id] ?? ""}
-                    onValueChange={(v) => setMatchTarget((prev) => ({ ...prev, [t.id]: String(v) }))}
-                  >
-                    <SelectTrigger className="w-56">
-                      <SelectValue>
-                        {(value: string) => openPayments.find((p) => p.id === value)?.label ?? "— ضاهي بدفعة —"}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {openPayments.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {p.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+            return (
+              <div
+                key={t.id}
+                className={`flex flex-wrap items-center gap-3 rounded-xl border p-3 ${
+                  t.included ? "border-primary/40 bg-primary/5" : "border-border bg-card"
+                }`}
+              >
+                <span className="w-24 font-mono text-xs text-foreground/70">{t.date}</span>
+                <span className="w-24 text-sm text-foreground/80">{bankTransactionTypeLabel[t.type]}</span>
+                <span className={`w-28 font-mono text-sm ${isInflow(t.type) ? "text-emerald-700" : "text-rose-700"}`}>
+                  {isInflow(t.type) ? "+" : "−"}
+                  {t.amount}
+                </span>
+                <span className="flex-1 truncate text-sm text-muted-foreground">{t.description}</span>
+
+                {t.paymentNumber ? (
+                  <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">مضاهاة {t.paymentNumber}</Badge>
+                ) : isClosed ? (
+                  <Badge className="bg-secondary text-secondary-foreground hover:bg-secondary">غير مضاهاة</Badge>
+                ) : hasPartialMatches ? (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {t.matches.map((m) => (
+                      <Badge key={m.id} className="gap-1 bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
+                        {m.paymentNumber} ({m.allocatedAmount})
+                        <button
+                          type="button"
+                          className="ms-1 text-emerald-900 hover:text-destructive"
+                          disabled={pending}
+                          onClick={() => run(() => removeBankTransactionMatchAction(m.id))}
+                          aria-label={`إلغاء مضاهاة ${m.paymentNumber}`}
+                        >
+                          ×
+                        </button>
+                      </Badge>
+                    ))}
+                    {remaining > 0.001 && (
+                      <span className="text-xs text-amber-700">متبقي {remaining.toFixed(2)}</span>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Select
+                      value={matchTarget[t.id] ?? ""}
+                      onValueChange={(v) => setMatchTarget((prev) => ({ ...prev, [t.id]: String(v) }))}
+                    >
+                      <SelectTrigger className="w-56">
+                        <SelectValue>
+                          {(value: string) => openPayments.find((p) => p.id === value)?.label ?? "— ضاهي بدفعة —"}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {openPayments.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={pending || !matchTarget[t.id]}
+                      onClick={() => run(() => matchTransactionToPaymentAction(t.id, matchTarget[t.id]))}
+                    >
+                      مضاهاة كاملة
+                    </Button>
+                  </div>
+                )}
+
+                {!isClosed && !t.paymentNumber && (remaining > 0.001 || !hasPartialMatches) && (
+                  <div className="flex w-full items-center gap-2 border-t border-border/60 pt-2">
+                    <Select
+                      value={partialTarget[t.id] ?? ""}
+                      onValueChange={(v) => setPartialTarget((prev) => ({ ...prev, [t.id]: String(v) }))}
+                    >
+                      <SelectTrigger className="w-56">
+                        <SelectValue>
+                          {(value: string) => openPayments.find((p) => p.id === value)?.label ?? "— ضاهي جزئيًا بدفعة —"}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {openPayments.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder={`المبلغ (متبقي ${remaining.toFixed(2)})`}
+                      className="w-40"
+                      value={partialAmount[t.id] ?? ""}
+                      onChange={(e) => setPartialAmount((prev) => ({ ...prev, [t.id]: e.target.value }))}
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={pending || !partialTarget[t.id] || !partialAmount[t.id]}
+                      onClick={() =>
+                        run(async () => {
+                          await addBankTransactionMatchAction(t.id, partialTarget[t.id], partialAmount[t.id]);
+                          setPartialTarget((prev) => ({ ...prev, [t.id]: "" }));
+                          setPartialAmount((prev) => ({ ...prev, [t.id]: "" }));
+                        })
+                      }
+                    >
+                      مضاهاة جزئية
+                    </Button>
+                  </div>
+                )}
+
+                {!isClosed && (
                   <Button
-                    variant="outline"
+                    variant={t.included ? "secondary" : "outline"}
                     size="sm"
-                    disabled={pending || !matchTarget[t.id]}
-                    onClick={() => run(() => matchTransactionToPaymentAction(t.id, matchTarget[t.id]))}
+                    disabled={pending}
+                    onClick={() => run(() => toggleTransactionInReconciliationAction(reconciliationId, t.id, !t.included))}
                   >
-                    مضاهاة
+                    {t.included ? "استبعاد" : "ضم للمطابقة"}
                   </Button>
-                </div>
-              )}
-
-              {!isClosed && (
-                <Button
-                  variant={t.included ? "secondary" : "outline"}
-                  size="sm"
-                  disabled={pending}
-                  onClick={() => run(() => toggleTransactionInReconciliationAction(reconciliationId, t.id, !t.included))}
-                >
-                  {t.included ? "استبعاد" : "ضم للمطابقة"}
-                </Button>
-              )}
-            </div>
-          ))
+                )}
+              </div>
+            );
+          })
         )}
       </div>
 

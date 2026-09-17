@@ -44,17 +44,21 @@ export default async function ReconciliationDetailPage({ params }: { params: Pro
       transactionDate: { lte: reconciliation.statementDate },
     },
     orderBy: [{ transactionDate: "asc" }, { createdAt: "asc" }],
-    include: { payment: { select: { paymentNumber: true } } },
+    include: {
+      payment: { select: { paymentNumber: true } },
+      matches: { include: { payment: { select: { paymentNumber: true } } } },
+    },
   });
 
-  // دفعات محصّلة على نفس الحساب لسه من غير حركة بنكية مضاهية — دي المرشّحة للمضاهاة،
-  // وغالبًا هي نفسها سبب الفرق بين الكشف والدفتر.
+  // دفعات محصّلة على نفس الحساب لسه من غير حركة بنكية مضاهية (سريعة أو جزئية) — دي
+  // المرشّحة للمضاهاة، وغالبًا هي نفسها سبب الفرق بين الكشف والدفتر.
   const unmatchedPayments = await prisma.payment.findMany({
     where: {
       orgId: user.orgId,
       bankAccountId: reconciliation.bankAccountId,
       status: "Cleared",
       bankTransactions: { none: {} },
+      bankTransactionMatches: { none: {} },
     },
     orderBy: { paymentDate: "asc" },
     select: { id: true, paymentNumber: true, amount: true, paymentDate: true, direction: true },
@@ -72,6 +76,7 @@ export default async function ReconciliationDetailPage({ params }: { params: Pro
     included: t.reconciliationId === reconciliation.id,
     paymentId: t.paymentId,
     paymentNumber: t.payment?.paymentNumber ?? null,
+    matches: t.matches.map((m) => ({ id: m.id, paymentNumber: m.payment.paymentNumber, allocatedAmount: m.allocatedAmount.toFixed(2) })),
   }));
 
   const workspacePayments: WorkspacePayment[] = unmatchedPayments.map((p) => ({
