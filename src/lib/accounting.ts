@@ -199,6 +199,67 @@ export async function resolveAccountIds(tx: ScopedTx, orgId: string, keys: GlAcc
   return result;
 }
 
+/**
+ * بيحلّ حساب "النقدية" (1010) حسب عملة المعاملة الفعلية — مش المفتاح الثابت CASH دايمًا.
+ * لو المنظمة مفعّلتش `functionalCurrency` أصلًا، أو المعاملة بعملة المنظمة الوظيفية نفسها،
+ * الحساب الأساسي 1010 بيرجع زي ما هو (بلا أي تغيير سلوك للمنظمات اللي مش مفعّلة الميزة).
+ *
+ * لو المعاملة بعملة أجنبية فعلية، بيرجّع (أو ينشئ لو أول مرة) حساب فرعي مخصَّص لهذه العملة
+ * بس (`1010-USD` مثلًا) — نفس الممارسة القياسية في أنظمة محاسبة حقيقية (QuickBooks/Xero/
+ * NetSuite/Odoo كلها بتعامل كل عملة بحساب GL منفصل، مش ببُعد تحليلي على القيد، عشان تقدر
+ * تعيد تقييم رصيد كل عملة لوحده — راجع BACKLOG.md § "محرك فروق العملة مقيَّد بـAR/AP بس").
+ * إنشاء ديناميكي بـupsert بدل قائمة عملات مُخمَّنة مسبقًا — أي عملة جديدة بتاخد حسابها الفرعي
+ * أول مرة تُستخدم فيها، بلا حاجة لتخمين إيه العملات اللي المنظمة هتستخدمها مقدَّمًا.
+ */
+export async function resolveCashAccountId(tx: ScopedTx, orgId: string, currency: string): Promise<string> {
+  const org = await tx.organization.findUniqueOrThrow({ where: { id: orgId }, select: { functionalCurrency: true } });
+  const baseCashId = (await resolveAccountIds(tx, orgId, ["CASH"])).CASH;
+  if (!org.functionalCurrency || currency === org.functionalCurrency) return baseCashId;
+
+  const accountCode = `${GL_ACCOUNTS.CASH}-${currency}`;
+  const account = await tx.chartOfAccount.upsert({
+    where: { orgId_accountCode: { orgId, accountCode } },
+    create: {
+      orgId,
+      accountCode,
+      nameAr: `نقدية بعملة ${currency}`,
+      nameEn: `Cash — ${currency}`,
+      accountType: "Asset",
+      normalBalance: "Debit",
+      currency,
+      parentAccountId: baseCashId,
+    },
+    update: {},
+  });
+  return account.id;
+}
+
+/**
+ * بيحلّ fxRateId مطلوب لأي بند بعملة مختلفة عن عملة المنظمة الوظيفية — نفس النمط المستخدم في
+ * issueInvoiceAction/clearPaymentAction (arap-actions.ts) بالحرف، مُستخرج هنا كدالة مشتركة
+ * عشان يُعاد استخدامه في كل مسارات الترحيل اللي ممكن تلمس حساب نقدية بعملة أجنبية (قرض، أصل
+ * ثابت، ضريبة، عمولة) — كلهم عندهم نفس الاحتياج بالظبط: لو العملة أجنبية، لازم سعر صرف صريح
+ * وقت الترحيل، وإلا الـTrigger هيرفض القيد برسالة تقنية مش واضحة للمستخدم.
+ */
+export async function resolveFxRateId(
+  tx: ScopedTx,
+  orgId: string,
+  currency: string,
+  rateDate: Date,
+  fxRate: string | undefined
+): Promise<string | undefined> {
+  const org = await tx.organization.findUniqueOrThrow({ where: { id: orgId }, select: { functionalCurrency: true } });
+  const needsFxRate = !!org.functionalCurrency && currency !== org.functionalCurrency;
+  if (!needsFxRate) return undefined;
+  if (!fxRate) {
+    throw new Error(`العملية بعملة ${currency} مختلفة عن عملة المنظمة الوظيفية (${org.functionalCurrency}) — لازم سعر صرف.`);
+  }
+  const exchangeRate = await tx.exchangeRate.create({
+    data: { orgId, baseCurrency: currency, quoteCurrency: org.functionalCurrency!, rate: fxRate, rateDate, rateType: "Spot" },
+  });
+  return exchangeRate.id;
+}
+
 /** بيدوّر على فترة محاسبية مفتوحة بتغطي التاريخ ده — الترحيل التلقائي محتاج فترة صالحة،
  * والـTrigger enforce_entry_date_within_period بيرفض أي تاريخ برّه نطاق فترته. */
 export async function findOpenPeriodFor(tx: ScopedTx, orgId: string, date: Date): Promise<string> {
@@ -307,7 +368,8 @@ export async function postPaymentCleared(tx: ScopedTx, payment: PaymentForPostin
   let lines: PostingLine[];
   let sourceModule: string;
   if (org.functionalCurrency) {
-    const acc = await resolveAccountIds(tx, payment.orgId, ["CASH", "PAYMENT_CLEARING"]);
+    const acc = await resolveAccountIds(tx, payment.orgId, ["PAYMENT_CLEARING"]);
+    acc.CASH = await resolveCashAccountId(tx, payment.orgId, payment.currency);
     lines = isInbound
       ? [
           { accountId: acc.CASH, debit: payment.amount, currency: payment.currency, description: `تحصيل ${payment.paymentNumber}`, ...dims },
@@ -319,7 +381,8 @@ export async function postPaymentCleared(tx: ScopedTx, payment: PaymentForPostin
         ];
     sourceModule = "PaymentClearing";
   } else {
-    const acc = await resolveAccountIds(tx, payment.orgId, isInbound ? ["CASH", "AR"] : ["AP", "CASH"]);
+    const acc = await resolveAccountIds(tx, payment.orgId, isInbound ? ["AR"] : ["AP"]);
+    acc.CASH = await resolveCashAccountId(tx, payment.orgId, payment.currency);
     lines = isInbound
       ? [
           { accountId: acc.CASH, debit: payment.amount, currency: payment.currency, description: `تحصيل ${payment.paymentNumber}`, ...dims },
@@ -437,6 +500,9 @@ export type BankTransactionForPosting = {
   currency: string;
   transactionDate: Date;
   reference: string | null;
+  /// راجع PaymentForPosting.fxRateId — مطلوب بس لو الحركة بعملة مختلفة عن عملة المنظمة
+  /// الوظيفية (مصروف/فائدة على حساب بنكي أجنبي).
+  fxRateId?: string;
 };
 
 /** أنواع الحركات البنكية اللي ليها ترحيل محاسبي مستقل.
@@ -469,19 +535,21 @@ export async function postBankTransaction(
 
   const periodId = await findOpenPeriodFor(tx, transaction.orgId, transaction.transactionDate);
   const isCharge = transaction.transactionType === "Charge";
-  const acc = await resolveAccountIds(tx, transaction.orgId, isCharge ? ["BANK_CHARGES", "CASH"] : ["CASH", "INTEREST_INCOME"]);
+  const acc = await resolveAccountIds(tx, transaction.orgId, isCharge ? ["BANK_CHARGES"] : ["INTEREST_INCOME"]);
+  acc.CASH = await resolveCashAccountId(tx, transaction.orgId, transaction.currency);
 
   const label = isCharge ? "مصروف بنكي" : "فائدة بنكية";
   const description = transaction.reference ? `${label} ${transaction.reference}` : label;
+  const dims = { fxRateId: transaction.fxRateId };
 
   const lines: PostingLine[] = isCharge
     ? [
-        { accountId: acc.BANK_CHARGES, debit: transaction.amount, currency: transaction.currency, description },
-        { accountId: acc.CASH, credit: transaction.amount, currency: transaction.currency, description },
+        { accountId: acc.BANK_CHARGES, debit: transaction.amount, currency: transaction.currency, description, ...dims },
+        { accountId: acc.CASH, credit: transaction.amount, currency: transaction.currency, description, ...dims },
       ]
     : [
-        { accountId: acc.CASH, debit: transaction.amount, currency: transaction.currency, description },
-        { accountId: acc.INTEREST_INCOME, credit: transaction.amount, currency: transaction.currency, description },
+        { accountId: acc.CASH, debit: transaction.amount, currency: transaction.currency, description, ...dims },
+        { accountId: acc.INTEREST_INCOME, credit: transaction.amount, currency: transaction.currency, description, ...dims },
       ];
 
   return postJournalEntry(tx, {
@@ -503,12 +571,14 @@ export type LoanForPosting = {
   principal: Prisma.Decimal;
   currency: string;
   startDate: Date;
+  fxRateId?: string;
 };
 
 /** صرف القرض: مدين نقدية / دائن قروض دائنة. */
 export async function postLoanDisbursement(tx: ScopedTx, loan: LoanForPosting, preparedBy: string): Promise<string> {
   const periodId = await findOpenPeriodFor(tx, loan.orgId, loan.startDate);
-  const acc = await resolveAccountIds(tx, loan.orgId, ["CASH", "LOANS_PAYABLE"]);
+  const acc = await resolveAccountIds(tx, loan.orgId, ["LOANS_PAYABLE"]);
+  acc.CASH = await resolveCashAccountId(tx, loan.orgId, loan.currency);
   const description = `صرف قرض — ${loan.lenderName}`;
 
   return postJournalEntry(tx, {
@@ -520,8 +590,8 @@ export async function postLoanDisbursement(tx: ScopedTx, loan: LoanForPosting, p
     description,
     preparedBy,
     lines: [
-      { accountId: acc.CASH, debit: loan.principal, currency: loan.currency, description },
-      { accountId: acc.LOANS_PAYABLE, credit: loan.principal, currency: loan.currency, description },
+      { accountId: acc.CASH, debit: loan.principal, currency: loan.currency, description, fxRateId: loan.fxRateId },
+      { accountId: acc.LOANS_PAYABLE, credit: loan.principal, currency: loan.currency, description, fxRateId: loan.fxRateId },
     ],
   });
 }
@@ -545,22 +615,24 @@ export async function postLoanInstallmentPaid(
   currency: string,
   lenderName: string,
   paymentDate: Date,
-  preparedBy: string
+  preparedBy: string,
+  fxRateId?: string
 ): Promise<string> {
   const periodId = await findOpenPeriodFor(tx, installment.orgId, paymentDate);
-  const acc = await resolveAccountIds(tx, installment.orgId, ["LOANS_PAYABLE", "INTEREST_EXPENSE", "CASH"]);
+  const acc = await resolveAccountIds(tx, installment.orgId, ["LOANS_PAYABLE", "INTEREST_EXPENSE"]);
+  acc.CASH = await resolveCashAccountId(tx, installment.orgId, currency);
 
   const total = installment.principalPortion.add(installment.interestPortion);
   const description = `سداد قسط قرض — ${lenderName}`;
 
   const lines: PostingLine[] = [
-    { accountId: acc.LOANS_PAYABLE, debit: installment.principalPortion, currency, description: `${description} (أصل)` },
+    { accountId: acc.LOANS_PAYABLE, debit: installment.principalPortion, currency, description: `${description} (أصل)`, fxRateId },
   ];
   // بند الفوائد بيتحط لو فيه فوائد بس — بند بصفر ممنوع في assertBalanced().
   if (installment.interestPortion.gt(0)) {
-    lines.push({ accountId: acc.INTEREST_EXPENSE, debit: installment.interestPortion, currency, description: `${description} (فوائد)` });
+    lines.push({ accountId: acc.INTEREST_EXPENSE, debit: installment.interestPortion, currency, description: `${description} (فوائد)`, fxRateId });
   }
-  lines.push({ accountId: acc.CASH, credit: total, currency, description });
+  lines.push({ accountId: acc.CASH, credit: total, currency, description, fxRateId });
 
   return postJournalEntry(tx, {
     orgId: installment.orgId,
@@ -584,6 +656,7 @@ export type NewFixedAssetForPosting = {
   purchaseValue: Prisma.Decimal;
   currency: string;
   costCenterId: string | null;
+  fxRateId?: string;
 };
 
 /**
@@ -598,7 +671,8 @@ export async function postFixedAssetAcquisition(
   preparedBy: string
 ): Promise<string> {
   const periodId = await findOpenPeriodFor(tx, asset.orgId, purchaseDate);
-  const acc = await resolveAccountIds(tx, asset.orgId, ["FIXED_ASSETS_COST", "CASH"]);
+  const acc = await resolveAccountIds(tx, asset.orgId, ["FIXED_ASSETS_COST"]);
+  acc.CASH = await resolveCashAccountId(tx, asset.orgId, asset.currency);
   const description = `شراء أصل ثابت ${asset.assetCode} — ${asset.nameAr}`;
   // ⚠️ إصلاح عيب حقيقي: النسخة الأولى مكانتش بتوسم البند بـcostCenterId رغم إن الأصل نفسه
   // متوسّم بيه — يعني تقرير موازنة مقابل فعلي (CAPEX) كان دايمًا هيطلّع صفر لأي بند مربوط
@@ -614,8 +688,8 @@ export async function postFixedAssetAcquisition(
     description,
     preparedBy,
     lines: [
-      { accountId: acc.FIXED_ASSETS_COST, debit: asset.purchaseValue, currency: asset.currency, costCenterId, description },
-      { accountId: acc.CASH, credit: asset.purchaseValue, currency: asset.currency, costCenterId, description },
+      { accountId: acc.FIXED_ASSETS_COST, debit: asset.purchaseValue, currency: asset.currency, costCenterId, description, fxRateId: asset.fxRateId },
+      { accountId: acc.CASH, credit: asset.purchaseValue, currency: asset.currency, costCenterId, description, fxRateId: asset.fxRateId },
     ],
   });
 }
@@ -749,25 +823,27 @@ export async function postAssetDisposal(
   asset: FixedAssetForDisposal,
   disposalValue: Prisma.Decimal,
   disposalDate: Date,
-  preparedBy: string
+  preparedBy: string,
+  fxRateId?: string
 ): Promise<string> {
   const periodId = await findOpenPeriodFor(tx, asset.orgId, disposalDate);
-  const acc = await resolveAccountIds(tx, asset.orgId, ["CASH", "ACCUMULATED_DEPRECIATION", "FIXED_ASSETS_COST", "ASSET_DISPOSAL_GAIN_LOSS"]);
+  const acc = await resolveAccountIds(tx, asset.orgId, ["ACCUMULATED_DEPRECIATION", "FIXED_ASSETS_COST", "ASSET_DISPOSAL_GAIN_LOSS"]);
+  acc.CASH = await resolveCashAccountId(tx, asset.orgId, asset.currency);
 
   const netBookValue = asset.purchaseValue.sub(asset.accumulatedDepreciation);
   const gainOrLoss = disposalValue.sub(netBookValue); // موجب = ربح (دائن)، سالب = خسارة (مدين)
   const description = `التخلص من الأصل ${asset.assetCode} — ${asset.nameAr}`;
 
   const lines: PostingLine[] = [
-    { accountId: acc.CASH, debit: disposalValue, currency: asset.currency, description },
-    { accountId: acc.ACCUMULATED_DEPRECIATION, debit: asset.accumulatedDepreciation, currency: asset.currency, description },
-    { accountId: acc.FIXED_ASSETS_COST, credit: asset.purchaseValue, currency: asset.currency, description },
+    { accountId: acc.CASH, debit: disposalValue, currency: asset.currency, description, fxRateId },
+    { accountId: acc.ACCUMULATED_DEPRECIATION, debit: asset.accumulatedDepreciation, currency: asset.currency, description, fxRateId },
+    { accountId: acc.FIXED_ASSETS_COST, credit: asset.purchaseValue, currency: asset.currency, description, fxRateId },
   ];
 
   if (gainOrLoss.gt(0)) {
-    lines.push({ accountId: acc.ASSET_DISPOSAL_GAIN_LOSS, credit: gainOrLoss, currency: asset.currency, description: `${description} — ربح` });
+    lines.push({ accountId: acc.ASSET_DISPOSAL_GAIN_LOSS, credit: gainOrLoss, currency: asset.currency, description: `${description} — ربح`, fxRateId });
   } else if (gainOrLoss.lt(0)) {
-    lines.push({ accountId: acc.ASSET_DISPOSAL_GAIN_LOSS, debit: gainOrLoss.neg(), currency: asset.currency, description: `${description} — خسارة` });
+    lines.push({ accountId: acc.ASSET_DISPOSAL_GAIN_LOSS, debit: gainOrLoss.neg(), currency: asset.currency, description: `${description} — خسارة`, fxRateId });
   }
 
   return postJournalEntry(tx, {
@@ -788,6 +864,7 @@ export type TaxRecordForPayment = {
   taxType: string;
   amount: Prisma.Decimal;
   currency: string;
+  fxRateId?: string;
 };
 
 /** سداد إقرار ضريبي: مدين حساب الضريبة المعني / دائن نقدية. نفس نمط postPaymentCleared —
@@ -837,7 +914,8 @@ export async function postTaxPayment(tx: ScopedTx, taxRecord: TaxRecordForPaymen
 
   const periodId = await findOpenPeriodFor(tx, taxRecord.orgId, paymentDate);
   const taxAccountKey: GlAccountKey = taxRecord.taxType === "VATInput" ? "VAT_INPUT" : "VAT_OUTPUT";
-  const acc = await resolveAccountIds(tx, taxRecord.orgId, [taxAccountKey, "CASH"]);
+  const acc = await resolveAccountIds(tx, taxRecord.orgId, [taxAccountKey]);
+  acc.CASH = await resolveCashAccountId(tx, taxRecord.orgId, taxRecord.currency);
   const description = `سداد إقرار ${taxRecord.taxType}`;
 
   return postJournalEntry(tx, {
@@ -849,8 +927,8 @@ export async function postTaxPayment(tx: ScopedTx, taxRecord: TaxRecordForPaymen
     description,
     preparedBy,
     lines: [
-      { accountId: acc[taxAccountKey], debit: taxRecord.amount, currency: taxRecord.currency, description },
-      { accountId: acc.CASH, credit: taxRecord.amount, currency: taxRecord.currency, description },
+      { accountId: acc[taxAccountKey], debit: taxRecord.amount, currency: taxRecord.currency, description, fxRateId: taxRecord.fxRateId },
+      { accountId: acc.CASH, credit: taxRecord.amount, currency: taxRecord.currency, description, fxRateId: taxRecord.fxRateId },
     ],
   });
 }
@@ -860,6 +938,7 @@ export type CommissionEntryForPosting = {
   orgId: string;
   amount: Prisma.Decimal;
   currency: string;
+  fxRateId?: string;
 };
 
 /**
@@ -876,7 +955,8 @@ export async function postCommissionPayment(
   preparedBy: string
 ): Promise<string> {
   const periodId = await findOpenPeriodFor(tx, entry.orgId, paymentDate);
-  const acc = await resolveAccountIds(tx, entry.orgId, ["SALES_COMMISSIONS", "CASH"]);
+  const acc = await resolveAccountIds(tx, entry.orgId, ["SALES_COMMISSIONS"]);
+  acc.CASH = await resolveCashAccountId(tx, entry.orgId, entry.currency);
   const description = "سداد عمولة مبيعات";
 
   return postJournalEntry(tx, {
@@ -888,8 +968,8 @@ export async function postCommissionPayment(
     description,
     preparedBy,
     lines: [
-      { accountId: acc.SALES_COMMISSIONS, debit: entry.amount, currency: entry.currency, description },
-      { accountId: acc.CASH, credit: entry.amount, currency: entry.currency, description },
+      { accountId: acc.SALES_COMMISSIONS, debit: entry.amount, currency: entry.currency, description, fxRateId: entry.fxRateId },
+      { accountId: acc.CASH, credit: entry.amount, currency: entry.currency, description, fxRateId: entry.fxRateId },
     ],
   });
 }

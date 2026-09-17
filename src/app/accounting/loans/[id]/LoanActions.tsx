@@ -15,21 +15,40 @@ import { Label } from "@/components/ui/label";
 
 const initialState: InstallmentFormState = {};
 
-export function DisburseButton({ loanId, disbursed }: { loanId: string; disbursed: boolean }) {
+export function DisburseButton({
+  loanId,
+  disbursed,
+  needsFxRate,
+  currency,
+  functionalCurrency,
+}: {
+  loanId: string;
+  disbursed: boolean;
+  needsFxRate: boolean;
+  currency: string;
+  functionalCurrency?: string;
+}) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [fxRate, setFxRate] = useState("");
 
   if (disbursed) return null;
 
   return (
     <div className="flex flex-wrap items-center gap-2">
+      {needsFxRate && (
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-muted-foreground">{`سعر الصرف (1 ${currency} = ؟ ${functionalCurrency})`}</label>
+          <Input type="number" step="0.00000001" className="w-32" value={fxRate} onChange={(e) => setFxRate(e.target.value)} />
+        </div>
+      )}
       <Button
-        disabled={pending}
+        disabled={pending || (needsFxRate && !fxRate)}
         onClick={() => {
           setError(null);
           startTransition(async () => {
             try {
-              await disburseLoanAction(loanId);
+              await disburseLoanAction(loanId, needsFxRate ? fxRate : undefined);
             } catch (e) {
               setError(e instanceof Error ? e.message : "حصل خطأ.");
             }
@@ -80,35 +99,58 @@ export function MarkDefaultedButton({ loanId, lenderName }: { loanId: string; le
   );
 }
 
-export function PayInstallmentButton({ installmentId }: { installmentId: string }) {
+export function PayInstallmentButton({
+  installmentId,
+  needsFxRate,
+  currency,
+  functionalCurrency,
+}: {
+  installmentId: string;
+  needsFxRate: boolean;
+  currency: string;
+  functionalCurrency?: string;
+}) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [fxRate, setFxRate] = useState("");
 
   return (
-    <>
-      <Button
-        variant="outline"
-        size="sm"
-        disabled={pending}
-        onClick={() => {
-          setError(null);
-          startTransition(async () => {
-            try {
-              await payLoanInstallmentAction(installmentId);
-            } catch (e) {
-              setError(e instanceof Error ? e.message : "حصل خطأ.");
-            }
-          });
-        }}
-      >
-        {pending ? "..." : "سداد"}
-      </Button>
+    <div className="flex flex-col items-end gap-1">
+      <div className="flex items-center gap-1.5">
+        {needsFxRate && (
+          <Input
+            type="number"
+            step="0.00000001"
+            placeholder={`سعر 1 ${currency}=؟${functionalCurrency}`}
+            className="w-28"
+            value={fxRate}
+            onChange={(e) => setFxRate(e.target.value)}
+          />
+        )}
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={pending || (needsFxRate && !fxRate)}
+          onClick={() => {
+            setError(null);
+            startTransition(async () => {
+              try {
+                await payLoanInstallmentAction(installmentId, needsFxRate ? fxRate : undefined);
+              } catch (e) {
+                setError(e instanceof Error ? e.message : "حصل خطأ.");
+              }
+            });
+          }}
+        >
+          {pending ? "..." : "سداد"}
+        </Button>
+      </div>
       {error && (
         <p role="alert" className="text-xs text-destructive">
           {error}
         </p>
       )}
-    </>
+    </div>
   );
 }
 

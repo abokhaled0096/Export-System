@@ -8,7 +8,19 @@ import { Label } from "@/components/ui/label";
 
 const initialState: DisposalFormState = {};
 
-export default function DisposalForm({ assetId, netBookValue, currency }: { assetId: string; netBookValue: string; currency: string }) {
+export default function DisposalForm({
+  assetId,
+  netBookValue,
+  currency,
+  needsFxRate,
+  functionalCurrency,
+}: {
+  assetId: string;
+  netBookValue: string;
+  currency: string;
+  needsFxRate: boolean;
+  functionalCurrency?: string;
+}) {
   const action = disposeFixedAssetAction.bind(null, assetId);
   const [state, formAction, pending] = useActionState(action, initialState);
   const [value, setValue] = useState("");
@@ -31,6 +43,14 @@ export default function DisposalForm({ assetId, netBookValue, currency }: { asse
         <Input id="disp-value" name="disposalValue" type="number" step="0.01" className="w-36" value={value} onChange={(e) => setValue(e.target.value)} />
         {state.errors?.disposalValue && <span className="text-xs text-destructive">{state.errors.disposalValue[0]}</span>}
       </div>
+      {needsFxRate && (
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="disp-fxrate" className="text-xs">
+            {`سعر الصرف (1 ${currency} = ؟ ${functionalCurrency})`}
+          </Label>
+          <Input id="disp-fxrate" name="fxRate" type="number" step="0.00000001" className="w-32" />
+        </div>
+      )}
       <Button type="submit" disabled={pending}>
         {pending ? "..." : "تأكيد التخلص وترحيل القيد"}
       </Button>

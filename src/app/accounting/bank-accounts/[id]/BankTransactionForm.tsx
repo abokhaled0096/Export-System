@@ -11,7 +11,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 const initialState: BankTransactionFormState = {};
 const types = Object.keys(bankTransactionTypeLabel);
 
-export default function BankTransactionForm({ bankAccountId, currency }: { bankAccountId: string; currency: string }) {
+export default function BankTransactionForm({
+  bankAccountId,
+  currency,
+  needsFxRate,
+  functionalCurrency,
+}: {
+  bankAccountId: string;
+  currency: string;
+  needsFxRate: boolean;
+  functionalCurrency?: string;
+}) {
   const action = createBankTransaction.bind(null, bankAccountId);
   const [state, formAction, pending] = useActionState(action, initialState);
   // مفتاح واحد بيتولّد لحظة فتح الفورم — بيمنع حركة مكرّرة لو المستخدم دبّس "+ حركة" مرتين.
@@ -72,6 +82,15 @@ export default function BankTransactionForm({ bankAccountId, currency }: { bankA
         </Label>
         <Input id="bt-desc" name="description" className="w-48" />
       </div>
+      {needsFxRate && (
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="bt-fxrate" className="text-xs">
+            {`سعر الصرف (1 ${currency} = ؟ ${functionalCurrency})`}
+          </Label>
+          <Input id="bt-fxrate" name="fxRate" type="number" step="0.00000001" className="w-32" />
+          <span className="text-[11px] text-muted-foreground">مطلوب بس للمصروف/الفائدة (الترحيل الفوري).</span>
+        </div>
+      )}
       <Button type="submit" disabled={pending}>
         {pending ? "جاري التسجيل..." : "+ حركة"}
       </Button>

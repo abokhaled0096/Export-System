@@ -7,7 +7,7 @@ import { getScopedPrisma, withScopedTransaction } from "@/lib/scoped-prisma";
 import { requireCurrentUser } from "@/lib/session";
 import { requirePermission } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
-import { postFixedAssetAcquisition, runDepreciationForPeriod, postAssetDisposal, postTaxPayment, computeVatBalance } from "@/lib/accounting";
+import { postFixedAssetAcquisition, runDepreciationForPeriod, postAssetDisposal, postTaxPayment, computeVatBalance, resolveFxRateId } from "@/lib/accounting";
 import { revalueForeignCurrencyReceivablesPayables } from "@/lib/fxRevaluation";
 import { logError, isNextControlFlowError, businessRuleMessage } from "@/lib/errorLog";
 import { isGlBackedTax } from "@/lib/treasuryLabels";
@@ -152,6 +152,7 @@ const FixedAssetSchema = z.object({
   currency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase(),
   usefulLifeMonths: z.coerce.number().int().positive("العمر الإنتاجي مطلوب (بالشهور)"),
   depreciationMethod: z.enum(DEPRECIATION_METHODS, "اختار طريقة إهلاك صحيحة"),
+  fxRate: z.string().trim().optional().or(z.literal("")),
 });
 
 export type FixedAssetFormState = { errors?: Record<string, string[]>; formError?: string; assetId?: string };
@@ -169,11 +170,12 @@ export async function createFixedAsset(_prevState: FixedAssetFormState, formData
     currency: formData.get("currency"),
     usefulLifeMonths: formData.get("usefulLifeMonths"),
     depreciationMethod: formData.get("depreciationMethod"),
+    fxRate: formData.get("fxRate") || undefined,
   });
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
 
   const user = await requireCurrentUser();
-  const { nameAr, nameEn, category, costCenterId, purchaseDate, purchaseValue, currency, usefulLifeMonths, depreciationMethod } = parsed.data;
+  const { nameAr, nameEn, category, costCenterId, purchaseDate, purchaseValue, currency, usefulLifeMonths, depreciationMethod, fxRate } = parsed.data;
 
   try {
     await requirePermission(user.roleId, "FixedAsset", "Create");
@@ -206,7 +208,8 @@ export async function createFixedAsset(_prevState: FixedAssetFormState, formData
         },
       });
 
-      const journalEntryId = await postFixedAssetAcquisition(tx, asset, asset.purchaseDate, user.id);
+      const fxRateId = await resolveFxRateId(tx, user.orgId, currency, asset.purchaseDate, fxRate || undefined);
+      const journalEntryId = await postFixedAssetAcquisition(tx, { ...asset, fxRateId }, asset.purchaseDate, user.id);
       // netBookValue بيتصان بـTrigger عادةً من DepreciationEntry، لكن الأصل الجديد بلا إهلاك
       // لسه — بنضبطه هنا بس وقت الإنشاء (accumulatedDepreciation=0 دايمًا في هذه اللحظة).
       await tx.fixedAsset.update({ where: { id: asset.id }, data: { netBookValue: asset.purchaseValue } });
@@ -234,6 +237,7 @@ export async function createFixedAsset(_prevState: FixedAssetFormState, formData
 const DisposalSchema = z.object({
   disposalDate: z.string().trim().min(1, "تاريخ التخلص مطلوب"),
   disposalValue: z.coerce.number().min(0, "حصيلة البيع مطلوبة"),
+  fxRate: z.string().trim().optional().or(z.literal("")),
 });
 
 export type DisposalFormState = { errors?: Record<string, string[]>; formError?: string };
@@ -244,11 +248,12 @@ export async function disposeFixedAssetAction(assetId: string, _prevState: Dispo
   const parsed = DisposalSchema.safeParse({
     disposalDate: formData.get("disposalDate"),
     disposalValue: formData.get("disposalValue"),
+    fxRate: formData.get("fxRate") || undefined,
   });
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
 
   const user = await requireCurrentUser();
-  const { disposalDate, disposalValue } = parsed.data;
+  const { disposalDate, disposalValue, fxRate } = parsed.data;
 
   try {
     await requirePermission(user.roleId, "FixedAsset", "Edit");
@@ -257,7 +262,8 @@ export async function disposeFixedAssetAction(assetId: string, _prevState: Dispo
       if (asset.status !== "Active") throw new Error(`الأصل ${asset.assetCode} حالته ${asset.status} — الأصول النشطة بس اللي تتباع.`);
 
       const disposalValueDec = new Prisma.Decimal(disposalValue);
-      const journalEntryId = await postAssetDisposal(tx, asset, disposalValueDec, new Date(disposalDate), user.id);
+      const fxRateId = await resolveFxRateId(tx, user.orgId, asset.currency, new Date(disposalDate), fxRate || undefined);
+      const journalEntryId = await postAssetDisposal(tx, asset, disposalValueDec, new Date(disposalDate), user.id, fxRateId);
 
       await tx.fixedAsset.update({
         where: { id: assetId },
@@ -327,12 +333,12 @@ export async function runDepreciationAction(periodId: string) {
 // ==================== FX Revaluation ====================
 
 /** تشغيل إعادة تقييم فروق العملة الدورية لفترة معيّنة — قيد واحد مجمّع لكل الفواتير المفتوحة
- * بعملة أجنبية. Idempotent على مستوى الفترة (راجع src/lib/fxRevaluation.ts). */
+ * وحسابات النقدية بعملة أجنبية. Idempotent على مستوى الفترة (راجع src/lib/fxRevaluation.ts). */
 export async function runFxRevaluationAction(periodId: string) {
   const user = await requireCurrentUser();
   await requirePermission(user.roleId, "FXRevaluation", "Create");
 
-  let result: { journalEntryId: string | null; revaluedInvoiceCount: number; skippedNoRateCount: number };
+  let result: { journalEntryId: string | null; revaluedInvoiceCount: number; revaluedCashAccountCount: number; skippedNoRateCount: number };
   try {
     result = await withScopedTransaction(async (tx) => {
       const r = await revalueForeignCurrencyReceivablesPayables(tx, user.orgId, periodId, user.id);
@@ -343,7 +349,7 @@ export async function runFxRevaluationAction(periodId: string) {
           action: "fxRevaluation.run",
           entityType: "JournalEntry",
           entityId: r.journalEntryId,
-          afterValue: { periodId, revaluedInvoiceCount: r.revaluedInvoiceCount, skippedNoRateCount: r.skippedNoRateCount },
+          afterValue: { periodId, revaluedInvoiceCount: r.revaluedInvoiceCount, revaluedCashAccountCount: r.revaluedCashAccountCount, skippedNoRateCount: r.skippedNoRateCount },
         });
       }
       return r;
@@ -524,7 +530,11 @@ export async function approveVatFilingAction(periodId: string, taxType: "VATInpu
   revalidatePath("/accounting/tax-records");
 }
 
-const TaxPaymentSchema = z.object({ bankAccountId: z.string().uuid("اختر حساب بنكي"), paymentDate: z.string().trim().min(1, "تاريخ السداد مطلوب") });
+const TaxPaymentSchema = z.object({
+  bankAccountId: z.string().uuid("اختر حساب بنكي"),
+  paymentDate: z.string().trim().min(1, "تاريخ السداد مطلوب"),
+  fxRate: z.string().trim().optional().or(z.literal("")),
+});
 
 export type TaxPaymentFormState = { errors?: Record<string, string[]>; formError?: string };
 
@@ -534,11 +544,12 @@ export async function payTaxRecordAction(taxRecordId: string, _prevState: TaxPay
   const parsed = TaxPaymentSchema.safeParse({
     bankAccountId: formData.get("bankAccountId"),
     paymentDate: formData.get("paymentDate"),
+    fxRate: formData.get("fxRate") || undefined,
   });
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
 
   const user = await requireCurrentUser();
-  const { bankAccountId, paymentDate } = parsed.data;
+  const { bankAccountId, paymentDate, fxRate } = parsed.data;
 
   try {
     await requirePermission(user.roleId, "TaxRecord", "Edit");
@@ -560,7 +571,8 @@ export async function payTaxRecordAction(taxRecordId: string, _prevState: TaxPay
       const countThisYear = await tx.payment.count({ where: { orgId: user.orgId, paymentNumber: { startsWith: `PAY-${year}-` } } });
       const paymentNumber = `PAY-${year}-${String(countThisYear + 1).padStart(5, "0")}`;
 
-      const journalEntryId = await postTaxPayment(tx, record, paidAt, user.id);
+      const fxRateId = await resolveFxRateId(tx, user.orgId, record.currency, paidAt, fxRate || undefined);
+      const journalEntryId = await postTaxPayment(tx, { ...record, fxRateId }, paidAt, user.id);
 
       const payment = await tx.payment.create({
         data: {

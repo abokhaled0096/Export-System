@@ -1,15 +1,15 @@
 import { Prisma } from "@/generated/prisma/client";
 import type { ScopedTx } from "@/lib/scoped-prisma";
 import { postJournalEntry, resolveAccountIds, type PostingLine } from "./accounting";
+import { GL_ACCOUNTS } from "./glAccounts";
 
 /**
  * إعادة تقييم فروق العملة غير المحقَّقة (Unrealized FX Revaluation) — بند مكمّل لفرق العملة
- * المحقَّق في postPaymentAllocated (src/lib/accounting.ts): ده بيغطّي الفواتير المفتوحة (لسه
- * مالهاش تحصيل/سداد كامل) اللي لسه قائمة بعملة أجنبية آخر الفترة — لازم تُعاد ترجمتها لسعر
- * الصرف الحالي عشان الميزانية تعكس القيمة الحقيقية دلوقتي، مش سعر الإصدار القديم.
- *
- * مقيَّد بـAR/AP بس (مش أي حساب بنكي بعملة أجنبية — ده محتاج دعم حسابات بنكية متعددة العملات
- * مش مبني لسه، حد موثّق صراحةً هنا).
+ * المحقَّق في postPaymentAllocated (src/lib/accounting.ts): ده بيغطّي (1) الفواتير المفتوحة
+ * (لسه مالهاش تحصيل/سداد كامل) اللي لسه قائمة بعملة أجنبية آخر الفترة، و(2) أرصدة حسابات
+ * النقدية الفرعية بعملة أجنبية (`resolveCashAccountId` في accounting.ts) — الاتنين لازم
+ * يُعاد ترجمتهم لسعر الصرف الحالي عشان الميزانية تعكس القيمة الحقيقية دلوقتي، مش سعر وقت
+ * الترحيل الأصلي.
  *
  * Idempotent على مستوى الفترة: لو الفترة دي اتعمل لها إعادة تقييم بالفعل (JournalEntry بـ
  * sourceModule=FXRevaluation)، الدالة بترفض تعمل واحدة تانية — نفس فلسفة runDepreciationForPeriod
@@ -21,7 +21,12 @@ export async function revalueForeignCurrencyReceivablesPayables(
   orgId: string,
   periodId: string,
   preparedBy: string
-): Promise<{ journalEntryId: string | null; revaluedInvoiceCount: number; skippedNoRateCount: number }> {
+): Promise<{
+  journalEntryId: string | null;
+  revaluedInvoiceCount: number;
+  revaluedCashAccountCount: number;
+  skippedNoRateCount: number;
+}> {
   const [org, period] = await Promise.all([
     tx.organization.findUniqueOrThrow({ where: { id: orgId }, select: { functionalCurrency: true } }),
     tx.accountingPeriod.findUniqueOrThrow({ where: { id: periodId } }),
@@ -83,11 +88,57 @@ export async function revalueForeignCurrencyReceivablesPayables(
     }
   }
 
-  if (revaluedInvoiceCount === 0) return { journalEntryId: null, revaluedInvoiceCount: 0, skippedNoRateCount };
+  // حسابات النقدية الفرعية بعملة أجنبية (1010-USD مثلًا، راجع resolveCashAccountId في
+  // accounting.ts) — كل حساب رصيده مبني من حركات كتير عبر الوقت، مش بند واحد زي الفاتورة،
+  // فـ"القيمة الوظيفية المسجَّلة حاليًا" بتتحسب من مجموع functionalDebit/Credit لكل حركاته
+  // التاريخية لحد نهاية الفترة، مقارنة بالرصيد الخام (raw debit/credit) مترجَم بسعر النهاردة.
+  const cashAccounts = await tx.chartOfAccount.findMany({
+    where: { orgId, accountCode: { startsWith: `${GL_ACCOUNTS.CASH}-` }, currency: { not: null } },
+  });
 
-  const netGainLoss = arDelta.sub(apDelta);
+  let cashDelta = new Prisma.Decimal(0);
+  let revaluedCashAccountCount = 0;
+  const cashLines: PostingLine[] = [];
+
+  for (const cashAccount of cashAccounts) {
+    const currentRate = await tx.exchangeRate.findFirst({
+      where: { orgId, baseCurrency: cashAccount.currency!, quoteCurrency: org.functionalCurrency, rateDate: { lte: period.endDate } },
+      orderBy: { rateDate: "desc" },
+    });
+    if (!currentRate) {
+      skippedNoRateCount++;
+      continue;
+    }
+
+    const agg = await tx.journalLine.aggregate({
+      where: { accountId: cashAccount.id, journalEntry: { entryDate: { lte: period.endDate }, status: { in: ["Posted", "Reversed"] } } },
+      _sum: { debit: true, credit: true, functionalDebit: true, functionalCredit: true },
+    });
+    const rawBalance = (agg._sum.debit ?? new Prisma.Decimal(0)).sub(agg._sum.credit ?? new Prisma.Decimal(0));
+    if (rawBalance.eq(0)) continue;
+
+    const bookedFunctional = (agg._sum.functionalDebit ?? new Prisma.Decimal(0)).sub(agg._sum.functionalCredit ?? new Prisma.Decimal(0));
+    const currentFunctional = rawBalance.mul(currentRate.rate);
+    const delta = currentFunctional.sub(bookedFunctional);
+    if (delta.eq(0)) continue;
+
+    const description = `إعادة تقييم رصيد نقدية ${cashAccount.currency} — فترة ${period.periodName}`;
+    cashLines.push(
+      delta.gt(0)
+        ? { accountId: cashAccount.id, debit: delta, currency: org.functionalCurrency, description }
+        : { accountId: cashAccount.id, credit: delta.neg(), currency: org.functionalCurrency, description }
+    );
+    cashDelta = cashDelta.add(delta);
+    revaluedCashAccountCount++;
+  }
+
+  if (revaluedInvoiceCount === 0 && revaluedCashAccountCount === 0) {
+    return { journalEntryId: null, revaluedInvoiceCount: 0, revaluedCashAccountCount: 0, skippedNoRateCount };
+  }
+
+  const netGainLoss = arDelta.sub(apDelta).add(cashDelta);
   const description = `إعادة تقييم فروق عملة غير محقَّقة — فترة ${period.periodName}`;
-  const lines: PostingLine[] = [];
+  const lines: PostingLine[] = [...cashLines];
   if (!arDelta.eq(0)) {
     lines.push(
       arDelta.gt(0)
@@ -121,5 +172,5 @@ export async function revalueForeignCurrencyReceivablesPayables(
     lines,
   });
 
-  return { journalEntryId, revaluedInvoiceCount, skippedNoRateCount };
+  return { journalEntryId, revaluedInvoiceCount, revaluedCashAccountCount, skippedNoRateCount };
 }

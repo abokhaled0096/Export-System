@@ -65,6 +65,7 @@ export default async function TaxRecordsPage() {
     orderBy: [{ period: { startDate: "desc" } }],
     include: { period: { select: { periodName: true } } },
   });
+  const org = await prisma.organization.findUniqueOrThrow({ where: { id: orgId }, select: { functionalCurrency: true } });
   const periods = await prisma.accountingPeriod.findMany({ where: { orgId }, orderBy: { startDate: "desc" }, select: { id: true, periodName: true } });
   const bankAccounts = await prisma.bankAccount.findMany({
     where: { orgId, isActive: true },
@@ -155,7 +156,15 @@ export default async function TaxRecordsPage() {
                   </TableCell>
                   <TableCell className="text-foreground/80">{r.etaReference ?? "—"}</TableCell>
                   <TableCell>
-                    {r.filingStatus === "Filed" && <PayTaxButton taxRecordId={r.id} bankAccounts={bankAccountOptions} />}
+                    {r.filingStatus === "Filed" && (
+                      <PayTaxButton
+                        taxRecordId={r.id}
+                        bankAccounts={bankAccountOptions}
+                        needsFxRate={!!org.functionalCurrency && r.currency !== org.functionalCurrency}
+                        currency={r.currency}
+                        functionalCurrency={org.functionalCurrency ?? undefined}
+                      />
+                    )}
                   </TableCell>
                 </TableRow>
               ))

@@ -7,7 +7,7 @@ import { withScopedTransaction, getScopedPrisma } from "@/lib/scoped-prisma";
 import { requireCurrentUser } from "@/lib/session";
 import { requirePermission } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
-import { postBankTransaction, postLoanDisbursement, postLoanInstallmentPaid, isPostableBankTransaction } from "@/lib/accounting";
+import { postBankTransaction, postLoanDisbursement, postLoanInstallmentPaid, isPostableBankTransaction, resolveFxRateId } from "@/lib/accounting";
 import { logError, isNextControlFlowError, businessRuleMessage, isIdempotencyKeyConflict } from "@/lib/errorLog";
 import { requireAal2 } from "@/lib/mfa";
 import { parseCsv, deterministicUuid } from "@/lib/csv";
@@ -25,6 +25,7 @@ const BankTransactionSchema = z.object({
   reference: z.string().trim().optional().or(z.literal("")),
   description: z.string().trim().optional().or(z.literal("")),
   idempotencyKey: z.string().uuid().optional().or(z.literal("")),
+  fxRate: z.string().trim().optional().or(z.literal("")),
 });
 
 export type BankTransactionFormState = { errors?: Record<string, string[]>; formError?: string };
@@ -43,11 +44,12 @@ export async function createBankTransaction(
     reference: formData.get("reference") || undefined,
     description: formData.get("description") || undefined,
     idempotencyKey: formData.get("idempotencyKey") || undefined,
+    fxRate: formData.get("fxRate") || undefined,
   });
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
 
   const user = await requireCurrentUser();
-  const { transactionDate, amount, transactionType, reference, description, idempotencyKey } = parsed.data;
+  const { transactionDate, amount, transactionType, reference, description, idempotencyKey, fxRate } = parsed.data;
 
   try {
     await requirePermission(user.roleId, "BankTransaction", "Create");
@@ -78,7 +80,8 @@ export async function createBankTransaction(
 
       // المصروف/الفائدة حدث محاسبي مستقل — لازم يوصل للدفتر وإلا الدفتر عمره ما هيعرف بيه.
       if (isPostableBankTransaction(transactionType)) {
-        const journalEntryId = await postBankTransaction(tx, transaction, user.id);
+        const fxRateId = await resolveFxRateId(tx, user.orgId, account.currency, transaction.transactionDate, fxRate || undefined);
+        const journalEntryId = await postBankTransaction(tx, { ...transaction, fxRateId }, user.id);
         await tx.bankTransaction.update({ where: { id: transaction.id }, data: { journalEntryId } });
       }
 
@@ -829,7 +832,7 @@ export async function createLoan(_prevState: LoanFormState, formData: FormData):
 }
 
 /** صرف القرض — بيرحّل القيد (مدين نقدية / دائن قروض دائنة) وبيسجّل حركة إيداع بنكية مقابلة. */
-export async function disburseLoanAction(loanId: string) {
+export async function disburseLoanAction(loanId: string, fxRate?: string) {
   const user = await requireCurrentUser();
   await requirePermission(user.roleId, "Loan", "Edit");
 
@@ -838,7 +841,8 @@ export async function disburseLoanAction(loanId: string) {
       const loan = await tx.loan.findUniqueOrThrow({ where: { id: loanId } });
       if (loan.disbursedAt) throw new Error(`القرض من ${loan.lenderName} اتصرف بالفعل.`);
 
-      const journalEntryId = await postLoanDisbursement(tx, loan, user.id);
+      const fxRateId = await resolveFxRateId(tx, user.orgId, loan.currency, loan.startDate, fxRate || undefined);
+      const journalEntryId = await postLoanDisbursement(tx, { ...loan, fxRateId }, user.id);
 
       // ⚠️ الحركة البنكية دي متربطتش بـPayment عمدًا — القرض مش تحصيل من عميل ولا سداد لمورّد،
       // فترحيله بيحصل هنا مرة واحدة والحركة سجل بنكي بس (journalEntryId بيوثّق الرابط).
@@ -1033,7 +1037,7 @@ export async function generateLoanScheduleAction(loanId: string) {
  * ⚠️ ده علاج عيب أساسي في المواصفة: `LoanInstallment.status = Paid` كان مجرد تغيير حالة
  * بلا أي حركة نقدية — فلوس "اتدفعت" مخرجتش من أي حساب ومظهرتش في الدفتر.
  */
-export async function payLoanInstallmentAction(installmentId: string) {
+export async function payLoanInstallmentAction(installmentId: string, fxRate?: string) {
   const user = await requireCurrentUser();
   await requirePermission(user.roleId, "Loan", "Edit");
 
@@ -1058,13 +1062,15 @@ export async function payLoanInstallmentAction(installmentId: string) {
       const countThisYear = await tx.payment.count({ where: { orgId: user.orgId, paymentNumber: { startsWith: `PAY-${year}-` } } });
       const paymentNumber = `PAY-${year}-${String(countThisYear + 1).padStart(5, "0")}`;
 
+      const fxRateId = await resolveFxRateId(tx, user.orgId, installment.loan.currency, paidAt, fxRate || undefined);
       const journalEntryId = await postLoanInstallmentPaid(
         tx,
         installment,
         installment.loan.currency,
         installment.loan.lenderName,
         paidAt,
-        user.id
+        user.id,
+        fxRateId
       );
 
       // الدفعة بتتسجّل Cleared فورًا — سداد القسط حدث نقدي تم فعلًا، مش نية دفع.

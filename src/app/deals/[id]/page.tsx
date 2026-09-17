@@ -58,6 +58,7 @@ export default async function DealDetailPage({ params }: { params: Promise<{ id:
   const user = await requireCurrentUser();
   const orgId = user.orgId;
   const prisma = await getScopedPrisma();
+  const org = await prisma.organization.findUniqueOrThrow({ where: { id: orgId }, select: { functionalCurrency: true } });
   // فصل مهام حقيقي: SalesRep (Own scope) بيشوف السعر النهائي/المستهدف بس، مش الحد الأدنى/نقطة
   // التعادل (بيانات تسعير داخلية) — المفاوض مايشوفش الحد اللي يقدر يرفض تحته، نفس فلسفة عزل
   // معلومات التفاوض الحساسة عن اللي بيتفاوض فعليًا. بقى مبني على جدول FieldPermission (وحدة 9،
@@ -468,7 +469,14 @@ export default async function DealDetailPage({ params }: { params: Promise<{ id:
                         <Badge className={commissionEntryStatusStyle[c.status]}>{commissionEntryStatusLabel[c.status]}</Badge>
                       </TableCell>
                       <TableCell>
-                        <CommissionEntryActions dealId={deal.id} entryId={c.id} status={c.status} />
+                        <CommissionEntryActions
+                          dealId={deal.id}
+                          entryId={c.id}
+                          status={c.status}
+                          currency={c.currency ?? "EGP"}
+                          needsFxRate={!!org.functionalCurrency && (c.currency ?? "EGP") !== org.functionalCurrency}
+                          functionalCurrency={org.functionalCurrency ?? undefined}
+                        />
                       </TableCell>
                     </TableRow>
                   ))}

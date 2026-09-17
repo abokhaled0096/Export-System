@@ -34,6 +34,7 @@ export default async function FixedAssetsPage() {
     include: { costCenter: { select: { name: true } } },
   });
   const costCenters = await prisma.costCenter.findMany({ where: { orgId }, orderBy: { code: "asc" }, select: { id: true, code: true, name: true } });
+  const org = await prisma.organization.findUniqueOrThrow({ where: { id: orgId }, select: { functionalCurrency: true } });
 
   const costCenterOptions: CostCenterOption[] = costCenters.map((c) => ({ id: c.id, label: `${c.code} — ${c.name}` }));
 
@@ -50,7 +51,7 @@ export default async function FixedAssetsPage() {
       </div>
 
       <div className="mt-6">
-        <FixedAssetForm costCenters={costCenterOptions} />
+        <FixedAssetForm costCenters={costCenterOptions} functionalCurrency={org.functionalCurrency ?? undefined} />
       </div>
 
       <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card">

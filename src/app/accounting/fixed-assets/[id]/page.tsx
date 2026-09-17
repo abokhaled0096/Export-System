@@ -41,6 +41,9 @@ export default async function FixedAssetDetailPage({ params }: { params: Promise
   });
   if (!asset) notFound();
 
+  const org = await prisma.organization.findUniqueOrThrow({ where: { id: user.orgId }, select: { functionalCurrency: true } });
+  const needsFxRate = !!org.functionalCurrency && asset.currency !== org.functionalCurrency;
+
   const scheduleRows = asset.depreciationEntries.reduce<Array<{ entry: (typeof asset.depreciationEntries)[number]; cumulative: Prisma.Decimal }>>(
     (acc, entry) => {
       const previous = acc.length > 0 ? acc[acc.length - 1].cumulative : new Prisma.Decimal(0);
@@ -123,7 +126,13 @@ export default async function FixedAssetDetailPage({ params }: { params: Promise
 
       {asset.status === "Active" && (
         <div className="mt-5">
-          <DisposalForm assetId={asset.id} netBookValue={asset.netBookValue.toFixed(2)} currency={asset.currency} />
+          <DisposalForm
+            assetId={asset.id}
+            netBookValue={asset.netBookValue.toFixed(2)}
+            currency={asset.currency}
+            needsFxRate={needsFxRate}
+            functionalCurrency={org.functionalCurrency ?? undefined}
+          />
         </div>
       )}
 

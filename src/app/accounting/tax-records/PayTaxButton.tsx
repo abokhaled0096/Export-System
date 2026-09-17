@@ -10,7 +10,19 @@ const initialState: TaxPaymentFormState = {};
 
 export type BankAccountOption = { id: string; label: string };
 
-export default function PayTaxButton({ taxRecordId, bankAccounts }: { taxRecordId: string; bankAccounts: BankAccountOption[] }) {
+export default function PayTaxButton({
+  taxRecordId,
+  bankAccounts,
+  needsFxRate,
+  currency,
+  functionalCurrency,
+}: {
+  taxRecordId: string;
+  bankAccounts: BankAccountOption[];
+  needsFxRate: boolean;
+  currency: string;
+  functionalCurrency?: string;
+}) {
   const action = payTaxRecordAction.bind(null, taxRecordId);
   const [state, formAction, pending] = useActionState(action, initialState);
 
@@ -33,6 +45,9 @@ export default function PayTaxButton({ taxRecordId, bankAccounts }: { taxRecordI
         </SelectContent>
       </Select>
       <Input name="paymentDate" type="date" className="w-36" />
+      {needsFxRate && (
+        <Input name="fxRate" type="number" step="0.00000001" placeholder={`سعر 1 ${currency}=؟${functionalCurrency}`} className="w-36" />
+      )}
       <Button type="submit" size="sm" variant="outline" disabled={pending}>
         {pending ? "..." : "تسجيل السداد"}
       </Button>

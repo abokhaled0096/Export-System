@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createFixedAsset, type FixedAssetFormState } from "../finance-actions";
 import { fixedAssetCategoryLabel, depreciationMethodLabel } from "@/lib/treasuryLabels";
@@ -14,9 +14,11 @@ const categories = Object.keys(fixedAssetCategoryLabel);
 
 export type CostCenterOption = { id: string; label: string };
 
-export default function FixedAssetForm({ costCenters }: { costCenters: CostCenterOption[] }) {
+export default function FixedAssetForm({ costCenters, functionalCurrency }: { costCenters: CostCenterOption[]; functionalCurrency?: string }) {
   const [state, formAction, pending] = useActionState(createFixedAsset, initialState);
   const router = useRouter();
+  const [currency, setCurrency] = useState("EGP");
+  const needsFxRate = !!functionalCurrency && currency.trim().toUpperCase() !== functionalCurrency;
 
   useEffect(() => {
     if (state.assetId) router.push(`/accounting/fixed-assets/${state.assetId}`);
@@ -94,7 +96,7 @@ export default function FixedAssetForm({ costCenters }: { costCenters: CostCente
         <Label htmlFor="fa-currency" className="text-xs">
           العملة *
         </Label>
-        <Input id="fa-currency" name="currency" defaultValue="EGP" />
+        <Input id="fa-currency" name="currency" value={currency} onChange={(e) => setCurrency(e.target.value)} />
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="fa-life" className="text-xs">
@@ -117,6 +119,15 @@ export default function FixedAssetForm({ costCenters }: { costCenters: CostCente
           </SelectContent>
         </Select>
       </div>
+
+      {needsFxRate && (
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="fa-fxrate" className="text-xs">
+            {`سعر الصرف (1 ${currency.trim().toUpperCase()} = ؟ ${functionalCurrency})`}
+          </Label>
+          <Input id="fa-fxrate" name="fxRate" type="number" step="0.00000001" />
+        </div>
+      )}
 
       <div className="flex items-end">
         <Button type="submit" disabled={pending}>

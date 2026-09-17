@@ -14,7 +14,7 @@ import { renderQuotePdf } from "@/lib/quote-pdf";
 import { isEmailConfigured, sendQuoteEmailMessage } from "@/lib/email";
 import { uploadDocumentFile } from "@/lib/storage";
 import { logError, isNextControlFlowError, businessRuleMessage } from "@/lib/errorLog";
-import { postCommissionPayment } from "@/lib/accounting";
+import { postCommissionPayment, resolveFxRateId } from "@/lib/accounting";
 
 const DealSchema = z.object({
   opportunityId: z.string().uuid("اختر فرصة"),
@@ -1316,7 +1316,7 @@ export async function approveCommissionEntryAction(dealId: string, entryId: stri
 
 /** سداد العمولة — بيرحّل القيد فعليًا (مدين 6020 عمولات مبيعات / دائن 1010 نقدية) قبل ما يعلّم
  * الحالة "مدفوعة". ⚠️ بلا Payment/BankAccount عمدًا — راجع تعليق postCommissionPayment. */
-export async function payCommissionEntryAction(dealId: string, entryId: string) {
+export async function payCommissionEntryAction(dealId: string, entryId: string, fxRate?: string) {
   const user = await requireCurrentUser();
   const scope = await requirePermission(user.roleId, "CommissionEntry", "Edit");
 
@@ -1327,7 +1327,9 @@ export async function payCommissionEntryAction(dealId: string, entryId: string) 
       if (entry.status !== "Approved") throw new Error(`العمولة حالتها ${entry.status} — المعتمَدة (Approved) بس اللي تتسدد.`);
 
       const paidAt = new Date();
-      const journalEntryId = await postCommissionPayment(tx, { ...entry, currency: entry.currency ?? "EGP" }, paidAt, user.id);
+      const currency = entry.currency ?? "EGP";
+      const fxRateId = await resolveFxRateId(tx, user.orgId, currency, paidAt, fxRate || undefined);
+      const journalEntryId = await postCommissionPayment(tx, { ...entry, currency, fxRateId }, paidAt, user.id);
 
       await tx.commissionEntry.update({ where: { id: entryId }, data: { status: "Paid", journalEntryId } });
       await logAudit(tx, { orgId: user.orgId, userId: user.id, action: "commissionEntry.paid", entityType: "CommissionEntry", entityId: entryId, afterValue: { journalEntryId } });

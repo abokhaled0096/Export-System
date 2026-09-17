@@ -34,6 +34,9 @@ export default async function BankAccountDetailPage({ params }: { params: Promis
   const account = await prisma.bankAccount.findFirst({ where: { id, orgId: user.orgId } });
   if (!account) notFound();
 
+  const org = await prisma.organization.findUniqueOrThrow({ where: { id: user.orgId }, select: { functionalCurrency: true } });
+  const needsFxRate = !!org.functionalCurrency && account.currency !== org.functionalCurrency;
+
   const transactions = await prisma.bankTransaction.findMany({
     where: { orgId: user.orgId, bankAccountId: id },
     orderBy: [{ transactionDate: "asc" }, { createdAt: "asc" }],
@@ -45,12 +48,12 @@ export default async function BankAccountDetailPage({ params }: { params: Promis
   });
 
   // الرصيد الجاري بيتراكم بنفس قاعدة الاتجاه المستخدمة في القاعدة (bank_transaction_signed_amount).
-  let running = account.openingBalance;
-  const rows = transactions.map((t) => {
-    running = running.add(signedAmount(t.transactionType, t.amount));
-    return { transaction: t, balance: running };
-  });
-  const currentBalance = running;
+  const rows = transactions.reduce<Array<{ transaction: (typeof transactions)[number]; balance: Prisma.Decimal }>>((acc, t) => {
+    const previous = acc.length > 0 ? acc[acc.length - 1].balance : account.openingBalance;
+    acc.push({ transaction: t, balance: previous.add(signedAmount(t.transactionType, t.amount)) });
+    return acc;
+  }, []);
+  const currentBalance = rows.length > 0 ? rows[rows.length - 1].balance : account.openingBalance;
   const unmatchedCount = transactions.filter((t) => !t.paymentId && !t.journalEntryId).length;
 
   return (
@@ -109,7 +112,12 @@ export default async function BankAccountDetailPage({ params }: { params: Promis
       </div>
 
       <div className="mt-6">
-        <BankTransactionForm bankAccountId={account.id} currency={account.currency} />
+        <BankTransactionForm
+          bankAccountId={account.id}
+          currency={account.currency}
+          needsFxRate={needsFxRate}
+          functionalCurrency={org.functionalCurrency ?? undefined}
+        />
       </div>
 
       <div className="mt-4">

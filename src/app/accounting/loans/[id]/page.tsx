@@ -44,6 +44,9 @@ export default async function LoanDetailPage({ params }: { params: Promise<{ id:
   });
   if (!loan) notFound();
 
+  const org = await prisma.organization.findUniqueOrThrow({ where: { id: user.orgId }, select: { functionalCurrency: true } });
+  const needsFxRate = !!org.functionalCurrency && loan.currency !== org.functionalCurrency;
+
   const scheduledPrincipal = loan.installments.reduce((sum, i) => sum.add(i.principalPortion), new Prisma.Decimal(0));
   const unscheduled = loan.principal.sub(scheduledPrincipal);
   const totalInterest = loan.installments.reduce((sum, i) => sum.add(i.interestPortion), new Prisma.Decimal(0));
@@ -124,7 +127,13 @@ export default async function LoanDetailPage({ params }: { params: Promise<{ id:
       </dl>
 
       <div className="mt-5 flex flex-wrap items-center gap-3">
-        <DisburseButton loanId={loan.id} disbursed={Boolean(loan.disbursedAt)} />
+        <DisburseButton
+          loanId={loan.id}
+          disbursed={Boolean(loan.disbursedAt)}
+          needsFxRate={needsFxRate}
+          currency={loan.currency}
+          functionalCurrency={org.functionalCurrency ?? undefined}
+        />
         {loan.status === "Active" && loan.disbursedAt && <MarkDefaultedButton loanId={loan.id} lenderName={loan.lenderName} />}
       </div>
 
@@ -198,7 +207,14 @@ export default async function LoanDetailPage({ params }: { params: Promise<{ id:
                       )}
                     </TableCell>
                     <TableCell>
-                      {i.status === "Pending" && loan.disbursedAt && <PayInstallmentButton installmentId={i.id} />}
+                      {i.status === "Pending" && loan.disbursedAt && (
+                        <PayInstallmentButton
+                          installmentId={i.id}
+                          needsFxRate={needsFxRate}
+                          currency={loan.currency}
+                          functionalCurrency={org.functionalCurrency ?? undefined}
+                        />
+                      )}
                     </TableCell>
                   </TableRow>
                 );

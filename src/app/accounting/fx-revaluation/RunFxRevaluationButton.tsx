@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 export default function RunFxRevaluationButton({ periodId }: { periodId: string }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<{ revaluedInvoiceCount: number; skippedNoRateCount: number } | null>(null);
+  const [result, setResult] = useState<{ revaluedInvoiceCount: number; revaluedCashAccountCount: number; skippedNoRateCount: number } | null>(null);
 
   return (
     <div className="flex flex-wrap items-center gap-3">
@@ -30,9 +30,9 @@ export default function RunFxRevaluationButton({ periodId }: { periodId: string 
       </Button>
       {result && (
         <span className="text-sm text-emerald-700">
-          {result.revaluedInvoiceCount > 0
-            ? `اترحّل تعديل ${result.revaluedInvoiceCount} فاتورة${result.skippedNoRateCount > 0 ? ` (${result.skippedNoRateCount} اتخطّوا — مفيش سعر صرف حديث مسجّل لعملتهم)` : ""}.`
-            : `مفيش فواتير محتاجة إعادة تقييم${result.skippedNoRateCount > 0 ? ` (${result.skippedNoRateCount} اتخطّوا لغياب سعر صرف)` : ""}.`}
+          {result.revaluedInvoiceCount > 0 || result.revaluedCashAccountCount > 0
+            ? `اترحّل تعديل ${result.revaluedInvoiceCount} فاتورة${result.revaluedCashAccountCount > 0 ? ` و${result.revaluedCashAccountCount} حساب نقدية` : ""}${result.skippedNoRateCount > 0 ? ` (${result.skippedNoRateCount} اتخطّوا — مفيش سعر صرف حديث مسجّل لعملتهم)` : ""}.`
+            : `مفيش فواتير ولا أرصدة نقدية محتاجة إعادة تقييم${result.skippedNoRateCount > 0 ? ` (${result.skippedNoRateCount} اتخطّوا لغياب سعر صرف)` : ""}.`}
         </span>
       )}
       {error && (
