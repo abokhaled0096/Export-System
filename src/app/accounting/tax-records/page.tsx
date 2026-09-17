@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Prisma } from "@/generated/prisma/client";
 import { requireCurrentUser } from "@/lib/session";
 import { requirePermission } from "@/lib/permissions";
@@ -77,7 +78,12 @@ export default async function TaxRecordsPage() {
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-10">
-      <h1 className="text-2xl font-semibold text-foreground">لوحة الضرائب</h1>
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <h1 className="text-2xl font-semibold text-foreground">لوحة الضرائب</h1>
+        <Link href="/accounting/tax-records/report" className="text-sm text-primary hover:underline">
+          التقرير الضريبي التجميعي ←
+        </Link>
+      </div>
       <p className="mt-1 text-sm text-muted-foreground">{records.length} إقرار مسجّل</p>
 
       {currentPeriod ? (
