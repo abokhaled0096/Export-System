@@ -103,7 +103,7 @@ _(فاضي دلوقتي — كل البنود اتقفلت أو اتصلحت. ر
 
 ## 🟢 P3 — تحسينات UX (مش حرجة)
 
-- [ ] Optimistic UI updates — تحسين إحساس السرعة، مش حرج.
+- [x] ~~Optimistic UI updates — تحسين إحساس السرعة~~ **اتحل جزئيًا 18 سبتمبر (`/notifications` + تفعيل/إيقاف حساب في شجرة الحسابات — راجع "✅ خلصان"). باقي التفاعلات مؤجَّلة عمدًا لحد ما تستاهل (تحديث مشتق من مكان تاني في نفس الصفحة، زي المطابقة البنكية، مش مرشّح مناسب).**
 - [ ] Command Palette (Cmd+K) — يستاهل قيمته أكتر كل ما عدد الوحدات يزيد (9 وحدات مخطط لها).
 - [ ] E2E Testing بـPlaywright — قيمته بتكبر مع كل مسار حرج جديد (زي `acceptQuote`).
 - [ ] Signed URLs لأي ملف خاص — مش مطلوبة دلوقتي لأن مفيش ميزة رفع ملفات موجودة، لازم تتطبّق من أول يوم لما الميزة دي تتبنى.
@@ -117,6 +117,8 @@ _(فاضي دلوقتي — كل البنود اتقفلت أو اتصلحت. ر
 ## ✅ خلصان
 
 _(هنا هتتنقل البنود اللي خلصت، مع التاريخ وملخص سطر واحد وأي ملف اتغيّر)_
+
+- **[2026-09-18] Optimistic UI updates لمكانين مختارين بعناية (بند P3).** `/notifications` (تحوّلت لـClient Component بـ`useOptimistic` — البادج/اللون/العدّاد بيتحدّثوا فورًا) و`ChartOfAccountEditControl` (تفعيل/إيقاف حساب). مكان زي `toggleTransactionInReconciliationAction` استُبعد عمدًا لأنه محتاج تكرار منطق Trigger `bookBalance` في الفرونت إند. مُختبر حيًا مع تأكيد من القاعدة إن التغيير مش عرض وهمي بس. `test:rls` **184/184** بلا تغيير. الملفات: `src/app/notifications/{page.tsx,NotificationList.tsx}`، `src/app/accounting/chart-of-accounts/ChartOfAccountEditControl.tsx`.
 
 - **[2026-09-18] pagination حقيقي مستقل لكل عمود Kanban في `/deals` (بند P2/P3).** كل عمود بقى عنده استعلام `deal.findMany` مستقل (`take`/`skip`)، مع `groupBy` واحد للعدد الدقيق، و"تحميل المزيد" (`KanbanColumn.tsx` + `loadMoreDealsAction`). `pipelineValue` بقى دقيق 100% (مسح كامل خفيف بدل أول 200 صفقة). مُختبر حيًا: 35 صفقة تجريبية في عمود واحد عرضت 30 + "تحميل المزيد (6 متبقي)"، والزرار جاب الباقي صح. `test:rls` **184/184** بلا تغيير. الملفات: `src/app/deals/{actions.ts,page.tsx,KanbanColumn.tsx}`.
 
