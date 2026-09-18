@@ -77,7 +77,10 @@ export async function createCAPA(_prevState: CAPAFormState, formData: FormData):
  * خريطة TS ثابتة، راجع STATUS.md 7 سبتمبر — نفس فلسفة زرار "ترحيل"/"عكس" في الدفتر: مش تعديل
  * حر لأي قيمة). verifiedBy بيتسجّل تلقائيًا بالمستخدم الحالي لحظة الانتقال لـEffective/Ineffective
  * — الـTrigger enforce_capa_verification برضه بيرفض أي محاولة توصل لحالة نهائية بلاه، فمفيش
- * مسار يلتف حول القاعدة حتى لو حصل خطأ هنا. */
+ * مسار يلتف حول القاعدة حتى لو حصل خطأ هنا.
+ * ⚠️ verifiedBy بيتصفّر لما الحالة ترجع InProgress (اكتُشف بعد إضافة انتقال Ineffective→InProgress،
+ * 17 سبتمبر): من غير كده كان بيفضل معروض اسم آخر واحد تحقق منه حتى لو الإجراء اتفتح تاني للعمل —
+ * تحقّق قديم بقى مالوش معنى، ولازم يتحقق منه تاني فعليًا قبل أي إقفال جديد. */
 export async function updateCAPAStatusAction(capaId: string, newStatus: (typeof CAPA_ALL_STATUSES)[number]) {
   const user = await requireCurrentUser();
   await requirePermission(user.roleId, "CAPA", "Edit");
@@ -90,9 +93,10 @@ export async function updateCAPAStatusAction(capaId: string, newStatus: (typeof 
       }
 
       const needsVerification = newStatus === "Effective" || newStatus === "Ineffective";
+      const verifiedBy = needsVerification ? user.id : newStatus === "InProgress" ? null : capa.verifiedBy;
       await tx.cAPA.update({
         where: { id: capaId },
-        data: { status: newStatus, verifiedBy: needsVerification ? user.id : capa.verifiedBy },
+        data: { status: newStatus, verifiedBy },
       });
 
       await logAudit(tx, {
