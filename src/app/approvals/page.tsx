@@ -125,7 +125,7 @@ export default async function ApprovalsPage({
             })}
           </div>
         )}
-        <Pagination currentPage={page} totalPages={totalPendingPages} basePath="/approvals" extraParams={{}} />
+        <Pagination currentPage={page} totalPages={totalPendingPages} basePath="/approvals" />
       </section>
 
       {decided.length > 0 && (

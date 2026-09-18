@@ -112,7 +112,7 @@ export default async function ReconciliationsPage({
           </TableBody>
         </Table>
       </div>
-      <Pagination currentPage={page} totalPages={totalPages} basePath="/accounting/reconciliations" extraParams={{}} />
+      <Pagination currentPage={page} totalPages={totalPages} basePath="/accounting/reconciliations" />
     </main>
   );
 }

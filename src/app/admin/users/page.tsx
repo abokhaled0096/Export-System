@@ -103,7 +103,7 @@ export default async function AdminUsersPage({
           </TableBody>
         </Table>
       </div>
-      <Pagination currentPage={page} totalPages={totalPages} basePath="/admin/users" extraParams={{}} />
+      <Pagination currentPage={page} totalPages={totalPages} basePath="/admin/users" />
     </main>
   );
 }

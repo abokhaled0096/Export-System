@@ -57,7 +57,9 @@ export default async function AdminTeamsPage({
     skip: (page - 1) * PAGE_SIZE,
     take: PAGE_SIZE,
   });
-  const total = await prisma.user.count({ where: { orgId } });
+  // total = allUsers.length مباشرة — allUsers أصلًا بيجيب كل مستخدمي المنظمة بلا صفحات (فوق)،
+  // فمفيش داعي لاستعلام count() منفصل يكرر نفس النتيجة (اتلقط بمراجعة ذاتية 19 سبتمبر).
+  const total = allUsers.length;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const teamOptions = teams.map((t) => ({ id: t.id, label: t.name }));
@@ -168,7 +170,7 @@ export default async function AdminTeamsPage({
                 </TableBody>
               </Table>
             </div>
-            <Pagination currentPage={page} totalPages={totalPages} basePath="/admin/teams" extraParams={{}} />
+            <Pagination currentPage={page} totalPages={totalPages} basePath="/admin/teams" />
           </>
         )}
       </section>

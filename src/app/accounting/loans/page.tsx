@@ -114,7 +114,7 @@ export default async function LoansPage({
           </TableBody>
         </Table>
       </div>
-      <Pagination currentPage={page} totalPages={totalPages} basePath="/accounting/loans" extraParams={{}} />
+      <Pagination currentPage={page} totalPages={totalPages} basePath="/accounting/loans" />
     </main>
   );
 }

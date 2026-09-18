@@ -148,7 +148,7 @@ export default async function InvoicesPage({
           </TableBody>
         </Table>
       </div>
-      <Pagination currentPage={page} totalPages={totalPages} basePath="/accounting/invoices" extraParams={{}} />
+      <Pagination currentPage={page} totalPages={totalPages} basePath="/accounting/invoices" />
     </main>
   );
 }

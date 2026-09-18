@@ -171,7 +171,7 @@ export default async function ReceivablesPage({
           </TableBody>
         </Table>
       </div>
-      <Pagination currentPage={page} totalPages={totalPages} basePath="/accounting/receivables" extraParams={{}} />
+      <Pagination currentPage={page} totalPages={totalPages} basePath="/accounting/receivables" />
 
       <p className="mt-3 text-xs text-muted-foreground">
         الشرائح محسوبة من تاريخ الاستحقاق وقت العرض — مفيش حالة &quot;متأخرة&quot; مخزَّنة في القاعدة عشان متبقاش قديمة.

@@ -200,7 +200,7 @@ export default async function TaxRecordsPage({
           </TableBody>
         </Table>
       </div>
-      <Pagination currentPage={page} totalPages={totalPages} basePath="/accounting/tax-records" extraParams={{}} />
+      <Pagination currentPage={page} totalPages={totalPages} basePath="/accounting/tax-records" />
     </main>
   );
 }

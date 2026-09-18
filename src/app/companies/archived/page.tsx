@@ -90,7 +90,7 @@ export default async function ArchivedCompaniesPage({
           </Table>
         </div>
       )}
-      <Pagination currentPage={page} totalPages={totalPages} basePath="/companies/archived" extraParams={{}} />
+      <Pagination currentPage={page} totalPages={totalPages} basePath="/companies/archived" />
     </main>
   );
 }

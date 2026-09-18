@@ -24,8 +24,8 @@ export default async function ChangeRequestsPage({
 }: {
   searchParams: Promise<{ page?: string }>;
 }) {
-  const page = parsePage((await searchParams).page);
   const user = await requireCurrentUser();
+  const page = parsePage((await searchParams).page);
 
   try {
     await requirePermission(user.roleId, "MasterDataChangeRequest", "View");
