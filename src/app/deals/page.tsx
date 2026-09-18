@@ -6,6 +6,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import ListSearch from "@/components/ListSearch";
+import KanbanColumn, { type DealCardData } from "./KanbanColumn";
 
 export const dynamic = "force-dynamic";
 
@@ -25,9 +26,9 @@ const columnStyle: Record<string, string> = {
   Lost: "border-t-rose-400",
 };
 
-/** سقف عرض لكل عمود — القيم التجميعية (winRate/confirmedSales) بتتحسب من الـDB مباشرة (count/sum)
- * مش من الصفوف المعروضة، فبتفضل صحيحة حتى لو عدد الصفقات الكلي أكبر من السقف ده. راجع BACKLOG.md. */
-const DISPLAY_CAP = 200;
+/** صفحة أولى لكل عمود — pagination حقيقي مستقل بعد كده (زرار "تحميل المزيد"، KanbanColumn.tsx)
+ * بدل سقف إجمالي واحد بيتقسّم بين الأعمدة. ⚠️ لازم يتطابق مع KANBAN_PAGE_SIZE في actions.ts. */
+const PAGE_SIZE = 30;
 
 export default async function DealsPage({
   searchParams,
@@ -59,63 +60,75 @@ export default async function DealsPage({
 
   // ⚠️ مش Promise.all — راجع نفس الملاحظة في products/page.tsx (P2028): كل استعلام من
   // getScopedPrisma() بيفتح transaction لوحده، والتنفيذ بالتوازي بيتزاحم على اتصال الـpool.
-  const openDeals = await prisma.deal.findMany({
-    where: { orgId, deletedAt: null, status: { notIn: ["Won", "Lost", "Cancelled"] }, ...dealOwnerFilter, ...searchFilter },
-    include: { customer: true, product: true, market: true, scenarios: true },
-    orderBy: { createdAt: "desc" },
-    take: DISPLAY_CAP,
-  });
-  const recentClosedDeals = await prisma.deal.findMany({
-    where: { orgId, deletedAt: null, status: { in: ["Won", "Lost"] }, ...dealOwnerFilter, ...searchFilter },
-    include: { customer: true, product: true, market: true, scenarios: true },
-    orderBy: { updatedAt: "desc" },
-    take: DISPLAY_CAP,
-  });
-  const closedCounts = await prisma.deal.groupBy({
+  //
+  // pagination حقيقي مستقل لكل عمود Kanban (بدل سقف إجمالي واحد بيتقسّم بين الأعمدة) — راجع
+  // BACKLOG.md § P2/P3. عدد كل عمود بيتحسب بـgroupBy واحد على كل الحالات الخمسة (مش عدّ الصفوف
+  // المعروضة)، فبيفضل دقيق حتى لو العمود فيه أكتر من صفحة واحدة.
+  const allStatusCounts = await prisma.deal.groupBy({
     by: ["status"],
-    where: { orgId, deletedAt: null, status: { in: ["Won", "Lost"] }, ...dealOwnerFilter, ...searchFilter },
+    where: { orgId, deletedAt: null, status: { in: ["Draft", "Pricing", "Negotiation", "Won", "Lost"] }, ...dealOwnerFilter, ...searchFilter },
     _count: true,
   });
-  const salesSum = await prisma.salesOrder.aggregate({
-    where: { orgId, status: { not: "Cancelled" }, ...salesOrderOwnerFilter },
-    _sum: { totalValue: true },
-  });
-  const totalOpenCount = await prisma.deal.count({
-    where: { orgId, deletedAt: null, status: { notIn: ["Won", "Lost", "Cancelled"] }, ...dealOwnerFilter, ...searchFilter },
-  });
+  const countFor = (status: string) => allStatusCounts.find((c) => c.status === status)?._count ?? 0;
 
-  const deals = [...openDeals, ...recentClosedDeals];
-
-  const dealValue = (deal: (typeof deals)[number]) => {
+  const dealValue = (deal: { activeScenarioId: string | null; scenarios: { id: string; finalPrice: Prisma.Decimal | null; targetPrice: Prisma.Decimal | null; quantitySaleable: Prisma.Decimal; currency: string }[] }) => {
     const scenario = deal.scenarios.find((s) => s.id === deal.activeScenarioId);
     if (!scenario) return null;
     const price = scenario.finalPrice ?? scenario.targetPrice;
     if (!price) return null;
-    return price.mul(scenario.quantitySaleable);
+    return { value: price.mul(scenario.quantitySaleable), currency: scenario.currency };
   };
 
-  const wonCount = closedCounts.find((c) => c.status === "Won")?._count ?? 0;
-  const lostCount = closedCounts.find((c) => c.status === "Lost")?._count ?? 0;
-  const closedTotal = wonCount + lostCount;
+  const columnPages: Record<string, { deals: DealCardData[]; hasMore: boolean }> = {};
+  for (const col of columns) {
+    const isClosed = col.status === "Won" || col.status === "Lost";
+    const rows = await prisma.deal.findMany({
+      where: { orgId, deletedAt: null, status: col.status, ...dealOwnerFilter, ...searchFilter },
+      include: { customer: true, product: true, market: true, scenarios: true },
+      orderBy: isClosed ? { updatedAt: "desc" } : { createdAt: "desc" },
+      take: PAGE_SIZE + 1,
+    });
+    const hasMore = rows.length > PAGE_SIZE;
+    columnPages[col.status] = {
+      hasMore,
+      deals: rows.slice(0, PAGE_SIZE).map((d) => {
+        const v = dealValue(d);
+        return { id: d.id, customerName: d.customer.legalName, productName: d.product.nameAr, marketName: d.market.countryNameAr, value: v?.value.toFixed(0) ?? null, currency: v?.currency ?? null };
+      }),
+    };
+  }
 
-  // pipelineValue بيتحسب من openDeals المعروضة بس (لغاية DISPLAY_CAP) — مش مجموع دقيق 100%
-  // لو عدد الصفقات المفتوحة أكبر من السقف، لكن ده وضع نادر عمليًا (pipeline نشط بهذا الحجم
-  // نادر لمنظومة داخلية)، عكس winRate/confirmedSales اللي بيتحسبوا من الـDB مباشرة فدايمًا دقيقين.
-  const pipelineValue = openDeals.reduce(
-    (sum, d) => sum.add(dealValue(d) ?? new Prisma.Decimal(0)),
+  const salesSum = await prisma.salesOrder.aggregate({
+    where: { orgId, status: { not: "Cancelled" }, ...salesOrderOwnerFilter },
+    _sum: { totalValue: true },
+  });
+
+  // إجمالي دقيق 100% — بلا سقف عرض، عكس النسخة القديمة اللي كانت بتحسب من أول DISPLAY_CAP
+  // صفقة مفتوحة بس (راجع BACKLOG.md). select ضيّق (بلا include كامل) عشان الاستعلام يفضل خفيف
+  // حتى لو عدد الصفقات المفتوحة كبير.
+  const openDealsForValue = await prisma.deal.findMany({
+    where: { orgId, deletedAt: null, status: { in: ["Draft", "Pricing", "Negotiation"] }, ...dealOwnerFilter, ...searchFilter },
+    select: { activeScenarioId: true, scenarios: { select: { id: true, finalPrice: true, targetPrice: true, quantitySaleable: true, currency: true } } },
+  });
+  const pipelineValue = openDealsForValue.reduce(
+    (sum, d) => sum.add(dealValue(d)?.value ?? new Prisma.Decimal(0)),
     new Prisma.Decimal(0)
   );
+
+  const totalOpenCount = countFor("Draft") + countFor("Pricing") + countFor("Negotiation");
+  const wonCount = countFor("Won");
+  const lostCount = countFor("Lost");
+  const closedTotal = wonCount + lostCount;
   const winRate = closedTotal > 0 ? Math.round((wonCount / closedTotal) * 100) : null;
   const confirmedSales = salesSum._sum.totalValue ?? new Prisma.Decimal(0);
+  const totalDealsCount = totalOpenCount + closedTotal;
 
   return (
     <main className="mx-auto max-w-7xl px-6 py-10">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">الصفقات</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {totalOpenCount} صفقة مفتوحة{deals.length < totalOpenCount + closedTotal ? ` (معروض آخر ${DISPLAY_CAP} من كل عمود)` : ""}
-          </p>
+          <p className="mt-1 text-sm text-muted-foreground">{totalOpenCount} صفقة مفتوحة</p>
         </div>
         <div className="flex items-center gap-3">
           <Button
@@ -127,7 +140,7 @@ export default async function DealsPage({
         </div>
       </div>
 
-      {deals.length === 0 ? (
+      {totalDealsCount === 0 ? (
         <div className="mt-10 rounded-xl border border-dashed border-border py-16 text-center text-muted-foreground">
           {q ? (
             <p>مفيش صفقات مطابقة للبحث ده.</p>
@@ -168,42 +181,18 @@ export default async function DealsPage({
           </div>
 
           <div className="mt-6 grid grid-cols-1 gap-4 overflow-x-auto sm:grid-cols-5">
-            {columns.map((col) => {
-              const colDeals = deals.filter((d) => d.status === col.status);
-              return (
-                <div
-                  key={col.status}
-                  className={`rounded-xl border-t-4 bg-muted/40 p-3 ${columnStyle[col.status]}`}
-                >
-                  <div className="flex items-center justify-between px-1">
-                    <h2 className="text-sm font-semibold text-foreground/80">{col.label}</h2>
-                    <span className="text-xs text-muted-foreground">{colDeals.length}</span>
-                  </div>
-                  <div className="mt-3 flex flex-col gap-2">
-                    {colDeals.map((d) => {
-                      const value = dealValue(d);
-                      return (
-                        <Link
-                          key={d.id}
-                          href={`/deals/${d.id}`}
-                          className="block rounded-lg border border-border bg-card p-3 text-sm hover:border-emerald-400 hover:shadow-sm"
-                        >
-                          <p className="font-medium text-foreground">{d.customer.legalName}</p>
-                          <p className="mt-0.5 text-xs text-muted-foreground">
-                            {d.product.nameAr} · {d.market.countryNameAr}
-                          </p>
-                          {value && (
-                            <p className="mt-1 font-mono text-xs text-foreground/70">
-                              {value.toFixed(0)} {d.scenarios[0]?.currency}
-                            </p>
-                          )}
-                        </Link>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
+            {columns.map((col) => (
+              <KanbanColumn
+                key={col.status}
+                status={col.status}
+                label={col.label}
+                borderClass={columnStyle[col.status]}
+                totalCount={countFor(col.status)}
+                initialDeals={columnPages[col.status].deals}
+                initialHasMore={columnPages[col.status].hasMore}
+                q={q}
+              />
+            ))}
           </div>
         </>
       )}

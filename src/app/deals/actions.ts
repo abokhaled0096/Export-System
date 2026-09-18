@@ -8,7 +8,7 @@ import { getScopedPrisma, withScopedTransaction, type ScopedTx } from "@/lib/sco
 import { requireCurrentUser } from "@/lib/session";
 import { logAudit } from "@/lib/audit";
 import { notifyApprovers } from "@/lib/notification";
-import { requirePermission, assertOwnScope } from "@/lib/permissions";
+import { requirePermission, assertOwnScope, getPermissionScope, scopedOwnerIdFilter } from "@/lib/permissions";
 import { getQuotePdfData } from "@/lib/quote-data";
 import { renderQuotePdf } from "@/lib/quote-pdf";
 import { isEmailConfigured, sendQuoteEmailMessage } from "@/lib/email";
@@ -1341,4 +1341,70 @@ export async function payCommissionEntryAction(dealId: string, entryId: string, 
   }
 
   revalidatePath(`/deals/${dealId}`);
+}
+
+// ==================== Kanban pagination ====================
+// BACKLOG.md § P2/P3 — كل عمود Kanban كان بيجيب صفحة واحدة من `deal.findMany` بسقف إجمالي
+// (DISPLAY_CAP) بيتقسّم بين كل الأعمدة، مش صفحة مستقلة لكل عمود.
+// ⚠️ KANBAN_PAGE_SIZE هنا لازم يتطابق حرفيًا مع نفس القيمة في src/app/deals/page.tsx (الجلب
+// الأول) — مقدرش أصدّرها من هنا لأن ملف "use server" مسموحله يصدّر async functions بس.
+const KANBAN_PAGE_SIZE = 30;
+
+export type DealCardData = {
+  id: string;
+  customerName: string;
+  productName: string;
+  marketName: string;
+  value: string | null;
+  currency: string | null;
+};
+
+function dealCardValue(deal: { activeScenarioId: string | null; scenarios: { id: string; finalPrice: Prisma.Decimal | null; targetPrice: Prisma.Decimal | null; quantitySaleable: Prisma.Decimal; currency: string }[] }): { value: string | null; currency: string | null } {
+  const scenario = deal.scenarios.find((s) => s.id === deal.activeScenarioId);
+  if (!scenario) return { value: null, currency: null };
+  const price = scenario.finalPrice ?? scenario.targetPrice;
+  if (!price) return { value: null, currency: null };
+  return { value: price.mul(scenario.quantitySaleable).toFixed(0), currency: scenario.currency };
+}
+
+/** صفحة إضافية من صفقات عمود Kanban واحد — نفس فلاتر الملكية/البحث المستخدمة في الصفحة نفسها.
+ * "مفتوحة" (Draft/Pricing/Negotiation) بترتّب بالأحدث إنشاءً، "مغلقة" (Won/Lost) بالأحدث تحديثًا —
+ * نفس ترتيب الجلب الأول في page.tsx. */
+export async function loadMoreDealsAction(
+  status: "Draft" | "Pricing" | "Negotiation" | "Won" | "Lost",
+  skip: number,
+  q?: string
+): Promise<{ deals: DealCardData[]; hasMore: boolean }> {
+  const user = await requireCurrentUser();
+  const prisma = await getScopedPrisma();
+
+  const scope = await getPermissionScope(user.roleId, "Deal", "View");
+  const scopedOwnerId = await scopedOwnerIdFilter(scope, user);
+  const dealOwnerFilter = scopedOwnerId !== undefined ? { opportunity: { ownerId: scopedOwnerId } } : {};
+  const searchFilter = q
+    ? { OR: [{ customer: { legalName: { contains: q, mode: "insensitive" as const } } }, { product: { nameAr: { contains: q, mode: "insensitive" as const } } }] }
+    : {};
+  const isClosed = status === "Won" || status === "Lost";
+
+  const deals = await prisma.deal.findMany({
+    where: { orgId: user.orgId, deletedAt: null, status, ...dealOwnerFilter, ...searchFilter },
+    include: { customer: true, product: true, market: true, scenarios: true },
+    orderBy: isClosed ? { updatedAt: "desc" } : { createdAt: "desc" },
+    skip,
+    take: KANBAN_PAGE_SIZE + 1,
+  });
+
+  const hasMore = deals.length > KANBAN_PAGE_SIZE;
+  const page = deals.slice(0, KANBAN_PAGE_SIZE);
+
+  return {
+    hasMore,
+    deals: page.map((d) => ({
+      id: d.id,
+      customerName: d.customer.legalName,
+      productName: d.product.nameAr,
+      marketName: d.market.countryNameAr,
+      ...dealCardValue(d),
+    })),
+  };
 }
