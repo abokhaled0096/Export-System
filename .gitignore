@@ -41,3 +41,10 @@ yarn-error.log*
 next-env.d.ts
 
 /src/generated/prisma
+
+# Playwright E2E — بيانات جلسة/بيانات اعتماد المستخدم التجريبي، ونتائج تشغيل محلية
+/e2e/.auth
+/test-results
+/playwright-report
+/blob-report
+/playwright/.cache
