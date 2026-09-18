@@ -12,29 +12,41 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { PAGE_SIZE, parsePage } from "@/lib/pagination";
+import Pagination from "@/components/Pagination";
 
 export const dynamic = "force-dynamic";
 
-export default async function ArchivedCompaniesPage() {
+export default async function ArchivedCompaniesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   const user = await requireCurrentUser();
   const orgId = user.orgId;
   const prisma = await getScopedPrisma();
+  const page = parsePage((await searchParams).page);
 
   // نفس فلترة Own/Team scope المستخدمة في /companies — راجع BACKLOG.md.
   const scope = await getPermissionScope(user.roleId, "Company", "View");
   const ownerFilter = await ownerScopeWhere(scope, user);
 
+  const where = { orgId, deletedAt: { not: null }, ...ownerFilter };
   const companies = await prisma.company.findMany({
-    where: { orgId, deletedAt: { not: null }, ...ownerFilter },
+    where,
     orderBy: { deletedAt: "desc" },
+    skip: (page - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
   });
+  const total = await prisma.company.count({ where });
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-10">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">الشركات المؤرشفة</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{companies.length} شركة مؤرشفة</p>
+          <p className="mt-1 text-sm text-muted-foreground">{total} شركة مؤرشفة</p>
         </div>
         <Button nativeButton={false} variant="outline" render={<Link href="/companies">← رجوع للشركات</Link>} />
       </div>
@@ -78,6 +90,7 @@ export default async function ArchivedCompaniesPage() {
           </Table>
         </div>
       )}
+      <Pagination currentPage={page} totalPages={totalPages} basePath="/companies/archived" extraParams={{}} />
     </main>
   );
 }

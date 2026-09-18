@@ -19,19 +19,34 @@ export type NotificationData = {
  * غير المقروء فوق) فورًا وقت الضغط، مش بعد ما السيرفر يرد. لو السيرفر رفض (نادر — العملية دي
  * مفيهاش قيد عمل حقيقي يترفض)، useOptimistic بيرجّع الحالة لأصلها تلقائيًا لما الـtransition
  * تخلص، والخطأ بيظهر تحت الإشعار المتأثر. */
-export default function NotificationList({ notifications: initial }: { notifications: NotificationData[] }) {
+export default function NotificationList({
+  notifications: initial,
+  total,
+  unreadTotal,
+}: {
+  notifications: NotificationData[];
+  /** إجمالي الإشعارات عبر كل الصفحات (بعد إضافة الـpagination) — لو مش متبعت بيرجع لطول الصفحة الحالية. */
+  total?: number;
+  /** إجمالي غير المقروء عبر كل الصفحات — لو مش متبعت بيرجع لعدّ الصفحة الحالية بس. */
+  unreadTotal?: number;
+}) {
   const [pending, startTransition] = useTransition();
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [optimisticNotifications, markRead] = useOptimistic(initial, (state, id: string) =>
     state.map((n) => (n.id === id ? { ...n, readAt: new Date().toISOString() } : n))
   );
-
-  const unreadCount = optimisticNotifications.filter((n) => !n.readAt).length;
+  // baseline بيفضل صحيح عبر الصفحات بعد إضافة الـpagination؛ الخصم بيحصل أول بأول محليًا فور
+  // الضغط (useOptimistic) بدل ما ننتظر رد السيرفر — نفس سلوك markRead فوق.
+  const [optimisticUnreadTotal, decrementUnreadTotal] = useOptimistic(
+    unreadTotal ?? initial.filter((n) => !n.readAt).length,
+    (state: number, _id: string) => Math.max(0, state - 1)
+  );
 
   function handleMarkRead(id: string) {
     setErrors((prev) => Object.fromEntries(Object.entries(prev).filter(([key]) => key !== id)));
     startTransition(async () => {
       markRead(id);
+      decrementUnreadTotal(id);
       try {
         await markNotificationReadAction(id);
       } catch (e) {
@@ -43,7 +58,7 @@ export default function NotificationList({ notifications: initial }: { notificat
   return (
     <>
       <p className="mt-1 text-sm text-muted-foreground">
-        {optimisticNotifications.length} إشعار — {unreadCount} غير مقروء
+        {total ?? optimisticNotifications.length} إشعار — {optimisticUnreadTotal} غير مقروء
       </p>
 
       <div className="mt-6 space-y-2">

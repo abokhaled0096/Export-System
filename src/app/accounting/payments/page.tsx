@@ -6,10 +6,16 @@ import PaymentForm, { type PaymentOption } from "./PaymentForm";
 import { paymentDirectionLabel, paymentMethodLabel, paymentStatusLabel, paymentStatusStyle } from "@/lib/arapLabels";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { PAGE_SIZE, parsePage } from "@/lib/pagination";
+import Pagination from "@/components/Pagination";
 
 export const dynamic = "force-dynamic";
 
-export default async function PaymentsPage() {
+export default async function PaymentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   const user = await requireCurrentUser();
 
   try {
@@ -26,17 +32,23 @@ export default async function PaymentsPage() {
 
   const orgId = user.orgId;
   const prisma = await getScopedPrisma();
+  const page = parsePage((await searchParams).page);
 
   // ⚠️ مش Promise.all — راجع BACKLOG.md (P2028).
+  const paymentsWhere = { orgId };
   const payments = await prisma.payment.findMany({
-    where: { orgId },
+    where: paymentsWhere,
     orderBy: { paymentDate: "desc" },
     include: {
       company: { select: { legalName: true } },
       supplier: { select: { legalName: true } },
       bankAccount: { select: { accountName: true } },
     },
+    skip: (page - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
   });
+  const totalPayments = await prisma.payment.count({ where: paymentsWhere });
+  const totalPages = Math.max(1, Math.ceil(totalPayments / PAGE_SIZE));
   const bankAccounts = await prisma.bankAccount.findMany({
     where: { orgId, isActive: true },
     orderBy: { accountName: "asc" },
@@ -55,7 +67,7 @@ export default async function PaymentsPage() {
     <main className="mx-auto max-w-6xl px-6 py-10">
       <div>
         <h1 className="text-2xl font-semibold text-foreground">الدفعات</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{payments.length} دفعة</p>
+        <p className="mt-1 text-sm text-muted-foreground">{totalPayments} دفعة</p>
       </div>
 
       <div className="mt-6">
@@ -112,6 +124,7 @@ export default async function PaymentsPage() {
           </TableBody>
         </Table>
       </div>
+      <Pagination currentPage={page} totalPages={totalPages} basePath="/accounting/payments" extraParams={{}} />
     </main>
   );
 }

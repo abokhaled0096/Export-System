@@ -5,10 +5,16 @@ import { getScopedPrisma } from "@/lib/scoped-prisma";
 import BankAccountForm from "./BankAccountForm";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { PAGE_SIZE, parsePage } from "@/lib/pagination";
+import Pagination from "@/components/Pagination";
 
 export const dynamic = "force-dynamic";
 
-export default async function BankAccountsPage() {
+export default async function BankAccountsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   const user = await requireCurrentUser();
 
   try {
@@ -24,17 +30,23 @@ export default async function BankAccountsPage() {
   }
 
   const prisma = await getScopedPrisma();
+  const page = parsePage((await searchParams).page);
+  const where = { orgId: user.orgId };
   const records = await prisma.bankAccount.findMany({
-    where: { orgId: user.orgId },
+    where,
     orderBy: { accountName: "asc" },
+    skip: (page - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
   });
+  const total = await prisma.bankAccount.count({ where });
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-10">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">الحسابات البنكية</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{records.length} حساب مسجّل</p>
+          <p className="mt-1 text-sm text-muted-foreground">{total} حساب مسجّل</p>
         </div>
         <Link href="/accounting/bank-imports" className="text-sm text-primary hover:underline">
           سجل استيراد كشوف الحساب ←
@@ -91,6 +103,7 @@ export default async function BankAccountsPage() {
           </TableBody>
         </Table>
       </div>
+      <Pagination currentPage={page} totalPages={totalPages} basePath="/accounting/bank-accounts" />
     </main>
   );
 }

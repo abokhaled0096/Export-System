@@ -2,12 +2,18 @@ import Link from "next/link";
 import { requireCurrentUser } from "@/lib/session";
 import { requirePermission, getPermissionScope, scopedOwnerIdFilter } from "@/lib/permissions";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
+import { PAGE_SIZE, parsePage } from "@/lib/pagination";
+import Pagination from "@/components/Pagination";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export const dynamic = "force-dynamic";
 
-export default async function QuoteBundlesPage() {
+export default async function QuoteBundlesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   const user = await requireCurrentUser();
 
   try {
@@ -23,25 +29,31 @@ export default async function QuoteBundlesPage() {
   }
 
   const prisma = await getScopedPrisma();
+  const page = parsePage((await searchParams).page);
 
   // مراجعة وحدة 2 (6 سبتمبر): بلا الفلتر ده كل الحزم كانت ظاهرة لأي حد عنده QuoteBundle.View
   // بغض النظر عن الـscope بتاعه — يعني SalesRep (Own) كان يشوف أسعار عروض مندوبين تانيين.
   const scope = await getPermissionScope(user.roleId, "QuoteBundle", "View");
   const scopedOwnerId = await scopedOwnerIdFilter(scope, user);
   const ownerFilter = scopedOwnerId !== undefined ? { quotes: { some: { deal: { opportunity: { ownerId: scopedOwnerId } } } } } : {};
+  const where = { orgId: user.orgId, ...ownerFilter };
 
   const bundles = await prisma.quoteBundle.findMany({
-    where: { orgId: user.orgId, ...ownerFilter },
+    where,
     orderBy: { createdAt: "desc" },
     include: { customer: { select: { legalName: true } }, createdByUser: { select: { fullName: true } }, _count: { select: { quotes: true } } },
+    skip: (page - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
   });
+  const total = await prisma.quoteBundle.count({ where });
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-10">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">حزم عروض الأسعار</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{bundles.length} حزمة — تجميع عروض أسعار مستقلة (لنفس العميل) في مستند واحد.</p>
+          <p className="mt-1 text-sm text-muted-foreground">{total} حزمة — تجميع عروض أسعار مستقلة (لنفس العميل) في مستند واحد.</p>
         </div>
         <Button nativeButton={false} render={<Link href="/quote-bundles/new">+ حزمة جديدة</Link>} />
       </div>
@@ -80,6 +92,7 @@ export default async function QuoteBundlesPage() {
           </Table>
         </div>
       )}
+      <Pagination currentPage={page} totalPages={totalPages} basePath="/quote-bundles" />
     </main>
   );
 }

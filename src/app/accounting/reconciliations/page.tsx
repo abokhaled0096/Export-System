@@ -6,10 +6,16 @@ import ReconciliationForm, { type AccountOption } from "./ReconciliationForm";
 import { reconciliationStatusLabel, reconciliationStatusStyle } from "@/lib/treasuryLabels";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { PAGE_SIZE, parsePage } from "@/lib/pagination";
+import Pagination from "@/components/Pagination";
 
 export const dynamic = "force-dynamic";
 
-export default async function ReconciliationsPage() {
+export default async function ReconciliationsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   const user = await requireCurrentUser();
 
   try {
@@ -26,13 +32,19 @@ export default async function ReconciliationsPage() {
 
   const orgId = user.orgId;
   const prisma = await getScopedPrisma();
+  const page = parsePage((await searchParams).page);
 
   // ⚠️ مش Promise.all — راجع BACKLOG.md (P2028).
+  const reconciliationsWhere = { orgId };
   const reconciliations = await prisma.bankReconciliation.findMany({
-    where: { orgId },
+    where: reconciliationsWhere,
     orderBy: { statementDate: "desc" },
     include: { bankAccount: { select: { accountName: true, currency: true } } },
+    skip: (page - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
   });
+  const totalReconciliations = await prisma.bankReconciliation.count({ where: reconciliationsWhere });
+  const totalPages = Math.max(1, Math.ceil(totalReconciliations / PAGE_SIZE));
   const accounts = await prisma.bankAccount.findMany({
     where: { orgId, isActive: true },
     orderBy: { accountName: "asc" },
@@ -48,7 +60,7 @@ export default async function ReconciliationsPage() {
     <main className="mx-auto max-w-5xl px-6 py-10">
       <div>
         <h1 className="text-2xl font-semibold text-foreground">المطابقات البنكية</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{reconciliations.length} مطابقة</p>
+        <p className="mt-1 text-sm text-muted-foreground">{totalReconciliations} مطابقة</p>
       </div>
 
       <div className="mt-6">
@@ -100,6 +112,7 @@ export default async function ReconciliationsPage() {
           </TableBody>
         </Table>
       </div>
+      <Pagination currentPage={page} totalPages={totalPages} basePath="/accounting/reconciliations" extraParams={{}} />
     </main>
   );
 }

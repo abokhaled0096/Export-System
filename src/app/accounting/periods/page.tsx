@@ -6,10 +6,16 @@ import ClosePeriodButton from "./ClosePeriodButton";
 import { accountingPeriodStatusLabel, accountingPeriodStatusStyle } from "@/lib/accountingLabels";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { PAGE_SIZE, parsePage } from "@/lib/pagination";
+import Pagination from "@/components/Pagination";
 
 export const dynamic = "force-dynamic";
 
-export default async function AccountingPeriodsPage() {
+export default async function AccountingPeriodsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   const user = await requireCurrentUser();
 
   try {
@@ -26,18 +32,24 @@ export default async function AccountingPeriodsPage() {
 
   const orgId = user.orgId;
   const prisma = await getScopedPrisma();
+  const page = parsePage((await searchParams).page);
+  const where = { orgId };
 
   const periods = await prisma.accountingPeriod.findMany({
-    where: { orgId },
+    where,
     include: { closedByUser: { select: { fullName: true } } },
     orderBy: { startDate: "desc" },
+    skip: (page - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
   });
+  const total = await prisma.accountingPeriod.count({ where });
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-10">
       <div>
         <h1 className="text-2xl font-semibold text-foreground">الفترات المحاسبية</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{periods.length} فترة مسجّلة</p>
+        <p className="mt-1 text-sm text-muted-foreground">{total} فترة مسجّلة</p>
       </div>
 
       <div className="mt-6">
@@ -82,6 +94,7 @@ export default async function AccountingPeriodsPage() {
           </TableBody>
         </Table>
       </div>
+      <Pagination currentPage={page} totalPages={totalPages} basePath="/accounting/periods" />
     </main>
   );
 }

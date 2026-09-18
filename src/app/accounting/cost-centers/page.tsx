@@ -5,10 +5,16 @@ import CostCenterForm from "./CostCenterForm";
 import CostCenterEditControl from "./CostCenterEditControl";
 import { costCenterTypeLabel } from "@/lib/accountingLabels";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { PAGE_SIZE, parsePage } from "@/lib/pagination";
+import Pagination from "@/components/Pagination";
 
 export const dynamic = "force-dynamic";
 
-export default async function CostCentersPage() {
+export default async function CostCentersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   const user = await requireCurrentUser();
 
   try {
@@ -25,13 +31,22 @@ export default async function CostCentersPage() {
 
   const orgId = user.orgId;
   const prisma = await getScopedPrisma();
-  const records = await prisma.costCenter.findMany({ where: { orgId }, orderBy: { code: "asc" } });
+  const page = parsePage((await searchParams).page);
+  const where = { orgId };
+  const records = await prisma.costCenter.findMany({
+    where,
+    orderBy: { code: "asc" },
+    skip: (page - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
+  });
+  const total = await prisma.costCenter.count({ where });
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-10">
       <div>
         <h1 className="text-2xl font-semibold text-foreground">مراكز التكلفة</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{records.length} مركز مسجّل</p>
+        <p className="mt-1 text-sm text-muted-foreground">{total} مركز مسجّل</p>
       </div>
 
       <div className="mt-6">
@@ -70,6 +85,7 @@ export default async function CostCentersPage() {
           </TableBody>
         </Table>
       </div>
+      <Pagination currentPage={page} totalPages={totalPages} basePath="/accounting/cost-centers" />
     </main>
   );
 }

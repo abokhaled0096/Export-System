@@ -5,10 +5,17 @@ import SoDRuleForm from "./SoDRuleForm";
 import ToggleRuleButton from "./ToggleRuleButton";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { PAGE_SIZE, parsePage } from "@/lib/pagination";
+import Pagination from "@/components/Pagination";
 
 export const dynamic = "force-dynamic";
 
-export default async function SoDRulesPage() {
+export default async function SoDRulesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const page = parsePage((await searchParams).page);
   const user = await requireCurrentUser();
 
   try {
@@ -24,13 +31,21 @@ export default async function SoDRulesPage() {
   }
 
   const prisma = await getScopedPrisma();
-  const rules = await prisma.segregationOfDutyRule.findMany({ where: { orgId: user.orgId }, orderBy: { createdAt: "desc" } });
+  const sodRuleWhere = { orgId: user.orgId };
+  const rules = await prisma.segregationOfDutyRule.findMany({
+    where: sodRuleWhere,
+    orderBy: { createdAt: "desc" },
+    skip: (page - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
+  });
+  const total = await prisma.segregationOfDutyRule.count({ where: sodRuleWhere });
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-10">
       <div>
         <h1 className="text-2xl font-semibold text-foreground">قواعد فصل المهام</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{rules.length} قاعدة</p>
+        <p className="mt-1 text-sm text-muted-foreground">{total} قاعدة</p>
       </div>
 
       <div className="mt-6">
@@ -75,6 +90,7 @@ export default async function SoDRulesPage() {
           </TableBody>
         </Table>
       </div>
+      <Pagination currentPage={page} totalPages={totalPages} basePath="/governance/sod-rules" />
       <p className="mt-3 text-xs text-muted-foreground">
         القاعدة اللي بتربط Payment.Create وPayment.Approve هي الوحيدة المفروضة فعليًا على مستوى القاعدة دلوقتي (Trigger) — تفعيلها بيمنع منشئ الدفعة من اعتمادها بنفسه فورًا.
       </p>

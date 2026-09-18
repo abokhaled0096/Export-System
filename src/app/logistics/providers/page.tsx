@@ -4,13 +4,19 @@ import { requirePermission } from "@/lib/permissions";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
 import ServiceProviderForm from "./ServiceProviderForm";
 import { serviceProviderTypeLabel, serviceProviderStatusLabel, serviceProviderStatusStyle } from "@/lib/logisticsLabels";
+import { PAGE_SIZE, parsePage } from "@/lib/pagination";
+import Pagination from "@/components/Pagination";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export const dynamic = "force-dynamic";
 
-export default async function ServiceProvidersPage() {
+export default async function ServiceProvidersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   const user = await requireCurrentUser();
 
   try {
@@ -26,7 +32,16 @@ export default async function ServiceProvidersPage() {
   }
 
   const prisma = await getScopedPrisma();
-  const providers = await prisma.serviceProvider.findMany({ where: { orgId: user.orgId }, orderBy: { createdAt: "desc" } });
+  const page = parsePage((await searchParams).page);
+  const where = { orgId: user.orgId };
+  const providers = await prisma.serviceProvider.findMany({
+    where,
+    orderBy: { createdAt: "desc" },
+    skip: (page - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
+  });
+  const total = await prisma.serviceProvider.count({ where });
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-10">
@@ -34,7 +49,7 @@ export default async function ServiceProvidersPage() {
 
       <div className="mt-3">
         <h1 className="text-2xl font-semibold text-foreground">مزوّدو الخدمة</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{providers.length} مزوّد مسجّل</p>
+        <p className="mt-1 text-sm text-muted-foreground">{total} مزوّد مسجّل</p>
       </div>
 
       <div className="mt-6">
@@ -75,6 +90,7 @@ export default async function ServiceProvidersPage() {
           </TableBody>
         </Table>
       </div>
+      <Pagination currentPage={page} totalPages={totalPages} basePath="/logistics/providers" />
     </main>
   );
 }

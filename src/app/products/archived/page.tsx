@@ -3,6 +3,8 @@ import { getScopedPrisma } from "@/lib/scoped-prisma";
 import { requireCurrentUser } from "@/lib/session";
 import { requirePermission } from "@/lib/permissions";
 import { restoreProduct } from "../actions";
+import { PAGE_SIZE, parsePage } from "@/lib/pagination";
+import Pagination from "@/components/Pagination";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -15,7 +17,11 @@ import {
 
 export const dynamic = "force-dynamic";
 
-export default async function ArchivedProductsPage() {
+export default async function ArchivedProductsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   const user = await requireCurrentUser();
 
   // ⚠️ القائمة الرئيسية (/products) بقى فيها فحص Product.View (مراجعة وحدة 1 السابقة)، لكن
@@ -34,18 +40,24 @@ export default async function ArchivedProductsPage() {
 
   const orgId = user.orgId;
   const prisma = await getScopedPrisma();
+  const page = parsePage((await searchParams).page);
+  const where = { orgId, deletedAt: { not: null } };
 
   const products = await prisma.product.findMany({
-    where: { orgId, deletedAt: { not: null } },
+    where,
     orderBy: { deletedAt: "desc" },
+    skip: (page - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
   });
+  const total = await prisma.product.count({ where });
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-10">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">المنتجات المؤرشفة</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{products.length} منتج مؤرشف</p>
+          <p className="mt-1 text-sm text-muted-foreground">{total} منتج مؤرشف</p>
         </div>
         <Button nativeButton={false} variant="outline" render={<Link href="/products">← رجوع للمنتجات</Link>} />
       </div>
@@ -91,6 +103,7 @@ export default async function ArchivedProductsPage() {
           </Table>
         </div>
       )}
+      <Pagination currentPage={page} totalPages={totalPages} basePath="/products/archived" />
     </main>
   );
 }

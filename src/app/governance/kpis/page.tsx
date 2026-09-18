@@ -4,10 +4,17 @@ import { getScopedPrisma } from "@/lib/scoped-prisma";
 import KpiForm, { type UserOption, type PeriodOption } from "./KpiForm";
 import KpiEditControl from "./KpiEditControl";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { PAGE_SIZE, parsePage } from "@/lib/pagination";
+import Pagination from "@/components/Pagination";
 
 export const dynamic = "force-dynamic";
 
-export default async function KpisPage() {
+export default async function KpisPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const page = parsePage((await searchParams).page);
   const user = await requireCurrentUser();
 
   try {
@@ -26,11 +33,16 @@ export default async function KpisPage() {
   const prisma = await getScopedPrisma();
 
   // ⚠️ مش Promise.all — راجع BACKLOG.md (P2028).
+  const kpiWhere = { orgId };
   const kpis = await prisma.kPI.findMany({
-    where: { orgId },
+    where: kpiWhere,
     orderBy: { createdAt: "desc" },
     include: { owner: { select: { fullName: true } }, period: { select: { periodName: true } } },
+    skip: (page - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
   });
+  const total = await prisma.kPI.count({ where: kpiWhere });
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const periods = await prisma.accountingPeriod.findMany({ where: { orgId }, orderBy: { startDate: "desc" }, select: { id: true, periodName: true } });
   const users = await prisma.user.findMany({ where: { orgId }, select: { id: true, fullName: true }, orderBy: { fullName: "asc" } });
 
@@ -41,7 +53,7 @@ export default async function KpisPage() {
     <main className="mx-auto max-w-6xl px-6 py-10">
       <div>
         <h1 className="text-2xl font-semibold text-foreground">مؤشرات الأداء</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{kpis.length} مؤشر</p>
+        <p className="mt-1 text-sm text-muted-foreground">{total} مؤشر</p>
       </div>
 
       <div className="mt-6">
@@ -100,6 +112,7 @@ export default async function KpisPage() {
           </TableBody>
         </Table>
       </div>
+      <Pagination currentPage={page} totalPages={totalPages} basePath="/governance/kpis" />
     </main>
   );
 }

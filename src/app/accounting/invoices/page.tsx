@@ -6,10 +6,16 @@ import InvoiceForm, { type InvoiceFormOption } from "./InvoiceForm";
 import { invoiceStatusLabel, invoiceStatusStyle, invoiceTypeLabel, isInvoiceOverdue } from "@/lib/arapLabels";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { PAGE_SIZE, parsePage } from "@/lib/pagination";
+import Pagination from "@/components/Pagination";
 
 export const dynamic = "force-dynamic";
 
-export default async function InvoicesPage() {
+export default async function InvoicesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   const user = await requireCurrentUser();
 
   try {
@@ -26,13 +32,19 @@ export default async function InvoicesPage() {
 
   const orgId = user.orgId;
   const prisma = await getScopedPrisma();
+  const page = parsePage((await searchParams).page);
 
   // ⚠️ مش Promise.all — راجع BACKLOG.md (P2028).
+  const invoicesWhere = { orgId };
   const invoices = await prisma.invoice.findMany({
-    where: { orgId },
+    where: invoicesWhere,
     orderBy: { issueDate: "desc" },
     include: { company: { select: { legalName: true } }, supplier: { select: { legalName: true } } },
+    skip: (page - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
   });
+  const totalInvoices = await prisma.invoice.count({ where: invoicesWhere });
+  const totalPages = Math.max(1, Math.ceil(totalInvoices / PAGE_SIZE));
   const salesOrders = await prisma.salesOrder.findMany({
     where: { orgId, status: { not: "Cancelled" } },
     orderBy: { soNumber: "desc" },
@@ -77,7 +89,7 @@ export default async function InvoicesPage() {
       <div className="flex items-baseline justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">الفواتير</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{invoices.length} فاتورة</p>
+          <p className="mt-1 text-sm text-muted-foreground">{totalInvoices} فاتورة</p>
         </div>
         <Link href="/accounting/receivables" className="text-sm text-primary hover:underline">
           تقرير أعمار الديون ←
@@ -136,6 +148,7 @@ export default async function InvoicesPage() {
           </TableBody>
         </Table>
       </div>
+      <Pagination currentPage={page} totalPages={totalPages} basePath="/accounting/invoices" extraParams={{}} />
     </main>
   );
 }

@@ -6,10 +6,16 @@ import FixedAssetForm, { type CostCenterOption } from "./FixedAssetForm";
 import { fixedAssetCategoryLabel, fixedAssetStatusLabel, fixedAssetStatusStyle } from "@/lib/treasuryLabels";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { PAGE_SIZE, parsePage } from "@/lib/pagination";
+import Pagination from "@/components/Pagination";
 
 export const dynamic = "force-dynamic";
 
-export default async function FixedAssetsPage() {
+export default async function FixedAssetsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   const user = await requireCurrentUser();
 
   try {
@@ -26,13 +32,19 @@ export default async function FixedAssetsPage() {
 
   const orgId = user.orgId;
   const prisma = await getScopedPrisma();
+  const page = parsePage((await searchParams).page);
+  const where = { orgId };
 
   // ⚠️ مش Promise.all — راجع BACKLOG.md (P2028).
   const assets = await prisma.fixedAsset.findMany({
-    where: { orgId },
+    where,
     orderBy: { purchaseDate: "desc" },
     include: { costCenter: { select: { name: true } } },
+    skip: (page - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
   });
+  const total = await prisma.fixedAsset.count({ where });
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const costCenters = await prisma.costCenter.findMany({ where: { orgId }, orderBy: { code: "asc" }, select: { id: true, code: true, name: true } });
   const org = await prisma.organization.findUniqueOrThrow({ where: { id: orgId }, select: { functionalCurrency: true } });
 
@@ -43,7 +55,7 @@ export default async function FixedAssetsPage() {
       <div className="flex items-baseline justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">الأصول الثابتة</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{assets.length} أصل</p>
+          <p className="mt-1 text-sm text-muted-foreground">{total} أصل</p>
         </div>
         <Link href="/accounting/depreciation" className="text-sm text-primary hover:underline">
           تشغيل الإهلاك الدوري ←
@@ -100,6 +112,7 @@ export default async function FixedAssetsPage() {
           </TableBody>
         </Table>
       </div>
+      <Pagination currentPage={page} totalPages={totalPages} basePath="/accounting/fixed-assets" />
     </main>
   );
 }

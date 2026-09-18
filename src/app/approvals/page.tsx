@@ -3,6 +3,8 @@ import { requirePermission } from "@/lib/permissions";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
 import { getCurrentOrgId } from "@/lib/org";
 import DecisionForm from "./DecisionForm";
+import { PAGE_SIZE, parsePage } from "@/lib/pagination";
+import Pagination from "@/components/Pagination";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +31,11 @@ type PurchaseOrderOverridePayload = {
   maximumPurchasePrice: string;
 };
 
-export default async function ApprovalsPage() {
+export default async function ApprovalsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   const user = await requireCurrentUser();
 
   try {
@@ -46,13 +52,18 @@ export default async function ApprovalsPage() {
 
   const orgId = await getCurrentOrgId();
   const prisma = await getScopedPrisma();
+  const page = parsePage((await searchParams).page);
   // ⚠️ مش Promise.all — كل استعلام من getScopedPrisma() بيفتح transaction لوحده (لازمة RLS)،
   // والتنفيذ بالتوازي بيتزاحم على اتصال الـpool ويفشل بـP2028. راجع BACKLOG.md.
   const pending = await prisma.approval.findMany({
     where: { orgId, decision: "Pending" },
     include: { requestedByUser: true },
     orderBy: { createdAt: "asc" },
+    skip: (page - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
   });
+  const totalPending = await prisma.approval.count({ where: { orgId, decision: "Pending" } });
+  const totalPendingPages = Math.max(1, Math.ceil(totalPending / PAGE_SIZE));
   const decided = await prisma.approval.findMany({
     where: { orgId, decision: { in: ["Approved", "Rejected"] } },
     include: { requestedByUser: true, decidedByUser: true },
@@ -69,7 +80,7 @@ export default async function ApprovalsPage() {
       </p>
 
       <section className="mt-8">
-        <h2 className="text-lg font-medium text-neutral-900">قيد الانتظار ({pending.length})</h2>
+        <h2 className="text-lg font-medium text-neutral-900">قيد الانتظار ({totalPending})</h2>
         {pending.length === 0 ? (
           <p className="mt-3 text-sm text-neutral-500">لا يوجد طلبات معلّقة.</p>
         ) : (
@@ -114,6 +125,7 @@ export default async function ApprovalsPage() {
             })}
           </div>
         )}
+        <Pagination currentPage={page} totalPages={totalPendingPages} basePath="/approvals" extraParams={{}} />
       </section>
 
       {decided.length > 0 && (

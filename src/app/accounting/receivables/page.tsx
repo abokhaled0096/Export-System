@@ -5,6 +5,8 @@ import { requirePermission } from "@/lib/permissions";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
 import { daysOverdue } from "@/lib/arapLabels";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { PAGE_SIZE, parsePage } from "@/lib/pagination";
+import Pagination from "@/components/Pagination";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +34,11 @@ function emptyBuckets(): Record<BucketKey, Prisma.Decimal> {
   return { current: new Prisma.Decimal(0), b1: new Prisma.Decimal(0), b2: new Prisma.Decimal(0), b3: new Prisma.Decimal(0), b4: new Prisma.Decimal(0) };
 }
 
-export default async function ReceivablesPage() {
+export default async function ReceivablesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   const user = await requireCurrentUser();
 
   try {
@@ -48,6 +54,7 @@ export default async function ReceivablesPage() {
   }
 
   const prisma = await getScopedPrisma();
+  const page = parsePage((await searchParams).page);
   // المتبقي = totalAmount − amountPaid، و`amountPaid` عمود مصان بـTrigger من الدفعات المحصّلة بس،
   // فالتقرير ده مبني على رقم مضمون مش على تجميعة لحظية ممكن تنحرف.
   const invoices = await prisma.invoice.findMany({
@@ -83,6 +90,12 @@ export default async function ReceivablesPage() {
 
   const rows = [...byCustomer.values()].sort((a, b) => b.total.comparedTo(a.total));
   const overdueTotal = grandTotal.sub(grand.current);
+
+  // الترقيم هنا على صفوف العملاء المُجمَّعة (rows) مش على استعلام الفواتير نفسه —
+  // لازم كل فواتير العميل المفتوحة تتحسب مع بعض عشان أرقام الشرائح والإجمالي تبقى صحيحة،
+  // فمينفعش نعمل skip/take على invoices.findMany من غير ما نكسر التجميع.
+  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const pagedRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-10">
@@ -133,7 +146,7 @@ export default async function ReceivablesPage() {
               </TableRow>
             ) : (
               <>
-                {rows.map((r) => (
+                {pagedRows.map((r) => (
                   <TableRow key={r.name}>
                     <TableCell className="text-foreground">{r.name}</TableCell>
                     {BUCKETS.map((b) => (
@@ -158,6 +171,7 @@ export default async function ReceivablesPage() {
           </TableBody>
         </Table>
       </div>
+      <Pagination currentPage={page} totalPages={totalPages} basePath="/accounting/receivables" extraParams={{}} />
 
       <p className="mt-3 text-xs text-muted-foreground">
         الشرائح محسوبة من تاريخ الاستحقاق وقت العرض — مفيش حالة &quot;متأخرة&quot; مخزَّنة في القاعدة عشان متبقاش قديمة.

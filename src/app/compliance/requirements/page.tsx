@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import ProductMarketFilterForm from "./ProductMarketFilterForm";
+import { PAGE_SIZE, parsePage } from "@/lib/pagination";
+import Pagination from "@/components/Pagination";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +20,7 @@ export const dynamic = "force-dynamic";
 export default async function ComplianceRequirementsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ productId?: string; marketId?: string }>;
+  searchParams: Promise<{ productId?: string; marketId?: string; page?: string }>;
 }) {
   const user = await requireCurrentUser();
 
@@ -35,19 +37,26 @@ export default async function ComplianceRequirementsPage({
   }
 
   const { productId, marketId } = await searchParams;
+  const page = parsePage((await searchParams).page);
   const orgId = user.orgId;
   const prisma = await getScopedPrisma();
 
   const products = await prisma.product.findMany({ where: { orgId, deletedAt: null }, orderBy: { nameAr: "asc" } });
   const markets = await prisma.market.findMany({ where: { orgId, deletedAt: null }, orderBy: { countryNameAr: "asc" } });
 
+  const requirementsWhere = { orgId, productId: productId as string, marketId: marketId as string, complianceCaseId: null };
   const requirements =
     productId && marketId
       ? await prisma.requirement.findMany({
-          where: { orgId, productId, marketId, complianceCaseId: null },
+          where: requirementsWhere,
           orderBy: { createdAt: "desc" },
+          skip: (page - 1) * PAGE_SIZE,
+          take: PAGE_SIZE,
         })
       : [];
+  const total =
+    productId && marketId ? await prisma.requirement.count({ where: requirementsWhere }) : 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-10">
@@ -111,6 +120,14 @@ export default async function ComplianceRequirementsPage({
             </TableBody>
           </Table>
         </div>
+      )}
+      {productId && marketId && (
+        <Pagination
+          currentPage={page}
+          totalPages={totalPages}
+          basePath="/compliance/requirements"
+          extraParams={{ productId, marketId }}
+        />
       )}
     </main>
   );

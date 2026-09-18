@@ -6,10 +6,24 @@ import RoleSelectForm from "./RoleSelectForm";
 import CreateUserForm from "./CreateUserForm";
 import ResetPasswordForm from "./ResetPasswordForm";
 import ToggleActiveForm from "./ToggleActiveForm";
+import { PAGE_SIZE, parsePage } from "@/lib/pagination";
+import Pagination from "@/components/Pagination";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminUsersPage() {
+export default async function AdminUsersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   const user = await requireCurrentUser();
 
   try {
@@ -26,8 +40,17 @@ export default async function AdminUsersPage() {
 
   const orgId = await getCurrentOrgId();
   const prisma = await getScopedPrisma();
+  const page = parsePage((await searchParams).page);
   // ⚠️ مش Promise.all — راجع BACKLOG.md (P2028).
-  const users = await prisma.user.findMany({ where: { orgId }, include: { role: true }, orderBy: { fullName: "asc" } });
+  const users = await prisma.user.findMany({
+    where: { orgId },
+    include: { role: true },
+    orderBy: { fullName: "asc" },
+    skip: (page - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
+  });
+  const total = await prisma.user.count({ where: { orgId } });
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const roles = await prisma.role.findMany({ where: { orgId }, orderBy: { name: "asc" } });
 
   return (
@@ -42,44 +65,45 @@ export default async function AdminUsersPage() {
       </div>
 
       <div className="mt-4 overflow-x-auto rounded-xl border border-neutral-200 bg-white">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-neutral-200 bg-neutral-50 text-right text-xs uppercase tracking-wide text-neutral-500">
-              <th className="px-4 py-3 font-medium">الاسم</th>
-              <th className="px-4 py-3 font-medium">البريد</th>
-              <th className="px-4 py-3 font-medium">الدور</th>
-              <th className="px-4 py-3 font-medium">كلمة السر</th>
-              <th className="px-4 py-3 font-medium">الحالة</th>
-            </tr>
-          </thead>
-          <tbody>
+        <Table className="w-full text-sm">
+          <TableHeader>
+            <TableRow className="border-b border-neutral-200 bg-neutral-50 text-right text-xs uppercase tracking-wide text-neutral-500 hover:bg-neutral-50">
+              <TableHead className="px-4 py-3 font-medium">الاسم</TableHead>
+              <TableHead className="px-4 py-3 font-medium">البريد</TableHead>
+              <TableHead className="px-4 py-3 font-medium">الدور</TableHead>
+              <TableHead className="px-4 py-3 font-medium">كلمة السر</TableHead>
+              <TableHead className="px-4 py-3 font-medium">الحالة</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {users.map((u) => (
-              <tr key={u.id} className="border-b border-neutral-100 last:border-0">
-                <td className="px-4 py-3 font-medium text-neutral-900">{u.fullName}</td>
-                <td className="px-4 py-3 text-neutral-600">{u.email}</td>
-                <td className="px-4 py-3">
+              <TableRow key={u.id} className="border-b border-neutral-100 last:border-0">
+                <TableCell className="px-4 py-3 font-medium text-neutral-900">{u.fullName}</TableCell>
+                <TableCell className="px-4 py-3 text-neutral-600">{u.email}</TableCell>
+                <TableCell className="px-4 py-3">
                   <RoleSelectForm
                     userId={u.id}
                     currentRoleId={u.roleId}
                     roles={roles.map((r) => ({ id: r.id, name: r.name }))}
                     isSelf={u.id === user.id}
                   />
-                </td>
-                <td className="px-4 py-3">
+                </TableCell>
+                <TableCell className="px-4 py-3">
                   <ResetPasswordForm userId={u.id} />
-                </td>
-                <td className="px-4 py-3">
+                </TableCell>
+                <TableCell className="px-4 py-3">
                   {u.id === user.id ? (
                     <span className="text-xs text-amber-600">ده حسابك</span>
                   ) : (
                     <ToggleActiveForm userId={u.id} isActive={u.isActive} />
                   )}
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
+      <Pagination currentPage={page} totalPages={totalPages} basePath="/admin/users" extraParams={{}} />
     </main>
   );
 }

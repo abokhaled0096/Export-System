@@ -5,10 +5,17 @@ import WorkflowDefinitionForm from "./WorkflowDefinitionForm";
 import DeleteWorkflowDefinitionButton from "./DeleteWorkflowDefinitionButton";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { PAGE_SIZE, parsePage } from "@/lib/pagination";
+import Pagination from "@/components/Pagination";
 
 export const dynamic = "force-dynamic";
 
-export default async function WorkflowDefinitionsPage() {
+export default async function WorkflowDefinitionsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const page = parsePage((await searchParams).page);
   const user = await requireCurrentUser();
 
   try {
@@ -26,11 +33,16 @@ export default async function WorkflowDefinitionsPage() {
   const prisma = await getScopedPrisma();
   // ⚠️ مش Promise.all — راجع BACKLOG.md (P2028: كل استعلام من getScopedPrisma() بيفتح
   // transaction لوحده، والتنفيذ بالتوازي بيتزاحم على اتصال الـpool).
+  const workflowDefinitionWhere = { orgId: user.orgId };
   const definitions = await prisma.workflowDefinition.findMany({
-    where: { orgId: user.orgId },
+    where: workflowDefinitionWhere,
     include: { requiredApprovalPolicy: { select: { subjectType: true } } },
     orderBy: [{ entityType: "asc" }, { fromStage: "asc" }],
+    skip: (page - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
   });
+  const total = await prisma.workflowDefinition.count({ where: workflowDefinitionWhere });
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const approvalPolicies = await prisma.approvalPolicy.findMany({
     where: { orgId: user.orgId },
     orderBy: { subjectType: "asc" },
@@ -41,7 +53,7 @@ export default async function WorkflowDefinitionsPage() {
     <main className="mx-auto max-w-4xl px-6 py-10">
       <div>
         <h1 className="text-2xl font-semibold text-foreground">انتقالات المراحل المسموحة</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{definitions.length} انتقال مسموح</p>
+        <p className="mt-1 text-sm text-muted-foreground">{total} انتقال مسموح</p>
       </div>
 
       <div className="mt-6">
@@ -88,6 +100,7 @@ export default async function WorkflowDefinitionsPage() {
           </TableBody>
         </Table>
       </div>
+      <Pagination currentPage={page} totalPages={totalPages} basePath="/governance/workflow-definitions" />
       <p className="mt-3 text-xs text-muted-foreground">
         الكيانات المربوطة فعليًا بالمحرك دلوقتي: Opportunity، CAPA، Product، Requirement، Gate، OriginProof، Milestone، LogisticsException، Claim، AccountingPeriod، وRiskRegisterItem (راجع updateOpportunityStageAction/updateCAPAStatusAction/updateProduct/updateRequirementStatus/decideGate/updateOriginProofAction/updateMilestone/updateLogisticsExceptionStatus/updateClaimStatus/advanceAccountingPeriodStatus/updateRiskStatusAction). القيود الحرجة الحقيقية (RFQAnalysis قبل QuoteSent، verifiedBy قبل إقفال CAPA، متطلبات حاجبة/PEM/مهلة ACI قبل عبور بوابة) لسه مفروضة على مستوى القاعدة (Trigger) بغض النظر عن الجدول ده.
       </p>

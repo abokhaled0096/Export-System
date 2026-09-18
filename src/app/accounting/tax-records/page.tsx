@@ -11,10 +11,16 @@ import TaxRecordEditCell from "./TaxRecordEditCell";
 import { taxTypeLabel, taxFilingStatusLabel, taxFilingStatusStyle, isGlBackedTax } from "@/lib/treasuryLabels";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { PAGE_SIZE, parsePage } from "@/lib/pagination";
+import Pagination from "@/components/Pagination";
 
 export const dynamic = "force-dynamic";
 
-export default async function TaxRecordsPage() {
+export default async function TaxRecordsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   const user = await requireCurrentUser();
 
   try {
@@ -31,6 +37,7 @@ export default async function TaxRecordsPage() {
 
   const orgId = user.orgId;
   const prisma = await getScopedPrisma();
+  const page = parsePage((await searchParams).page);
 
   // ⚠️ مش Promise.all — راجع BACKLOG.md (P2028).
   const openPeriods = await prisma.accountingPeriod.findMany({
@@ -62,11 +69,16 @@ export default async function TaxRecordsPage() {
   }
   const netPayable = vatOutputBalance.sub(vatInputBalance);
 
+  const recordsWhere = { orgId };
   const records = await prisma.taxRecord.findMany({
-    where: { orgId },
+    where: recordsWhere,
     orderBy: [{ period: { startDate: "desc" } }],
     include: { period: { select: { periodName: true } } },
+    skip: (page - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
   });
+  const totalRecords = await prisma.taxRecord.count({ where: recordsWhere });
+  const totalPages = Math.max(1, Math.ceil(totalRecords / PAGE_SIZE));
   const org = await prisma.organization.findUniqueOrThrow({ where: { id: orgId }, select: { functionalCurrency: true } });
   const periods = await prisma.accountingPeriod.findMany({ where: { orgId }, orderBy: { startDate: "desc" }, select: { id: true, periodName: true } });
   const bankAccounts = await prisma.bankAccount.findMany({
@@ -85,7 +97,7 @@ export default async function TaxRecordsPage() {
           التقرير الضريبي التجميعي ←
         </Link>
       </div>
-      <p className="mt-1 text-sm text-muted-foreground">{records.length} إقرار مسجّل</p>
+      <p className="mt-1 text-sm text-muted-foreground">{totalRecords} إقرار مسجّل</p>
 
       {currentPeriod ? (
         <div className="mt-6 grid gap-4 rounded-xl border border-border bg-card p-5 sm:grid-cols-3">
@@ -188,6 +200,7 @@ export default async function TaxRecordsPage() {
           </TableBody>
         </Table>
       </div>
+      <Pagination currentPage={page} totalPages={totalPages} basePath="/accounting/tax-records" extraParams={{}} />
     </main>
   );
 }

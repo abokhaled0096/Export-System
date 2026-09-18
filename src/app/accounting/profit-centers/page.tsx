@@ -5,10 +5,16 @@ import ProfitCenterForm from "./ProfitCenterForm";
 import ProfitCenterEditControl from "./ProfitCenterEditControl";
 import { profitCenterScopeLabel } from "@/lib/accountingLabels";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { PAGE_SIZE, parsePage } from "@/lib/pagination";
+import Pagination from "@/components/Pagination";
 
 export const dynamic = "force-dynamic";
 
-export default async function ProfitCentersPage() {
+export default async function ProfitCentersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   const user = await requireCurrentUser();
 
   try {
@@ -25,13 +31,22 @@ export default async function ProfitCentersPage() {
 
   const orgId = user.orgId;
   const prisma = await getScopedPrisma();
-  const records = await prisma.profitCenter.findMany({ where: { orgId }, orderBy: { code: "asc" } });
+  const page = parsePage((await searchParams).page);
+  const where = { orgId };
+  const records = await prisma.profitCenter.findMany({
+    where,
+    orderBy: { code: "asc" },
+    skip: (page - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
+  });
+  const total = await prisma.profitCenter.count({ where });
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-10">
       <div>
         <h1 className="text-2xl font-semibold text-foreground">مراكز الربحية</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{records.length} مركز مسجّل</p>
+        <p className="mt-1 text-sm text-muted-foreground">{total} مركز مسجّل</p>
       </div>
 
       <div className="mt-6">
@@ -70,6 +85,7 @@ export default async function ProfitCentersPage() {
           </TableBody>
         </Table>
       </div>
+      <Pagination currentPage={page} totalPages={totalPages} basePath="/accounting/profit-centers" />
     </main>
   );
 }

@@ -7,6 +7,8 @@ import DecisionButtons from "./DecisionButtons";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ENTITY_LINK_BASE, entityTypeLabel } from "@/lib/changeRequestLabels";
+import { PAGE_SIZE, parsePage } from "@/lib/pagination";
+import Pagination from "@/components/Pagination";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +19,12 @@ const STATUS_STYLE: Record<string, string> = {
   Rejected: "bg-rose-100 text-rose-700 hover:bg-rose-100",
 };
 
-export default async function ChangeRequestsPage() {
+export default async function ChangeRequestsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const page = parsePage((await searchParams).page);
   const user = await requireCurrentUser();
 
   try {
@@ -42,17 +49,22 @@ export default async function ChangeRequestsPage() {
     canDecide = false;
   }
 
+  const changeRequestWhere = { orgId };
   const requests = await prisma.masterDataChangeRequest.findMany({
-    where: { orgId },
+    where: changeRequestWhere,
     orderBy: { createdAt: "desc" },
     include: { requestedByUser: { select: { fullName: true } }, approvedByUser: { select: { fullName: true } } },
+    skip: (page - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
   });
+  const total = await prisma.masterDataChangeRequest.count({ where: changeRequestWhere });
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-10">
       <div>
         <h1 className="text-2xl font-semibold text-foreground">طلبات تعديل البيانات الأساسية</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{requests.length} طلب</p>
+        <p className="mt-1 text-sm text-muted-foreground">{total} طلب</p>
       </div>
 
       <div className="mt-6">
@@ -107,6 +119,7 @@ export default async function ChangeRequestsPage() {
           </TableBody>
         </Table>
       </div>
+      <Pagination currentPage={page} totalPages={totalPages} basePath="/governance/change-requests" />
     </main>
   );
 }

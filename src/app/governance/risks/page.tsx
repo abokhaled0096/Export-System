@@ -5,6 +5,8 @@ import RiskForm, { type UserOption } from "./RiskForm";
 import StatusButtons from "./StatusButtons";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { PAGE_SIZE, parsePage } from "@/lib/pagination";
+import Pagination from "@/components/Pagination";
 
 export const dynamic = "force-dynamic";
 
@@ -15,8 +17,9 @@ const STATUS_STYLE: Record<string, string> = {
   Closed: "bg-emerald-100 text-emerald-700 hover:bg-emerald-100",
 };
 
-export default async function RisksPage({ searchParams }: { searchParams: Promise<{ title?: string; category?: string }> }) {
+export default async function RisksPage({ searchParams }: { searchParams: Promise<{ title?: string; category?: string; page?: string }> }) {
   const { title, category } = await searchParams;
+  const page = parsePage((await searchParams).page);
   const user = await requireCurrentUser();
 
   try {
@@ -35,11 +38,16 @@ export default async function RisksPage({ searchParams }: { searchParams: Promis
   const prisma = await getScopedPrisma();
 
   // ⚠️ مش Promise.all — راجع BACKLOG.md (P2028).
+  const riskWhere = { orgId };
   const risks = await prisma.riskRegisterItem.findMany({
-    where: { orgId },
+    where: riskWhere,
     orderBy: [{ status: "asc" }, { financialImpact: "desc" }],
     include: { owner: { select: { fullName: true } } },
+    skip: (page - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
   });
+  const total = await prisma.riskRegisterItem.count({ where: riskWhere });
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const users = await prisma.user.findMany({ where: { orgId }, select: { id: true, fullName: true }, orderBy: { fullName: "asc" } });
   const userOptions: UserOption[] = users.map((u) => ({ id: u.id, label: u.fullName }));
 
@@ -47,7 +55,7 @@ export default async function RisksPage({ searchParams }: { searchParams: Promis
     <main className="mx-auto max-w-6xl px-6 py-10">
       <div>
         <h1 className="text-2xl font-semibold text-foreground">سجل المخاطر</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{risks.length} خطر مسجّل</p>
+        <p className="mt-1 text-sm text-muted-foreground">{total} خطر مسجّل</p>
       </div>
 
       <div className="mt-6">
@@ -96,6 +104,7 @@ export default async function RisksPage({ searchParams }: { searchParams: Promis
           </TableBody>
         </Table>
       </div>
+      <Pagination currentPage={page} totalPages={totalPages} basePath="/governance/risks" extraParams={{ title, category }} />
     </main>
   );
 }

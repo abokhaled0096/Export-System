@@ -3,6 +3,8 @@ import { getScopedPrisma } from "@/lib/scoped-prisma";
 import { requireCurrentUser } from "@/lib/session";
 import { getPermissionScope, ownerScopeWhere } from "@/lib/permissions";
 import { restoreOpportunity } from "../actions";
+import { PAGE_SIZE, parsePage } from "@/lib/pagination";
+import Pagination from "@/components/Pagination";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -15,27 +17,37 @@ import {
 
 export const dynamic = "force-dynamic";
 
-export default async function ArchivedOpportunitiesPage() {
+export default async function ArchivedOpportunitiesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   const user = await requireCurrentUser();
   const orgId = user.orgId;
   const prisma = await getScopedPrisma();
+  const page = parsePage((await searchParams).page);
 
   // نفس فلترة Own/Team scope المستخدمة في /opportunities — راجع BACKLOG.md.
   const scope = await getPermissionScope(user.roleId, "Opportunity", "View");
   const ownerFilter = await ownerScopeWhere(scope, user);
+  const where = { orgId, deletedAt: { not: null }, ...ownerFilter };
 
   const opportunities = await prisma.opportunity.findMany({
-    where: { orgId, deletedAt: { not: null }, ...ownerFilter },
+    where,
     include: { company: true, product: true, market: true },
     orderBy: { deletedAt: "desc" },
+    skip: (page - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
   });
+  const total = await prisma.opportunity.count({ where });
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-10">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">الفرص المؤرشفة</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{opportunities.length} فرصة مؤرشفة</p>
+          <p className="mt-1 text-sm text-muted-foreground">{total} فرصة مؤرشفة</p>
         </div>
         <Button nativeButton={false} variant="outline" render={<Link href="/opportunities">← رجوع للفرص</Link>} />
       </div>
@@ -78,6 +90,7 @@ export default async function ArchivedOpportunitiesPage() {
           </Table>
         </div>
       )}
+      <Pagination currentPage={page} totalPages={totalPages} basePath="/opportunities/archived" />
     </main>
   );
 }

@@ -14,10 +14,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { PAGE_SIZE, parsePage } from "@/lib/pagination";
+import Pagination from "@/components/Pagination";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminTeamsPage() {
+export default async function AdminTeamsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   const user = await requireCurrentUser();
 
   try {
@@ -34,6 +40,7 @@ export default async function AdminTeamsPage() {
 
   const orgId = await getCurrentOrgId();
   const prisma = await getScopedPrisma();
+  const page = parsePage((await searchParams).page);
   // ⚠️ مش Promise.all — راجع BACKLOG.md (P2028).
   const departments = await prisma.department.findMany({ where: { orgId }, orderBy: { name: "asc" } });
   const teams = await prisma.team.findMany({
@@ -41,7 +48,17 @@ export default async function AdminTeamsPage() {
     include: { department: true, manager: true, _count: { select: { members: true } } },
     orderBy: { name: "asc" },
   });
-  const users = await prisma.user.findMany({ where: { orgId }, orderBy: { fullName: "asc" } });
+  // allUsers: قايمة كاملة بلا صفحات — لازمة لـTeamForm (اختيار مدير الفريق) بلا نقص.
+  const allUsers = await prisma.user.findMany({ where: { orgId }, orderBy: { fullName: "asc" } });
+  // users: نفس القايمة لكن بصفحات — دي المعروضة في جدول "تعيين المستخدمين للفرق" تحت.
+  const users = await prisma.user.findMany({
+    where: { orgId },
+    orderBy: { fullName: "asc" },
+    skip: (page - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
+  });
+  const total = await prisma.user.count({ where: { orgId } });
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const teamOptions = teams.map((t) => ({ id: t.id, label: t.name }));
 
@@ -83,7 +100,7 @@ export default async function AdminTeamsPage() {
             <TeamForm
               key={departments.map((d) => d.id).join(",")}
               departments={departments.map((d) => ({ id: d.id, label: d.name }))}
-              users={users.map((u) => ({ id: u.id, label: u.fullName }))}
+              users={allUsers.map((u) => ({ id: u.id, label: u.fullName }))}
             />
           </div>
         )}
@@ -119,37 +136,40 @@ export default async function AdminTeamsPage() {
         {teams.length === 0 ? (
           <p className="mt-2 text-sm text-muted-foreground">محتاج تعمل فريق الأول.</p>
         ) : (
-          <div className="mt-3 overflow-x-auto rounded-xl border border-border bg-card">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>الاسم</TableHead>
-                  <TableHead>البريد</TableHead>
-                  <TableHead>الفريق</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {users.map((u) => (
-                  <TableRow key={u.id}>
-                    <TableCell className="font-medium text-foreground">{u.fullName}</TableCell>
-                    <TableCell className="text-foreground/80">{u.email}</TableCell>
-                    <TableCell>
-                      {/* key فيه teamId عمدًا — بعد الحفظ الناجح والـrevalidate، currentTeamId بيتغيّر
-                          على نفس نسخة المكوّن (نفس u.id)، وBase UI بيحذّر لو defaultValue اتغيّر
-                          على Select غير متحكَّم فيه بعد أول render. الـkey ده بيجبر React يعمل remount
-                          نضيف بدل ما يمرّر defaultValue جديدة لنفس النسخة. */}
-                      <TeamAssignForm
-                        key={`${u.id}:${u.teamId ?? "none"}`}
-                        userId={u.id}
-                        currentTeamId={u.teamId}
-                        teams={teamOptions}
-                      />
-                    </TableCell>
+          <>
+            <div className="mt-3 overflow-x-auto rounded-xl border border-border bg-card">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>الاسم</TableHead>
+                    <TableHead>البريد</TableHead>
+                    <TableHead>الفريق</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+                </TableHeader>
+                <TableBody>
+                  {users.map((u) => (
+                    <TableRow key={u.id}>
+                      <TableCell className="font-medium text-foreground">{u.fullName}</TableCell>
+                      <TableCell className="text-foreground/80">{u.email}</TableCell>
+                      <TableCell>
+                        {/* key فيه teamId عمدًا — بعد الحفظ الناجح والـrevalidate، currentTeamId بيتغيّر
+                            على نفس نسخة المكوّن (نفس u.id)، وBase UI بيحذّر لو defaultValue اتغيّر
+                            على Select غير متحكَّم فيه بعد أول render. الـkey ده بيجبر React يعمل remount
+                            نضيف بدل ما يمرّر defaultValue جديدة لنفس النسخة. */}
+                        <TeamAssignForm
+                          key={`${u.id}:${u.teamId ?? "none"}`}
+                          userId={u.id}
+                          currentTeamId={u.teamId}
+                          teams={teamOptions}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            <Pagination currentPage={page} totalPages={totalPages} basePath="/admin/teams" extraParams={{}} />
+          </>
         )}
       </section>
     </main>

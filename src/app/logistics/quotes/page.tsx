@@ -4,13 +4,19 @@ import { requirePermission } from "@/lib/permissions";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
 import FreightQuoteForm from "./FreightQuoteForm";
 import { freightQuoteStatusLabel, freightQuoteStatusStyle } from "@/lib/logisticsLabels";
+import { PAGE_SIZE, parsePage } from "@/lib/pagination";
+import Pagination from "@/components/Pagination";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export const dynamic = "force-dynamic";
 
-export default async function FreightQuotesPage() {
+export default async function FreightQuotesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   const user = await requireCurrentUser();
 
   try {
@@ -26,12 +32,18 @@ export default async function FreightQuotesPage() {
   }
 
   const prisma = await getScopedPrisma();
+  const page = parsePage((await searchParams).page);
+  const where = { orgId: user.orgId };
   // ⚠️ مش Promise.all — راجع BACKLOG.md (P2028).
   const quotes = await prisma.freightQuote.findMany({
-    where: { orgId: user.orgId },
+    where,
     include: { route: true, provider: true, lines: true },
     orderBy: { createdAt: "desc" },
+    skip: (page - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
   });
+  const total = await prisma.freightQuote.count({ where });
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const routes = await prisma.route.findMany({ where: { orgId: user.orgId }, select: { id: true, originPort: true, destinationPort: true }, orderBy: { originPort: "asc" } });
   const providers = await prisma.serviceProvider.findMany({ where: { orgId: user.orgId }, select: { id: true, name: true }, orderBy: { name: "asc" } });
 
@@ -41,7 +53,7 @@ export default async function FreightQuotesPage() {
 
       <div className="mt-3">
         <h1 className="text-2xl font-semibold text-foreground">عروض أسعار الشحن</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{quotes.length} عرض مسجّل</p>
+        <p className="mt-1 text-sm text-muted-foreground">{total} عرض مسجّل</p>
       </div>
 
       {routes.length === 0 || providers.length === 0 ? (
@@ -102,6 +114,7 @@ export default async function FreightQuotesPage() {
           </TableBody>
         </Table>
       </div>
+      <Pagination currentPage={page} totalPages={totalPages} basePath="/logistics/quotes" />
     </main>
   );
 }
