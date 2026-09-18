@@ -4493,6 +4493,11 @@ model Invoice {
   journalEntryId  String?       @db.Uuid
   notes           String?
   idempotencyKey  String?       @db.Uuid
+  /// آخر سعر صرف اتحسبت بيه القيمة الوظيفية المتبقية لهذه الفاتورة (إصدار أصلي أو آخر إعادة
+  /// تقييم — أيهما أحدث). revalueForeignCurrencyReceivablesPayables (fxRevaluation.ts) بيستخدمه
+  /// كنقطة بداية بدل ما يرجع لسعر الإصدار الأصلي كل مرة، عشان الفرق المحسوب في كل فترة يبقى
+  /// (السعر الحالي - آخر سعر اتسجّل بيه)، مش (السعر الحالي - سعر الإصدار) اللي بيتراكم غلط.
+  lastFxRevaluationRate Decimal? @db.Decimal(18, 8)
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 

@@ -1,5 +1,6 @@
 import { prisma } from "./prisma";
 import { getAuthenticatedUser } from "./supabase/server";
+import { getAal } from "./mfa";
 import type { Prisma } from "@/generated/prisma/client";
 
 /**
@@ -20,8 +21,13 @@ export async function getScopedPrisma(): Promise<typeof prisma> {
   if (!authUser) {
     throw new Error("getScopedPrisma() اتنادى من غير جلسة مصادقة — لازم تسجّل دخول الأول.");
   }
+  // aal بيتمرّر هنا عشان auth.jwt()->>'aal' يشتغل صح جوه أي Trigger DB-level (مش بس فحص
+  // requireAal2() في التطبيق) — بدونه، Trigger زي enforce_approval_decision_requires_aal2
+  // (migration 20260918210000) هيلاقي دايمًا NULL ويرفض كل حاجة، لأن الـGUC ده مش بيتحدّث
+  // تلقائيًا زي ما PostgREST بيعمل — إحنا اللي بنحاكيه يدويًا هنا.
+  const aal = await getAal();
 
-  const claims = JSON.stringify({ sub: authUser.id, role: "authenticated" });
+  const claims = JSON.stringify({ sub: authUser.id, role: "authenticated", aal });
 
   const extended = prisma.$extends({
     name: "rls-context",
@@ -74,7 +80,8 @@ export async function withScopedTransaction<T>(
   if (!authUser) {
     throw new Error("withScopedTransaction() اتنادت من غير جلسة مصادقة — لازم تسجّل دخول الأول.");
   }
-  const claims = JSON.stringify({ sub: authUser.id, role: "authenticated" });
+  const aal = await getAal();
+  const claims = JSON.stringify({ sub: authUser.id, role: "authenticated", aal });
 
   return prisma.$transaction(
     async (tx) => {

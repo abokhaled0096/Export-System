@@ -60,16 +60,37 @@ export default async function MarketComparePage({ searchParams }: { searchParams
 
   if (product) {
     const currentMonth = new Date().getMonth() + 1;
-    for (const market of markets) {
-      const analysis = await prisma.productMarketAnalysis.findFirst({
-        where: { productId: product.id, marketId: market.id, orgId },
+    const marketIds = markets.map((m) => m.id);
+
+    // بدل ما نسأل مرتين لكل سوق (2×N)، بنجيب كل التحاليل والمنافسين مرة واحدة لكل الأسواق
+    // ونجمّعهم في الذاكرة — نفس النتيجة بس N+1 استعلام بدل N.
+    const [allAnalyses, allCompetitors] = await Promise.all([
+      prisma.productMarketAnalysis.findMany({
+        where: { productId: product.id, marketId: { in: marketIds }, orgId },
         orderBy: { createdAt: "desc" },
-        select: { opportunityScore: true, riskScore: true, recommendation: true },
-      });
-      const competitors = await prisma.competitor.findMany({
-        where: { productId: product.id, marketId: market.id, deletedAt: null },
-        select: { strengthMonths: true, weaknessMonths: true },
-      });
+        select: { marketId: true, opportunityScore: true, riskScore: true, recommendation: true },
+      }),
+      prisma.competitor.findMany({
+        where: { productId: product.id, marketId: { in: marketIds }, deletedAt: null },
+        select: { marketId: true, strengthMonths: true, weaknessMonths: true },
+      }),
+    ]);
+
+    const latestAnalysisByMarket = new Map<string, (typeof allAnalyses)[number]>();
+    for (const a of allAnalyses) {
+      // allAnalyses مرتّبة الأحدث الأول، فأول ظهور لكل marketId هو الأحدث.
+      if (!latestAnalysisByMarket.has(a.marketId)) latestAnalysisByMarket.set(a.marketId, a);
+    }
+    const competitorsByMarket = new Map<string, typeof allCompetitors>();
+    for (const c of allCompetitors) {
+      const list = competitorsByMarket.get(c.marketId) ?? [];
+      list.push(c);
+      competitorsByMarket.set(c.marketId, list);
+    }
+
+    for (const market of markets) {
+      const analysis = latestAnalysisByMarket.get(market.id) ?? null;
+      const competitors = competitorsByMarket.get(market.id) ?? [];
       rows.push({
         market,
         analysis,

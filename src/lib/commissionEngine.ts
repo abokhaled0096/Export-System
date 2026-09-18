@@ -1,3 +1,4 @@
+import { Prisma } from "@/generated/prisma/client";
 import type { ScopedTx } from "@/lib/scoped-prisma";
 import { logAudit } from "@/lib/audit";
 
@@ -37,8 +38,8 @@ export async function accrueCommissionOnCollection(
   const plan = plans[0];
   if (!plan.ratePct || Number(plan.ratePct) <= 0) return;
 
-  const amount = Math.round(allocatedAmount * (Number(plan.ratePct) / 100) * 100) / 100;
-  if (amount <= 0) return;
+  const amount = new Prisma.Decimal(allocatedAmount).mul(plan.ratePct).div(100).toDecimalPlaces(2);
+  if (amount.lte(0)) return;
 
   const entry = await tx.commissionEntry.create({
     data: { orgId, planId: plan.id, dealId, userId: ownerId, amount, currency, status: "Accrued", paymentAllocationId },

@@ -19,6 +19,13 @@ const badgeVariants = cva(
         ghost:
           "hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted/50",
         link: "text-primary underline-offset-4 hover:underline",
+        /// نفس ألوان الحالة (نجاح/تحذير/خطر) اللي كانت متكرّرة كـclassName خام في 23 ملف مختلف
+        /// (منتجات، فرص، أسواق، لوجستيات، امتثال، حوكمة...) — بدل ما كل ملف يعرّف نفس الـTailwind
+        /// triad لوحده، الألوان دلوقتي في مكان واحد. الملفات القديمة لسه شغالة زي ما هي (className
+        /// خام بيغلب variant لو الاتنين موجودين)، لكن أي كود جديد أو تعديل مستقبلي يستخدم الـvariant ده.
+        success: "bg-emerald-100 text-emerald-700 hover:bg-emerald-100",
+        warning: "bg-amber-100 text-amber-700 hover:bg-amber-100",
+        danger: "bg-rose-100 text-rose-700 hover:bg-rose-100",
       },
     },
     defaultVariants: {

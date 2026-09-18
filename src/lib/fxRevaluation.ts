@@ -55,6 +55,7 @@ export async function revalueForeignCurrencyReceivablesPayables(
   let apDelta = new Prisma.Decimal(0);
   let revaluedInvoiceCount = 0;
   let skippedNoRateCount = 0;
+  const revaluedInvoiceRates: { invoiceId: string; rate: Prisma.Decimal }[] = [];
 
   for (const [invoices, accountId, isAr] of [
     [openSalesInvoices, acc.AR, true],
@@ -73,13 +74,20 @@ export async function revalueForeignCurrencyReceivablesPayables(
         continue;
       }
 
-      const originalLine = await tx.journalLine.findFirst({ where: { journalEntryId: invoice.journalEntryId!, accountId } });
-      if (!originalLine) continue;
-      const originalRatio = isAr ? originalLine.functionalDebit.div(originalLine.debit) : originalLine.functionalCredit.div(originalLine.credit);
+      // نقطة البداية: آخر سعر اتحسبت بيه القيمة الوظيفية لهذه الفاتورة تحديدًا (إعادة تقييم
+      // سابقة لو موجودة)، مش سعر الإصدار الأصلي دايمًا — وإلا كل فترة جديدة بتعيد حساب الفرق
+      // من سعر الإصدار تاني وبيتراكم غلط فوق الفروق اللي اتسجّلت بالفعل في فترات سابقة.
+      let baseRatio = invoice.lastFxRevaluationRate;
+      if (!baseRatio) {
+        const originalLine = await tx.journalLine.findFirst({ where: { journalEntryId: invoice.journalEntryId!, accountId } });
+        if (!originalLine) continue;
+        baseRatio = isAr ? originalLine.functionalDebit.div(originalLine.debit) : originalLine.functionalCredit.div(originalLine.credit);
+      }
 
-      const oldFunctional = remaining.mul(originalRatio);
+      const oldFunctional = remaining.mul(baseRatio);
       const newFunctional = remaining.mul(currentRate.rate);
       const delta = newFunctional.sub(oldFunctional);
+      revaluedInvoiceRates.push({ invoiceId: invoice.id, rate: currentRate.rate });
       if (delta.eq(0)) continue;
 
       if (isAr) arDelta = arDelta.add(delta);
@@ -171,6 +179,12 @@ export async function revalueForeignCurrencyReceivablesPayables(
     preparedBy,
     lines,
   });
+
+  // بعد ترحيل القيد بنجاح، حدّث نقطة البداية لكل فاتورة اتعاد تقييمها عشان الفترة الجاية
+  // تحسب الفرق من هنا (آخر سعر اتسجّل بيه)، مش من سعر الإصدار الأصلي تاني.
+  for (const { invoiceId, rate } of revaluedInvoiceRates) {
+    await tx.invoice.update({ where: { id: invoiceId }, data: { lastFxRevaluationRate: rate } });
+  }
 
   return { journalEntryId, revaluedInvoiceCount, revaluedCashAccountCount, skippedNoRateCount };
 }

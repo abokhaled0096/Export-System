@@ -898,11 +898,11 @@ export async function computeVatBalance(
       accountId: { in: [inputAccountId, outputAccountId].filter((id): id is string => Boolean(id)) },
       journalEntry: { periodId, status: { in: ["Posted", "Reversed"] } },
     },
-    select: { debit: true, credit: true, accountId: true },
+    select: { functionalDebit: true, functionalCredit: true, accountId: true },
   });
   for (const l of lines) {
-    if (l.accountId === outputAccountId) output = output.add(l.credit).sub(l.debit);
-    if (l.accountId === inputAccountId) input = input.add(l.debit).sub(l.credit);
+    if (l.accountId === outputAccountId) output = output.add(l.functionalCredit).sub(l.functionalDebit);
+    if (l.accountId === inputAccountId) input = input.add(l.functionalDebit).sub(l.functionalCredit);
   }
   return { output, input };
 }

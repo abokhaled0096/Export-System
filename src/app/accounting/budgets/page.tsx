@@ -8,10 +8,16 @@ import CopyBudgetForm from "./CopyBudgetForm";
 import BudgetAmountCell from "./BudgetAmountCell";
 import { budgetTypeLabel } from "@/lib/treasuryLabels";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { PAGE_SIZE, parsePage } from "@/lib/pagination";
+import Pagination from "@/components/Pagination";
 
 export const dynamic = "force-dynamic";
 
-export default async function BudgetsPage() {
+export default async function BudgetsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   const user = await requireCurrentUser();
 
   try {
@@ -28,13 +34,19 @@ export default async function BudgetsPage() {
 
   const orgId = user.orgId;
   const prisma = await getScopedPrisma();
+  const page = parsePage((await searchParams).page);
+  const where = { orgId };
 
   // ⚠️ مش Promise.all — راجع BACKLOG.md (P2028).
   const budgets = await prisma.budget.findMany({
-    where: { orgId },
+    where,
     orderBy: [{ period: { startDate: "desc" } }],
     include: { period: { select: { periodName: true } }, costCenter: { select: { code: true, name: true } } },
+    skip: (page - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
   });
+  const total = await prisma.budget.count({ where });
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const periods = await prisma.accountingPeriod.findMany({
     where: { orgId },
     orderBy: { startDate: "desc" },
@@ -60,7 +72,10 @@ export default async function BudgetsPage() {
       : [];
 
   function matchesRule(rule: BudgetActualRule, line: (typeof lines)[number]): boolean {
-    return "accountType" in rule ? line.account.accountType === rule.accountType : rule.accountCodes.includes(line.account.accountCode);
+    if ("accountType" in rule) return line.account.accountType === rule.accountType;
+    // بالإضافة للكود نفسه، لازم يشمل أي حساب فرعي منه (1010-USD تحت 1010) — نفس منطق
+    // computeBudgetActual في lib/budget.ts، وإلا الرقم المعروض هنا يختلف عن رقم التنبيه الفعلي.
+    return rule.accountCodes.some((code) => line.account.accountCode === code || line.account.accountCode.startsWith(`${code}-`));
   }
 
   function actualFor(periodId: string, costCenterId: string | null, budgetType: string): Prisma.Decimal {
@@ -85,7 +100,7 @@ export default async function BudgetsPage() {
     <main className="mx-auto max-w-6xl px-6 py-10">
       <div>
         <h1 className="text-2xl font-semibold text-foreground">الموازنات — موازنة مقابل فعلي</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{budgets.length} بند — الفعلي محسوب من الدفتر مباشرة</p>
+        <p className="mt-1 text-sm text-muted-foreground">{total} بند — الفعلي محسوب من الدفتر مباشرة</p>
       </div>
 
       <div className="mt-6 flex flex-col gap-4">
@@ -140,6 +155,7 @@ export default async function BudgetsPage() {
       <p className="mt-3 text-xs text-muted-foreground">
         الفعلي بيتحسب من حركة الدفتر الحقيقية (القيود المرحّلة) بمركز التكلفة والفترة المطابقين — مش رقم يُكتب. بند بلا مركز تكلفة بيجمع حركة المنظمة كلها.
       </p>
+      <Pagination currentPage={page} totalPages={totalPages} basePath="/accounting/budgets" />
     </main>
   );
 }

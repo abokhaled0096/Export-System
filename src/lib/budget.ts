@@ -35,7 +35,15 @@ export async function computeBudgetActual(
         ...(params.excludeJournalEntryId ? { id: { not: params.excludeJournalEntryId } } : {}),
       },
       ...(params.costCenterId ? { costCenterId: params.costCenterId } : {}),
-      account: "accountType" in rule ? { accountType: rule.accountType } : { accountCode: { in: rule.accountCodes } },
+      account:
+        "accountType" in rule
+          ? { accountType: rule.accountType }
+          : {
+              // بالإضافة للكود نفسه، لازم يشمل أي حساب فرعي منه (زي 1010-USD تحت 1010 —
+              // راجع resolveCashAccountId في accounting.ts)، وإلا صرف حسابات النقدية الفرعية
+              // بعملة أجنبية بيفضل غير مرئي لموازنة النقدية وتنبيه التجاوز ميطلعش.
+              OR: rule.accountCodes.flatMap((code) => [{ accountCode: code }, { accountCode: { startsWith: `${code}-` } }]),
+            },
     },
     select: { debit: true, credit: true },
   });

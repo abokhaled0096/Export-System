@@ -16,9 +16,11 @@ function record(name: string, pass: boolean, detail?: string) {
   console.log(`${pass ? "✓" : "✗"} ${name}${detail ? " — " + detail : ""}`);
 }
 
-/** يشتغل بنفس آلية getScopedPrisma() بالظبط — نسخة مستقلة عشان الاختبار ده منفصل عن كود التطبيق. */
-async function asUser<T>(userId: string, fn: (tx: typeof prisma) => Promise<T>): Promise<T> {
-  const claims = JSON.stringify({ sub: userId, role: "authenticated" });
+/** يشتغل بنفس آلية getScopedPrisma() بالظبط — نسخة مستقلة عشان الاختبار ده منفصل عن كود التطبيق.
+ * aal اختياري — لازم "aal2" لأي عملية بتلمس Approval.decision='Approved' مباشرة (راجع Trigger
+ * enforce_approval_decision_requires_aal2، migration 20260918210000). */
+async function asUser<T>(userId: string, fn: (tx: typeof prisma) => Promise<T>, aal?: string): Promise<T> {
+  const claims = JSON.stringify({ sub: userId, role: "authenticated", aal: aal ?? null });
   return prisma.$transaction(async (tx) => {
     await tx.$executeRawUnsafe(`SET LOCAL ROLE authenticated`);
     await tx.$executeRaw`SELECT set_config('request.jwt.claims', ${claims}, true)`;
@@ -651,32 +653,38 @@ async function main() {
     let purchaseOrderAboveCeilingViaApprovalSucceeded = false;
     let purchaseOrderOverrideA: { id: string } | null = null;
     try {
-      await asUser(userA.id, async (tx) => {
-        const [{ id: reservedPoId }] = await tx.$queryRaw<{ id: string }[]>`SELECT uuidv7() AS id`;
-        await tx.approval.create({
-          data: {
-            orgId: orgA.id,
-            subjectType: "PurchaseOrder.unitPrice_override",
-            subjectId: reservedPoId,
-            requestedBy: userA.id,
-            decidedBy: userA.id,
-            decision: "Approved",
-            decidedAt: new Date(),
-          },
-        });
-        purchaseOrderOverrideA = await tx.purchaseOrder.create({
-          data: {
-            id: reservedPoId,
-            orgId: orgA.id,
-            sourcingRequestId: sourcingRequestA.id,
-            supplierId: supplierA.id,
-            poNumber: `PO-RLS-TEST-APPROVED-${Date.now()}`,
-            quantity: 100,
-            unitPrice: 150,
-            currency: "USD",
-          },
-        });
-      });
+      await asUser(
+        userA.id,
+        async (tx) => {
+          const [{ id: reservedPoId }] = await tx.$queryRaw<{ id: string }[]>`SELECT uuidv7() AS id`;
+          await tx.approval.create({
+            data: {
+              orgId: orgA.id,
+              subjectType: "PurchaseOrder.unitPrice_override",
+              subjectId: reservedPoId,
+              requestedBy: userA.id,
+              decidedBy: userA.id,
+              decision: "Approved",
+              decidedAt: new Date(),
+            },
+          });
+          purchaseOrderOverrideA = await tx.purchaseOrder.create({
+            data: {
+              id: reservedPoId,
+              orgId: orgA.id,
+              sourcingRequestId: sourcingRequestA.id,
+              supplierId: supplierA.id,
+              poNumber: `PO-RLS-TEST-APPROVED-${Date.now()}`,
+              quantity: 100,
+              unitPrice: 150,
+              currency: "USD",
+            },
+          });
+        },
+        // اعتماد Approval محتاج aal2 دلوقتي (Trigger enforce_approval_decision_requires_aal2) —
+        // نفس افتراض requireAal2() اللي approvals/actions.ts بيتحقق منه قبل ما يعمل هذا الـupdate فعليًا.
+        "aal2"
+      );
       purchaseOrderAboveCeilingViaApprovalSucceeded = true;
     } catch {
       purchaseOrderAboveCeilingViaApprovalSucceeded = false;
