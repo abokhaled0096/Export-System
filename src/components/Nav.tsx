@@ -6,6 +6,8 @@ import { logout } from "@/app/login/actions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import NavMobileMenu from "@/components/NavMobileMenu";
+import CommandPalette from "@/components/CommandPalette";
+import CommandPaletteTrigger from "@/components/CommandPaletteTrigger";
 
 const links = [
   { href: "/", label: "لوحة القيادة" },
@@ -84,13 +86,32 @@ export default async function Nav() {
     logisticsAttentionCount = new Set([...criticalExceptions.map((e) => e.shipmentId), ...excursions.map((e) => e.shipmentId)]).size;
   }
 
+  // Command Palette (Cmd/Ctrl+K) — نفس روابط القائمة المرئية بالظبط بعد فلترة الصلاحيات هنا،
+  // بلا قائمة مستقلة ممكن تنحرف عن صلاحيات الوصول الفعلية.
+  const paletteLinks = [
+    ...links,
+    ...(canApprove ? [{ href: "/approvals", label: "الموافقات" }] : []),
+    ...(isRoleAdmin
+      ? [
+          { href: "/admin/users", label: "الأدوار" },
+          { href: "/admin/audit-log", label: "سجل التدقيق" },
+          { href: "/admin/teams", label: "الفرق" },
+          { href: "/admin/errors", label: "الأخطاء" },
+          { href: "/admin/ai-settings", label: "إعدادات AI" },
+          { href: "/admin/accounting-settings", label: "إعدادات المحاسبة" },
+        ]
+      : []),
+  ];
+
   return (
     <>
+      {user && <CommandPalette links={paletteLinks} />}
       <header className="relative border-b border-border bg-background">
         <div className="mx-auto flex max-w-5xl items-center gap-6 px-6 py-4">
           <Link href="/" className="font-semibold text-primary">
             أبوهيبة للتصدير
           </Link>
+          {user && <CommandPaletteTrigger />}
           {user && (
             <nav className="hidden gap-1 md:flex">
               {links.map((l) => (
