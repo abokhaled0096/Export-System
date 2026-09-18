@@ -104,7 +104,7 @@ _(فاضي دلوقتي — كل البنود اتقفلت أو اتصلحت. ر
 ## 🟢 P3 — تحسينات UX (مش حرجة)
 
 - [x] ~~Optimistic UI updates — تحسين إحساس السرعة~~ **اتحل جزئيًا 18 سبتمبر (`/notifications` + تفعيل/إيقاف حساب في شجرة الحسابات — راجع "✅ خلصان"). باقي التفاعلات مؤجَّلة عمدًا لحد ما تستاهل (تحديث مشتق من مكان تاني في نفس الصفحة، زي المطابقة البنكية، مش مرشّح مناسب).**
-- [ ] Command Palette (Cmd+K) — يستاهل قيمته أكتر كل ما عدد الوحدات يزيد (9 وحدات مخطط لها).
+- [x] ~~Command Palette (Cmd+K) — يستاهل قيمته أكتر كل ما عدد الوحدات يزيد~~ **اتحل 18 سبتمبر (`CommandPalette.tsx`/`CommandPaletteTrigger.tsx` — راجع "✅ خلصان").**
 - [ ] E2E Testing بـPlaywright — قيمته بتكبر مع كل مسار حرج جديد (زي `acceptQuote`).
 - [ ] Signed URLs لأي ملف خاص — مش مطلوبة دلوقتي لأن مفيش ميزة رفع ملفات موجودة، لازم تتطبّق من أول يوم لما الميزة دي تتبنى.
 
@@ -117,6 +117,8 @@ _(فاضي دلوقتي — كل البنود اتقفلت أو اتصلحت. ر
 ## ✅ خلصان
 
 _(هنا هتتنقل البنود اللي خلصت، مع التاريخ وملخص سطر واحد وأي ملف اتغيّر)_
+
+- **[2026-09-18] Command Palette (Cmd/Ctrl+K) للتنقّل السريع (بند P3).** قائمة الروابط بتوصل جاهزة من `Nav.tsx` بعد فلترة الصلاحيات، مفيش قائمة مستقلة تنحرف عن صلاحيات الوصول الفعلية. بحث فوري + تنقّل بالسهمين + Enter/Escape + زرار مرئي في الهيدر. مُختبر حيًا: فتح، فلترة، تنقّل، إغلاق تلقائي بعد التنقّل. `test:rls` **184/184** بلا تغيير. الملفات: `src/components/{Nav.tsx,CommandPalette.tsx,CommandPaletteTrigger.tsx}`.
 
 - **[2026-09-18] Optimistic UI updates لمكانين مختارين بعناية (بند P3).** `/notifications` (تحوّلت لـClient Component بـ`useOptimistic` — البادج/اللون/العدّاد بيتحدّثوا فورًا) و`ChartOfAccountEditControl` (تفعيل/إيقاف حساب). مكان زي `toggleTransactionInReconciliationAction` استُبعد عمدًا لأنه محتاج تكرار منطق Trigger `bookBalance` في الفرونت إند. مُختبر حيًا مع تأكيد من القاعدة إن التغيير مش عرض وهمي بس. `test:rls` **184/184** بلا تغيير. الملفات: `src/app/notifications/{page.tsx,NotificationList.tsx}`، `src/app/accounting/chart-of-accounts/ChartOfAccountEditControl.tsx`.
 
