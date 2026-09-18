@@ -5,6 +5,8 @@ import ChartOfAccountForm from "./ChartOfAccountForm";
 import ChartOfAccountEditControl from "./ChartOfAccountEditControl";
 import { accountTypeLabel, normalBalanceLabel } from "@/lib/accountingLabels";
 import { Badge } from "@/components/ui/badge";
+import { PAGE_SIZE, parsePage } from "@/lib/pagination";
+import Pagination from "@/components/Pagination";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +46,11 @@ function AccountRow({ account, accounts, depth }: { account: AccountNode; accoun
   );
 }
 
-export default async function ChartOfAccountsPage() {
+export default async function ChartOfAccountsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   const user = await requireCurrentUser();
 
   try {
@@ -61,7 +67,15 @@ export default async function ChartOfAccountsPage() {
 
   const orgId = user.orgId;
   const prisma = await getScopedPrisma();
+  const page = parsePage((await searchParams).page);
 
+  // ⚠️ عمدًا بلا skip/take على الاستعلام ده — شجرة الحسابات عرض شجري (parent/child) بيحتاج كل
+  // الأسلاف/الأحفاد موجودين في نفس الـarray عشان buildTree() يشتغل صح؛ تقطيعه بـskip/take عادي
+  // هيخلّي حسابات تختفي من الشجرة بلا سبب ظاهر. آمن عمليًا لأن شجرة الحسابات بيانات هيكلية ثابتة
+  // مش جدول معاملات بيكبر يوميًا (أكبر منظمة فعلية دلوقتي 31 حساب بس — راجع BACKLOG.md).
+  // الـpagination بدل كده بيتطبّق تحت على مستوى "الحسابات الجذرية المعروضة" (كل صفحة = مجموعة
+  // جذور كاملة بكل فروعها)، عشان الصفحة تفضل متسقة مع باقي صفحات القوائم (نفس مكوّن Pagination)
+  // من غير ما تكسر تكامل الشجرة ولا تحتاج CTE تكراري/Virtualization لمشكلة مقياسها مش موجود فعليًا.
   const accounts = await prisma.chartOfAccount.findMany({
     where: { orgId },
     select: { id: true, accountCode: true, nameAr: true, nameEn: true, accountType: true, normalBalance: true, currency: true, parentAccountId: true, isActive: true },
@@ -69,6 +83,8 @@ export default async function ChartOfAccountsPage() {
   });
 
   const roots = buildTree(accounts, null);
+  const totalPages = Math.max(1, Math.ceil(roots.length / PAGE_SIZE));
+  const pagedRoots = roots.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-10">
@@ -85,9 +101,10 @@ export default async function ChartOfAccountsPage() {
         {roots.length === 0 ? (
           <p className="text-center text-sm text-muted-foreground">لسه مفيش حسابات مسجّلة.</p>
         ) : (
-          roots.map((r) => <AccountRow key={r.id} account={r} accounts={accounts} depth={0} />)
+          pagedRoots.map((r) => <AccountRow key={r.id} account={r} accounts={accounts} depth={0} />)
         )}
       </div>
+      <Pagination currentPage={page} totalPages={totalPages} basePath="/accounting/chart-of-accounts" />
     </main>
   );
 }
