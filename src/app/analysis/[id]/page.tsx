@@ -92,6 +92,22 @@ export default async function AnalysisDetailPage({ params }: { params: Promise<{
   });
   if (!analysis) notFound();
 
+  // آخر نسخة سابقة لنفس التركيبة (منتج×سوق×سنة) قبل التحليل ده — بيانات فعلية موجودة أصلًا
+  // (كل تحليل جديد بيعمل supersede للقديم، migration 20260909120000)، بس ماكانتش معروضة قبل كده.
+  // بيحل عيب BACKLOG.md § P2/P3 ("هل الدرجة اتغيّرت بشكل ملحوظ من آخر مرة؟" مش قابل للحساب).
+  const previousAnalysis = await prisma.productMarketAnalysis.findFirst({
+    where: {
+      orgId,
+      productId: analysis.productId,
+      marketId: analysis.marketId,
+      year: analysis.year,
+      id: { not: analysis.id },
+      createdAt: { lt: analysis.createdAt },
+    },
+    orderBy: { createdAt: "desc" },
+    select: { createdAt: true, opportunityScore: true, riskScore: true },
+  });
+
   // منافسين حقيقيين مسجّلين لنفس التركيبة — مصدر النافذة الموسمية تحت. بلا AI هنا، بيانات
   // فعلية بس (source ممكن يكون AI أو Manual، المهم إنها strengthMonths/weaknessMonths حقيقية
   // اتسجّلت قبل كده، مش تخمين وقت عرض الصفحة).
@@ -137,6 +153,21 @@ export default async function AnalysisDetailPage({ params }: { params: Promise<{
           </CardContent>
         </Card>
       </div>
+
+      {previousAnalysis && (
+        <p className="mt-2 text-xs text-muted-foreground">
+          آخر تحليل سابق لنفس المنتج×السوق×السنة كان بتاريخ {previousAnalysis.createdAt.toISOString().slice(0, 10)}:{" "}
+          <span className={analysis.opportunityScore === previousAnalysis.opportunityScore ? "" : analysis.opportunityScore > previousAnalysis.opportunityScore ? "text-emerald-700" : "text-rose-700"}>
+            الفرصة {analysis.opportunityScore > previousAnalysis.opportunityScore ? "+" : ""}
+            {analysis.opportunityScore - previousAnalysis.opportunityScore}
+          </span>
+          {" · "}
+          <span className={analysis.riskScore === previousAnalysis.riskScore ? "" : analysis.riskScore > previousAnalysis.riskScore ? "text-rose-700" : "text-emerald-700"}>
+            المخاطرة {analysis.riskScore > previousAnalysis.riskScore ? "+" : ""}
+            {analysis.riskScore - previousAnalysis.riskScore}
+          </span>
+        </p>
+      )}
 
       <div className="mt-4 flex items-center gap-3">
         <Badge className={`px-3 py-1.5 text-sm ${recStyle[analysis.recommendation]}`}>التوصية: {recLabel[analysis.recommendation]}</Badge>

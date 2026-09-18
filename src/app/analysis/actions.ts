@@ -63,6 +63,28 @@ export async function createAnalysis(
       const analysis = await tx.productMarketAnalysis.create({
         data: { orgId: user.orgId, ...parsed.data },
       });
+      await tx.scoreSnapshot.createMany({
+        data: [
+          {
+            orgId: user.orgId,
+            subjectType: "ProductMarketAnalysis",
+            subjectId: analysis.id,
+            scoreType: "ProductMarketOpportunity",
+            totalScore: parsed.data.opportunityScore,
+            componentsBreakdown: { source: "Manual" },
+            calculatedBy: user.id,
+          },
+          {
+            orgId: user.orgId,
+            subjectType: "ProductMarketAnalysis",
+            subjectId: analysis.id,
+            scoreType: "ProductMarketRisk",
+            totalScore: parsed.data.riskScore,
+            componentsBreakdown: { source: "Manual" },
+            calculatedBy: user.id,
+          },
+        ],
+      });
       await logAudit(tx, {
         orgId: user.orgId,
         userId: user.id,
@@ -183,6 +205,29 @@ export async function saveAiMarketAnalysis(
           ruleBasedComparison: { opportunityScore: ruleBased.opportunityScore, riskScore: ruleBased.riskScore, reasoning: ruleBased.reasoning, opportunityDiff, riskDiff },
         },
       },
+    });
+
+    await tx.scoreSnapshot.createMany({
+      data: [
+        {
+          orgId,
+          subjectType: "ProductMarketAnalysis",
+          subjectId: analysis.id,
+          scoreType: "ProductMarketOpportunity",
+          totalScore: result.opportunityScore,
+          componentsBreakdown: { source: "AI", reasoning: result.reasoning, ruleBasedComparison: { score: ruleBased.opportunityScore, diff: opportunityDiff, reasoning: ruleBased.reasoning } },
+          calculatedBy: userId,
+        },
+        {
+          orgId,
+          subjectType: "ProductMarketAnalysis",
+          subjectId: analysis.id,
+          scoreType: "ProductMarketRisk",
+          totalScore: result.riskScore,
+          componentsBreakdown: { source: "AI", reasoning: result.reasoning, ruleBasedComparison: { score: ruleBased.riskScore, diff: riskDiff, reasoning: ruleBased.reasoning } },
+          calculatedBy: userId,
+        },
+      ],
     });
 
     await logAudit(tx, {

@@ -157,6 +157,7 @@ model Organization {
   quoteBundles             QuoteBundle[]
   workflowDefinitions      WorkflowDefinition[]
   bankTransactionMatches   BankTransactionMatch[]
+  scoreSnapshots           ScoreSnapshot[]
 }
 
 // ==================== الوحدة 9 — الحوكمة والإدارة (13/13 كيان، ERD v4 §12) ====================
@@ -332,6 +333,7 @@ model User {
   opportunitiesOwned                Opportunity[]             @relation("OpportunityOwner")
   companiesOwned                    Company[]                 @relation("CompanyOwner")
   auditLogs                         AuditLog[]
+  scoreSnapshots                    ScoreSnapshot[]
   errorLogs                         ErrorLog[]
   gatesDecided                      Gate[]
   managedTeams                      Team[]                    @relation("TeamManager")
@@ -391,6 +393,37 @@ model AuditLog {
 
   @@index([orgId])
   @@index([entityType, entityId])
+}
+
+enum ScoreType {
+  ProductMarketOpportunity
+  ProductMarketRisk
+}
+
+/// يخزّن *سبب* أي درجة موزونة محسوبة في المنظومة (ERD §3، "لا تُعطِ درجة موزونة بلا تبرير") —
+/// نفس تصميم AuditLog بالحرف (subjectType+subjectId نص/uuid بلا FK فعلي، تعمّدًا: جدول عابر
+/// لكيانات كتير مختلفة عبر الوحدات التسع، مش علاقة عمل واحدة محتاجة تكامل مرجعي زي Payment).
+/// أول استخدام فعلي (18 سبتمبر) هو ProductMarketAnalysis.opportunityScore/riskScore — صف واحد
+/// لكل نوع درجة في كل مرة تحليل يتحسب، بمكوّناته (aiReasoning/ruleBasedComparison لو AI). الدرجات
+/// التانية اللي اتشالت قصدًا من الأول (Company.customerFitScore/customerTrustScore،
+/// Shipment.readinessScore/riskScore، SupplierPerformance.performanceScore...) هترجع تتبنى على
+/// نفس الجدول ده لو ظهر احتياج فعلي — مش دلوقتي، عشان معندهاش مكوّنات حقيقية تتفسّر بيها لسه.
+model ScoreSnapshot {
+  id                  String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId               String    @db.Uuid
+  subjectType         String
+  subjectId           String    @db.Uuid
+  scoreType           ScoreType
+  totalScore          Decimal   @db.Decimal(5, 2)
+  componentsBreakdown Json?
+  calculatedAt        DateTime  @default(now())
+  calculatedBy        String?   @db.Uuid
+
+  organization     Organization @relation(fields: [orgId], references: [id])
+  calculatedByUser User?        @relation(fields: [calculatedBy], references: [id])
+
+  @@index([orgId])
+  @@index([subjectType, subjectId])
 }
 
 /// Insert-only فعليًا (نفس نمط AuditLog) — سجل تشخيصي لأي استثناء غير متوقع بتبتلعه
