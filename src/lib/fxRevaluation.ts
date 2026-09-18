@@ -55,7 +55,7 @@ export async function revalueForeignCurrencyReceivablesPayables(
   let apDelta = new Prisma.Decimal(0);
   let revaluedInvoiceCount = 0;
   let skippedNoRateCount = 0;
-  const revaluedInvoiceRates: { invoiceId: string; rate: Prisma.Decimal }[] = [];
+  const revaluedInvoiceRates: { invoiceId: string; rate: Prisma.Decimal; rateId: string }[] = [];
 
   for (const [invoices, accountId, isAr] of [
     [openSalesInvoices, acc.AR, true],
@@ -79,7 +79,12 @@ export async function revalueForeignCurrencyReceivablesPayables(
       // من سعر الإصدار تاني وبيتراكم غلط فوق الفروق اللي اتسجّلت بالفعل في فترات سابقة.
       let baseRatio = invoice.lastFxRevaluationRate;
       if (!baseRatio) {
-        const originalLine = await tx.journalLine.findFirst({ where: { journalEntryId: invoice.journalEntryId!, accountId } });
+        // orderBy صريح (لا يوجد داعي منطقي لأكتر من بند AR/AP واحد للفاتورة، لكن لو حصل، يبقى
+        // أقدم بند — أقرب لحظة لسعر الإصدار — هو الاختيار الحتمي دايمًا، مش أيًا ما رجّعه الاستعلام).
+        const originalLine = await tx.journalLine.findFirst({
+          where: { journalEntryId: invoice.journalEntryId!, accountId },
+          orderBy: { id: "asc" },
+        });
         if (!originalLine) continue;
         baseRatio = isAr ? originalLine.functionalDebit.div(originalLine.debit) : originalLine.functionalCredit.div(originalLine.credit);
       }
@@ -87,8 +92,8 @@ export async function revalueForeignCurrencyReceivablesPayables(
       const oldFunctional = remaining.mul(baseRatio);
       const newFunctional = remaining.mul(currentRate.rate);
       const delta = newFunctional.sub(oldFunctional);
-      revaluedInvoiceRates.push({ invoiceId: invoice.id, rate: currentRate.rate });
       if (delta.eq(0)) continue;
+      revaluedInvoiceRates.push({ invoiceId: invoice.id, rate: currentRate.rate, rateId: currentRate.id });
 
       if (isAr) arDelta = arDelta.add(delta);
       else apDelta = apDelta.add(delta);
@@ -181,9 +186,12 @@ export async function revalueForeignCurrencyReceivablesPayables(
   });
 
   // بعد ترحيل القيد بنجاح، حدّث نقطة البداية لكل فاتورة اتعاد تقييمها عشان الفترة الجاية
-  // تحسب الفرق من هنا (آخر سعر اتسجّل بيه)، مش من سعر الإصدار الأصلي تاني.
-  for (const { invoiceId, rate } of revaluedInvoiceRates) {
-    await tx.invoice.update({ where: { id: invoiceId }, data: { lastFxRevaluationRate: rate } });
+  // تحسب الفرق من هنا (آخر سعر اتسجّل بيه)، مش من سعر الإصدار الأصلي تاني. lastFxRevaluationRateId
+  // (مش بس القيمة الرقمية) لازم يتسجّل كمان — postPaymentAllocated (accounting.ts) بيستخدمه بدل
+  // fxRateId بتاع بند الإصدار الأصلي، وإلا فرق العملة "المحقَّق" وقت التحصيل هيتكرر مع اللي
+  // اتسجّل هنا كـ"غير محقَّق" (double-count)، وقيمة AR/AP الوظيفية هتفضل متضخّمة بلا تصفية كاملة.
+  for (const { invoiceId, rate, rateId } of revaluedInvoiceRates) {
+    await tx.invoice.update({ where: { id: invoiceId }, data: { lastFxRevaluationRate: rate, lastFxRevaluationRateId: rateId } });
   }
 
   return { journalEntryId, revaluedInvoiceCount, revaluedCashAccountCount, skippedNoRateCount };

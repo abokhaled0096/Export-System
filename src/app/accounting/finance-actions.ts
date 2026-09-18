@@ -656,6 +656,16 @@ export async function approveVatFilingAction(periodId: string, taxType: "VATInpu
   const currency = "EGP";
   try {
     await withScopedTransaction(async (tx) => {
+      // ⚠️ اتلقط بمراجعة ذاتية 19 سبتمبر: computeVatBalance بترجّع المبلغ بالعملة الوظيفية
+      // للمنظمة (functionalDebit/functionalCredit)، بينما السطر فوق بيسجّله دايمًا كـEGP — لو
+      // منظمة يومًا ما ضبطت عملتها الوظيفية لغير EGP، الرقم هيتسجّل بعملة غلط بلا تحويل. مفيش
+      // منظمة حقيقية دلوقتي بعملة وظيفية غير EGP (اتفحص من القاعدة)، لكن التحقق الصريح هنا أضمن
+      // من افتراض صامت ممكن ينكسر بلا تحذير.
+      const org = await tx.organization.findUniqueOrThrow({ where: { id: user.orgId }, select: { functionalCurrency: true } });
+      if (org.functionalCurrency && org.functionalCurrency !== currency) {
+        throw new Error(`اعتماد إقرار ض.ق.م مدعوم بس لمنظمة عملتها الوظيفية EGP — عملة هذه المنظمة ${org.functionalCurrency}. محتاج تحويل عملة صريح قبل الدعم.`);
+      }
+
       const { output, input } = await computeVatBalance(tx, user.orgId, periodId);
       const amountDec = taxType === "VATOutput" ? output : input;
 

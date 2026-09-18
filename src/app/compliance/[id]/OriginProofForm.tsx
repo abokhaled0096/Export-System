@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import { createOriginProof, type OriginProofFormState } from "../actions";
 import { originProofTypeLabel, originProofCumulationTypeLabel } from "@/lib/complianceLabels";
@@ -123,7 +124,19 @@ export default function OriginProofForm({
           </Label>
         </div>
       </div>
-      {state.formError && <p role="alert" className="text-sm text-destructive">{state.formError}</p>}
+      {state.formError && (
+        <p role="alert" className="text-sm text-destructive">
+          {state.formError}
+          {state.mfaRequired && (
+            <>
+              {" "}
+              <Link href={`/mfa/challenge?next=/compliance/${complianceCaseId}`} className="underline">
+                تحقق دلوقتي
+              </Link>
+            </>
+          )}
+        </p>
+      )}
     </form>
   );
 }

@@ -440,7 +440,10 @@ async function main() {
     }
     record("Gate.requiresOriginProofVerification اتمنع فعليًا على مستوى القاعدة (OriginProof غير متحقّق — قواعد PEM)", blockedShippingGateUnverifiedProof);
 
-    await asUser(userA.id, (tx) => tx.originProof.update({ where: { id: unverifiedProofA.id }, data: { revisedRulesWordingVerified: true } }));
+    // اعتماد revisedRulesWordingVerified محتاج aal2 دلوقتي (Trigger
+    // enforce_origin_proof_revised_rules_requires_aal2) — نفس افتراض requireAal2() اللي
+    // updateOriginProofAction بيتحقق منه قبل هذا التحديث فعليًا.
+    await asUser(userA.id, (tx) => tx.originProof.update({ where: { id: unverifiedProofA.id }, data: { revisedRulesWordingVerified: true } }), "aal2");
     let shippingGatePassedAfterVerify = true;
     try {
       await asUser(userA.id, (tx) => tx.gate.update({ where: { id: shippingGateA.id }, data: { status: "Passed" } }));

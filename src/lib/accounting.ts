@@ -448,7 +448,14 @@ export async function postPaymentAllocated(tx: ScopedTx, alloc: AllocationForPos
   const clearingRatio = isInbound
     ? clearingLine.functionalCredit.div(clearingLine.credit)
     : clearingLine.functionalDebit.div(clearingLine.debit);
-  const invoiceRatio = isInbound ? invoiceLine.functionalDebit.div(invoiceLine.debit) : invoiceLine.functionalCredit.div(invoiceLine.credit);
+
+  // ⚠️ لو الفاتورة اتعاد تقييمها قبل كده (lastFxRevaluationRate/Id، fxRevaluation.ts)، القيمة
+  // الوظيفية المسجَّلة فعليًا على AR/AP دلوقتي مبنية على آخر سعر إعادة تقييم، مش سعر الإصدار
+  // الأصلي — فلازم "الربح/الخسارة المحقَّق" هنا يتحسب من نفس الأساس، وإلا الفرق اللي اتسجّل
+  // كـ"غير محقَّق" وقت إعادة التقييم هيتكرر تاني هنا كـ"محقَّق"، وAR/AP هتفضل متضخّمة بلا تصفية
+  // كاملة أبدًا (اتلقط بمراجعة ذاتية 19 سبتمبر — راجع migration 20260919100000).
+  const invoiceRatio = invoice.lastFxRevaluationRate ?? (isInbound ? invoiceLine.functionalDebit.div(invoiceLine.debit) : invoiceLine.functionalCredit.div(invoiceLine.credit));
+  const invoiceFxRateId = invoice.lastFxRevaluationRateId ?? invoiceLine.fxRateId;
 
   const clearingFunctional = alloc.allocatedAmount.mul(clearingRatio);
   const arApFunctional = alloc.allocatedAmount.mul(invoiceRatio);
@@ -469,11 +476,11 @@ export async function postPaymentAllocated(tx: ScopedTx, alloc: AllocationForPos
   const lines: PostingLine[] = isInbound
     ? [
         { accountId: acc.PAYMENT_CLEARING, debit: alloc.allocatedAmount, currency: payment.currency, fxRateId: clearingLine.fxRateId ?? undefined, description, ...dims },
-        { accountId: acc.AR, credit: alloc.allocatedAmount, currency: invoice.currency, fxRateId: invoiceLine.fxRateId ?? undefined, description, ...dims },
+        { accountId: acc.AR, credit: alloc.allocatedAmount, currency: invoice.currency, fxRateId: invoiceFxRateId ?? undefined, description, ...dims },
         ...(fxLine ? [fxLine] : []),
       ]
     : [
-        { accountId: acc.AP, debit: alloc.allocatedAmount, currency: invoice.currency, fxRateId: invoiceLine.fxRateId ?? undefined, description, ...dims },
+        { accountId: acc.AP, debit: alloc.allocatedAmount, currency: invoice.currency, fxRateId: invoiceFxRateId ?? undefined, description, ...dims },
         { accountId: acc.PAYMENT_CLEARING, credit: alloc.allocatedAmount, currency: payment.currency, fxRateId: clearingLine.fxRateId ?? undefined, description, ...dims },
         ...(fxLine ? [fxLine] : []),
       ];

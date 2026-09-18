@@ -6,6 +6,7 @@ import { z } from "zod";
 import { getScopedPrisma, withScopedTransaction } from "@/lib/scoped-prisma";
 import { requireCurrentUser } from "@/lib/session";
 import { requirePermission, assertOwnScope } from "@/lib/permissions";
+import { requireAal2 } from "@/lib/mfa";
 import { logAudit } from "@/lib/audit";
 import { notifyApprovers } from "@/lib/notification";
 import { logError, isNextControlFlowError, businessRuleMessage } from "@/lib/errorLog";
@@ -708,7 +709,7 @@ const OriginProofSchema = z.object({
   issuingAuthority: z.string().trim().optional().or(z.literal("")),
 });
 
-export type OriginProofFormState = { errors?: Record<string, string[]>; formError?: string };
+export type OriginProofFormState = { errors?: Record<string, string[]>; formError?: string; mfaRequired?: boolean };
 
 export async function createOriginProof(
   complianceCaseId: string,
@@ -730,6 +731,17 @@ export async function createOriginProof(
 
   const user = await requireCurrentUser();
   const { shipmentId, cumulationType, certificateNumber, issuedDate, issuingAuthority, ...rest } = parsed.data;
+  // ⚠️ اتلقط بمراجعة ذاتية 19 سبتمبر: revisedRulesWordingVerified=true هو بالحرف القيد اللي
+  // CLAUDE.md بيسمّيه كمثال لعبور بوابة امتثال محتاج MFA — كان بيتحقق بـرequirePermission() بس.
+  // Trigger enforce_origin_proof_revised_rules_requires_aal2 (migration 20260919110000) هو
+  // الضمان الحقيقي على مستوى القاعدة؛ الفحص هنا بس لرسالة واضحة بدل خطأ DB عام.
+  if (rest.revisedRulesWordingVerified) {
+    try {
+      await requireAal2();
+    } catch {
+      return { formError: "تحقّق قواعد PEM المنقّحة محتاج تحقق بخطوتين (MFA) الأول.", mfaRequired: true };
+    }
+  }
   try {
     const scope = await requirePermission(user.roleId, "OriginProof", "Create");
     await assertDealOwnScope(scope, dealId, user);
@@ -782,7 +794,7 @@ const OriginProofUpdateSchema = z.object({
   status: z.enum(ORIGIN_PROOF_STATUSES, "اختار حالة إثبات منشأ صحيحة"),
 });
 
-export type OriginProofUpdateFormState = { errors?: Record<string, string[]>; formError?: string };
+export type OriginProofUpdateFormState = { errors?: Record<string, string[]>; formError?: string; mfaRequired?: boolean };
 
 /** ⚠️ عيب اتلقط في المراجعة (BACKLOG.md، 30 أغسطس): `createOriginProof` بس كان موجود، ومفيش
  * فورم تعديل بعد الإصدار الأول — بينما `revisedRulesWordingVerified` عمليًا بيتحدَّث بعد الإصدار
@@ -812,8 +824,17 @@ export async function updateOriginProofAction(
     // بنفحص ملكية إثبات المنشأ نفسه عبر dealId الحقيقي بتاعه، مش الباراميتر complianceCaseId
     // المُرسَل (نفس السبب الموضّح في decideGate فوق).
     const scopedPrisma = await getScopedPrisma();
-    const existingProof = await scopedPrisma.originProof.findUniqueOrThrow({ where: { id: originProofId }, select: { dealId: true } });
+    const existingProof = await scopedPrisma.originProof.findUniqueOrThrow({ where: { id: originProofId }, select: { dealId: true, revisedRulesWordingVerified: true } });
     await assertDealOwnScope(scope, existingProof.dealId, user);
+    // ⚠️ اتلقط بمراجعة ذاتية 19 سبتمبر — راجع نفس التعليق في createOriginProof فوق. MFA لازم بس
+    // لما القيمة فعليًا بتتحوّل لـtrue، مش لأي تعديل تاني على الإثبات وهي already متحقّقة.
+    if (rest.revisedRulesWordingVerified && !existingProof.revisedRulesWordingVerified) {
+      try {
+        await requireAal2();
+      } catch {
+        return { formError: "تحقّق قواعد PEM المنقّحة محتاج تحقق بخطوتين (MFA) الأول.", mfaRequired: true };
+      }
+    }
     await withScopedTransaction(async (tx) => {
       const before = await tx.originProof.findUniqueOrThrow({ where: { id: originProofId } });
       // انتقال حقيقي بقى — بس الأزواج المسموح بيها في جدول WorkflowDefinition (وحدة 9، راجع
