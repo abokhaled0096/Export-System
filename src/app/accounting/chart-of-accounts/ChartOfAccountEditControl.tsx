@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
+import { useActionState, useOptimistic, useState, useTransition } from "react";
 import { updateChartOfAccountAction, toggleChartOfAccountActiveAction, type ChartOfAccountEditFormState } from "../actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +23,9 @@ export default function ChartOfAccountEditControl({
   const [state, formAction, pending] = useActionState(updateChartOfAccountAction.bind(null, accountId), initialState);
   const [togglePending, startToggle] = useTransition();
   const [toggleError, setToggleError] = useState<string | null>(null);
+  // Optimistic UI (BACKLOG.md § P3) — الحالة بتتقلب فورًا وقت الضغط، مش لما السيرفر يرد. لو
+  // السيرفر رفض، optimisticActive بيرجع للقيمة الحقيقية (isActive) تلقائيًا لما الـtransition تخلص.
+  const [optimisticActive, setOptimisticActive] = useOptimistic(isActive);
 
   const [prevState, setPrevState] = useState(state);
   if (state !== prevState) {
@@ -33,7 +36,7 @@ export default function ChartOfAccountEditControl({
   if (!editing) {
     return (
       <span className="inline-flex items-center gap-1.5">
-        {!isActive && <Badge className="bg-neutral-200 text-neutral-700 hover:bg-neutral-200">موقوف</Badge>}
+        {!optimisticActive && <Badge className="bg-neutral-200 text-neutral-700 hover:bg-neutral-200">موقوف</Badge>}
         <button type="button" className="text-xs text-primary hover:underline" onClick={() => setEditing(true)}>
           تعديل
         </button>
@@ -44,6 +47,7 @@ export default function ChartOfAccountEditControl({
           onClick={() => {
             setToggleError(null);
             startToggle(async () => {
+              setOptimisticActive(!optimisticActive);
               try {
                 await toggleChartOfAccountActiveAction(accountId);
               } catch (e) {
@@ -52,7 +56,7 @@ export default function ChartOfAccountEditControl({
             });
           }}
         >
-          {togglePending ? "..." : isActive ? "إيقاف" : "تفعيل"}
+          {optimisticActive ? "إيقاف" : "تفعيل"}
         </button>
         {toggleError && <span className="text-xs text-destructive">{toggleError}</span>}
       </span>
