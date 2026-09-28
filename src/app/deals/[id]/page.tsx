@@ -21,6 +21,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export const dynamic = "force-dynamic";
+// sendQuoteEmail (deals/actions.ts) بيولّد PDF بـChromium (quote-pdf.ts) قبل الإرسال — نفس سبب
+// maxDuration في routes التحميل، الحد الافتراضي (10 ثواني على Vercel Hobby) ممكن ميكفيش.
+export const maxDuration = 60;
 
 const salesOrderStatusLabel: Record<string, string> = {
   Draft: "مسودة",

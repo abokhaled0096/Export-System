@@ -5,6 +5,9 @@ import { getPermissionScope, scopedOwnerIdFilter } from "@/lib/permissions";
 import { getQuoteBundlePdfData } from "@/lib/quote-bundle-data";
 import { renderQuoteBundlePdf } from "@/lib/quote-pdf";
 
+// راجع نفس التعليق في src/app/deals/[id]/quotes/[quoteId]/pdf/route.ts — Chromium cold start.
+export const maxDuration = 60;
+
 /** ⚠️ مراجعة وحدة 2 (6 سبتمبر): كان مفيش أي فحص صلاحية/ملكية هنا خالص — نفس فلتر /quote-bundles. */
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

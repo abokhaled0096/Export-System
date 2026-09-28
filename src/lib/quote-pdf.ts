@@ -1,4 +1,4 @@
-import puppeteer from "puppeteer";
+import type { Browser } from "puppeteer-core";
 
 export type QuotePdfData = {
   orgLegalName: string;
@@ -300,10 +300,34 @@ function buildQuoteBundleHtml(b: QuoteBundlePdfData): string {
 </html>`;
 }
 
-let browserPromise: ReturnType<typeof puppeteer.launch> | null = null;
+/** Vercel serverless functions مالهاش نظام تشغيل كامل يقدر يشغّل Chromium العادي (حجم كبير جدًا
+ * + مكتبات نظام ناقصة) — لازم Chromium مُبني خصيصًا للـserverless (@sparticuz/chromium) + عميل
+ * "puppeteer-core" الخفيف (بلا Chromium مُدمَج) بدل حزمة "puppeteer" الكاملة. محليًا (تطوير)
+ * بنستخدم "puppeteer" الكاملة زي ما هي — أبسط، وأصلًا بتنزّل Chromium بمفردها بلا إعداد إضافي.
+ * الاختيار بين الاتنين وقت التشغيل بس (process.env.VERCEL بيتحطّ تلقائيًا في أي بيئة Vercel). */
+async function launchBrowser(): Promise<Browser> {
+  if (process.env.VERCEL) {
+    const [{ default: chromium }, { default: puppeteerCore }] = await Promise.all([
+      import("@sparticuz/chromium"),
+      import("puppeteer-core"),
+    ]);
+    return puppeteerCore.launch({
+      args: chromium.args,
+      executablePath: await chromium.executablePath(),
+      headless: true,
+    });
+  }
+  const { default: puppeteerFull } = await import("puppeteer");
+  const browser = await puppeteerFull.launch({ headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox"] });
+  // "puppeteer" مبني فوق "puppeteer-core" فعليًا (نفس الـBrowser class جوّاه) — الكاست هنا
+  // بس بيوصف النوع للـTypeScript، مش تغيير سلوك وقت التشغيل.
+  return browser as unknown as Browser;
+}
+
+let browserPromise: Promise<Browser> | null = null;
 function getBrowser() {
   if (!browserPromise) {
-    browserPromise = puppeteer.launch({ headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox"] });
+    browserPromise = launchBrowser();
   }
   return browserPromise;
 }

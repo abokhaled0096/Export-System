@@ -5,6 +5,10 @@ import { requirePermission, assertOwnScope } from "@/lib/permissions";
 import { getQuotePdfData } from "@/lib/quote-data";
 import { renderQuotePdf } from "@/lib/quote-pdf";
 
+// توليد PDF بـChromium (cold start + رندر) ممكن ياخد أكتر من الـ10 ثواني الافتراضية على Vercel
+// Hobby — بلا الحد الأقصى ده، أول طلب بعد فترة خمول ممكن يترفض بـTimeout قبل ما Chromium يخلّص.
+export const maxDuration = 60;
+
 /** ⚠️ مراجعة وحدة 2 (6 سبتمبر): كان مفيش أي فحص صلاحية/ملكية هنا خالص — أي مستخدم مسجّل دخول
  * في المنظمة يقدر يحمّل PDF أي عرض سعر بس لو عرف/خمّن الـid بتاعه، بغض النظر عن Own/Team scope. */
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string; quoteId: string }> }) {
