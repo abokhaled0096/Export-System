@@ -8,7 +8,8 @@
 
 ## 🔴 P0 — أمان/صحة حرجة (تُعمل أول حاجة)
 
-_(فاضي دلوقتي — كل البنود اتقفلت أو اتصلحت. راجع "✅ خلصان" تحت.)_
+- [ ] **⚠️ قاعدة Supabase متوقّفة فعليًا (اكتُشف 28 سبتمبر أثناء فحص جاهزية deployment) — محتاج فعل المستخدم بس.** الخطة المجانية بتوقف المشروع تلقائيًا بعد فترة خمول. `prisma migrate status`/أي استعلام بيرجع `(ENOTFOUND) tenant/user ... not found`. لازم Restore/Unpause من داشبورد Supabase قبل أي تطوير أو نشر تاني — مفيش حاجة برمجية تتصلح من هنا.
+- [ ] **⚠️ ثغرة Next.js critical في `npm audit` (اكتُشفت 28 سبتمبر أثناء تثبيت puppeteer-core) — RCE على Windows-hosted servers + ثغرة في Image Optimization API.** موجودة في نسخة `next` الحالية (`16.3.2`) مش ناتجة عن أي تعديل من الجلسات الأخيرة. محتاجة: (1) فحص `npm audit` بالتفصيل لمعرفة أقرب نسخة مُصلَحة، (2) ترقية `next` + إعادة اختبار كامل (`tsc`/`eslint`/`build`/`test:rls`/`test:smoke`) قبل أي نشر إنتاجي، لأن Vercel بيستضيف على Linux مش Windows فالجزء الأول من الثغرة (Windows-hosted) غير منطبق هنا تحديدًا، لكن Image Optimization API لازم يتفحص.
 
 ## 🟠 P1 — صحة البيانات وقابلية التوسع
 
@@ -121,6 +122,8 @@ _(فاضي دلوقتي — كل البنود اتقفلت أو اتصلحت. ر
 ## ✅ خلصان
 
 _(هنا هتتنقل البنود اللي خلصت، مع التاريخ وملخص سطر واحد وأي ملف اتغيّر)_
+
+- **[2026-09-28] Puppeteer/Chromium كان هيكسر على Vercel serverless — اتصلح قبل أي نشر.** `quote-pdf.ts` كانت بتستخدم `puppeteer` الكاملة (Chromium ~300 ميجا مُدمَج) بلا أي تهيئة serverless. الحل: `puppeteer-core` + `@sparticuz/chromium` وقت التشغيل الفعلي على Vercel (`process.env.VERCEL`)، `puppeteer` الكاملة اتنقلت لـ`devDependencies` (للتطوير المحلي بس). `next.config.ts`: `serverExternalPackages` + `outputFileTracingExcludes` لمنع Next.js من تتبّع/حزم `puppeteer` الكاملة جوه الـbundle المنشور رغم وجود `import()` بالاسم. `maxDuration=60` على الـ3 نقاط اللي بتولّد PDF (الحد الافتراضي 10 ثواني ميكفيش لـcold start Chromium). `package.json`: `engines.node` جديد. مُختبر فعليًا محليًا (مسار التطوير — PDF حقيقي 87KB). مسار Vercel نفسه مش قابل للاختبار من جهاز Windows محلي، محتاج تحقق بعد أول نشر فعلي. الملفات: `src/lib/quote-pdf.ts`، `next.config.ts`، `package.json`، `src/app/deals/[id]/{page.tsx,quotes/[quoteId]/pdf/route.ts}`، `src/app/quote-bundles/[id]/pdf/route.ts`.
 
 - **[2026-09-19] مراجعة ذاتية لـdiff أمس (6 وكلاء متوازيين) — عيب تفاعل خطير + ثغرة MFA تانية.** (1) `postPaymentAllocated` كانت بتحسب "الربح المحقَّق" وقت تخصيص الدفعة من سعر إصدار الفاتورة الأصلي دايمًا، بلا معرفة بإعادة تقييم سابقة — يعني فرق العملة بيتكرر (مرة غير محقَّق وقت إعادة التقييم، مرة محقَّق تاني وقت التحصيل) وAR/AP بتفضل برصيد شبح. الحل: `Invoice.lastFxRevaluationRateId` جديد، `postPaymentAllocated` بيستخدمه لو موجود. مُختبر end-to-end (فاتورة $10,000، إصدار 30→تقييم 31→تحصيل 31.5: الربح النهائي 15,000 صح، رصيد AR = 0 بالظبط). (2) نفس فئة عيب MFA اللي اتصلح أمس لـApproval موجودة في `OriginProof.revisedRulesWordingVerified` (CLAUDE.md بيسمّيها بالحرف) — Trigger جديد + `has_aal2()` مشتركة + `requireAal2()` تطبيقي. (3) عيب اتلقط بنفسي فورًا بالاختبار المباشر: `has_aal2()` كانت بترجّع NULL مش false لما aal فاضي، فالـTrigger الجديد (والـApproval بعد إعادة تعريفه) كانوا بلا حماية حقيقية لحظات قبل الإصلاح التاني (`COALESCE`) — درس: أي Trigger أمان لازم يتختبر بسيناريو الفشل فعليًا مش النجاح بس. + إصلاحات أصغر: تحقق صريح لعملة VAT filing، ترتيب auth check في `change-requests/page.tsx`، تنظيف `extraParams={{}}` من 10 ملفات، count() زيادة في `admin/teams`. `test:rls` **184/184**، `test:smoke` ناجح. 4 migrations جداد. راجع STATUS.md. الملفات: `prisma/schema.prisma`+3 migrations، `src/lib/{accounting,fxRevaluation}.ts`، `src/app/compliance/**`، `src/app/accounting/finance-actions.ts`، `prisma/rls-test.ts`، + 12 ملف تنظيف.
 

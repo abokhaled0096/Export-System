@@ -6,7 +6,9 @@
 >
 > **[BACKLOG.md](BACKLOG.md) = قائمة العيوب/التحسينات المرتبة بالأولوية (P0→P3)، مع قسم "✅ خلصان" بتتنقل له البنود بعد إنجازها.** لو بتدوّر على "إيه اللي لسه ناقص بالتفصيل"، ابدأ من هناك.
 
-## أين إحنا دلوقتي (محدَّث 2026-09-19 — مراجعة ذاتية لشغل يوم أمس: عيب تفاعل خطير بين إعادة تقييم العملة وتخصيص الدفعات + ثغرة MFA تانية على OriginProof، الاتنين اتصلحوا ومُختبَرين — راجع "آخر حاجة اتعملت بالظبط" تحت للتفاصيل الكاملة)
+## أين إحنا دلوقتي (محدَّث 2026-09-28 — أول فحص جدّي لجاهزية الـdeployment: قاعدة Supabase متوقّفة (Free tier auto-pause)، وPuppeteer/Chromium كان هيكسر على Vercel serverless — الاتنين موثّقين، الأول محتاج فعل المستخدم، الثاني اتصلح فعليًا (puppeteer-core + @sparticuz/chromium) — راجع "آخر حاجة اتعملت بالظبط" تحت للتفاصيل الكاملة)
+
+## أين إحنا قبل كده (محدَّث 2026-09-19 — مراجعة ذاتية لشغل يوم أمس: عيب تفاعل خطير بين إعادة تقييم العملة وتخصيص الدفعات + ثغرة MFA تانية على OriginProof، الاتنين اتصلحوا ومُختبَرين — راجع "آخر حاجة اتعملت بالظبط" تحت للتفاصيل الكاملة)
 
 ## أين إحنا قبل كده (محدَّث 2026-09-18 — مراجعة أمان/صحة مالية شاملة بعد إقفال قائمة P2/P3: 6 عيوب حقيقية اتصلحت (FX revaluation تراكمي، ثغرة MFA على اعتماد Approval، خلط عملات في رصيد الضريبة، مضاهاة بنكية بلا سقف من ناحية الدفعة، عمولة بـfloat بدل Decimal، موازنة نقدية ما بتشوفش حسابات فرعية)، + ترقية pagination حقيقي لـ31 صفحة قائمة كانت من غيره — راجع "آخر حاجة اتعملت بالظبط" تحت للتفاصيل الكاملة)
 
@@ -59,6 +61,21 @@
 | **9 · الحوكمة والإدارة (RBAC)** | **✅ 13/13 كيان، إقفال كامل** | **شريحة أولى**: `Role`, `Permission`, `RolePermission`, `Department`, `Team` مبنيين ومُفعَّلين فعليًا (مش شكليين). **شريحة تانية**: `SegregationOfDutyRule` (+ **تريجرين**: `enforce_segregation_of_duty_payment` بيفعّل فصل المهام على `Payment.createdBy`/`approvedBy` — أول إنفاذ حقيقي لقيد workflow؛ و`enforce_segregation_of_duty_supplier_payment` (5 سبتمبر) بيغطّي المثال الحرفي في الـERD نفسه — `Supplier.createdBy` ≠ `Payment.approvedBy`، بعد إضافة عمود `createdBy` لـ`Supplier`)، `DecisionLogEntry`, `RiskRegisterItem`, `KPI` (`periodId` FK حقيقي بدل نص حر، `actualValue` إدخال يدوي عمدًا)، `Notification` (فلترة `userId` صريحة، مش scope عام)، `MasterDataChangeRequest` (بقت بوابة اعتماد فعلية من 6 سبتمبر). **شريحة تالتة وأخيرة (7 سبتمبر) — الوحدة قفلت بالكامل**: `FieldPermission` (صلاحية عرض/تعديل على مستوى الحقل، `roleId`+`entityType`+`fieldName`→`accessLevel`، الغياب=ReadWrite افتراضيًا) و`WorkflowDefinition` (خريطة انتقالات مسموحة `orgId`+`entityType`+`fromStage`+`toStage`، + `requiredApprovalPolicyId` اختياري) — اتبنوا استباقيًا كبنية تحتية عامة بطلب صريح من المستخدم بعد ما كانوا مؤجَّلين لغياب حالة استخدام تانية. صفحات `/governance/*` (7) + `/notifications`. راجع BACKLOG.md § خلصان للتفاصيل الكاملة. **رابع وحدة تقفل بالكامل بعد 4، 5، 6، 3، 7، 8** (حسب ترتيب الإقفال الفعلي). **مراجعة شاملة (6 سبتمبر)** كشفت وصلحت 4 مواضع كسر صفحة بـFK عابرة للمنظمات، **وإعادة مراجعة (7 سبتمبر)** كشفت وصلحت فجوتين إضافيتين (`createTeam.managerId`, `assignUserTeam.teamId`) — راجع BACKLOG.md § خلصان. |
 
 **الإجمالي: 119 كيان مبني فعليًا (`prisma/schema.prisma`) من أصل 132 في `docs/ERD.md`** — وحدة 3 كاملة (14/14)، وحدة 4 كاملة (6/6)، وحدة 5 كاملة (9)، وحدة 6 كاملة (17/17)، وحدة 7 كاملة (23/23)، وحدة 8 كاملة (19/19)، **وحدة 9 كاملة (13/13، إقفال 7 سبتمبر)**، وحدة 2 شبه كاملة (7 من 9، ناقصها `QuoteLine`/`DealActual`)، وحدة 1 شريحة أولى (3)، + الطبقة المشتركة (`Organization`, `User`, `AuditLog`, `ErrorLog`, `Approval`, `ApprovalPolicy`, `ExchangeRate`, `CAPA` — 8).
+
+### آخر حاجة اتعملت بالظبط (جلسة 28 سبتمبر — فحص جاهزية deployment: قاعدة متوقّفة + إصلاح Puppeteer/Chromium)
+
+0. **طلب المستخدم**: "إيه اللي فاضل عشان أعمل deployment؟" ثم حدّد: "الشغل البرمجي بس، مش الـinfra" — فحص جاهزية النشر مركَّز على الكود، مش خطوات المستخدم الخارجية (رفع GitHub، إعداد Vercel، تجديد مفاتيح).
+
+1. **🔴 قاعدة Supabase متوقّفة فعليًا (`(ENOTFOUND) tenant/user ... not found` من `prisma migrate status`).** الخطة المجانية بتوقف المشروع تلقائيًا بعد فترة خمول (~أسبوع — آخر لمسة كانت 19 سبتمبر، الفحص ده 28 سبتمبر). **محتاج فعل من المستخدم** (Restore/Unpause من داشبورد Supabase) — مفيش حاجة برمجية تصلحها من هنا. كل الاختبارات اللي محتاجة قاعدة حقيقية (`test:rls`/`test:smoke`) بترجع نفس الخطأ لحد ما ده يتحل.
+
+2. **🔧 [CRITICAL، اتصلح] `src/lib/quote-pdf.ts` كانت بتستخدم حزمة `puppeteer` الكاملة (Chromium مُدمَج ~300 ميجا) — ده كان هيكسر فعليًا على Vercel serverless** (حد حجم الـfunction، مكتبات نظام ناقصة، بلا `maxDuration` كافي لـcold start Chromium). **الحل**:
+   - `puppeteer-core` + `@sparticuz/chromium` (Chromium مبني خصيصًا لـserverless) للتشغيل الفعلي، مُفعَّلين بس لما `process.env.VERCEL` موجود (Vercel بيحطّه تلقائيًا).
+   - `puppeteer` الكاملة اتنقلت لـ`devDependencies` — لسه مستخدمة محليًا (أسهل، Chromium بتاعها بيتنزّل تلقائيًا) عبر `import()` ديناميكي بس لما `!process.env.VERCEL`.
+   - `next.config.ts`: `serverExternalPackages: ["puppeteer-core", "@sparticuz/chromium"]` (منع Next.js من محاولة يحزم الملفات الثنائية جوه الـbundle العادي) + `outputFileTracingExcludes` لملفات `puppeteer` الكاملة (استبعاد صريح من التتبّع — Next.js بيتتبّع أي `import()` بالاسم بغض النظر عن شرط التشغيل وقت الـrun، فلازم استبعاد صريح وقت الـbuild).
+   - `maxDuration = 60` على الـ3 نقاط اللي بتولّد PDF فعليًا: `deals/[id]/quotes/[quoteId]/pdf/route.ts`، `quote-bundles/[id]/pdf/route.ts`، و`deals/[id]/page.tsx` (بتستضيف فورم `sendQuoteEmail` اللي بيولّد PDF قبل الإرسال) — الحد الافتراضي (10 ثواني على Vercel Hobby) ممكن ميكفيش لـcold start Chromium.
+   - `package.json`: `engines.node` جديد (`^22.17.0 || >=24.0.0`، نفس متطلب `@sparticuz/chromium`) — ضمان إن Vercel يستخدم نسخة Node متوافقة.
+   **مُختبر فعليًا محليًا (مسار التطوير — `puppeteer` الكاملة)**: PDF حقيقي اتولّد (`%PDF-1.4`، 87KB، مطابق لحجم الاختبار الأصلي وقت بناء الميزة 29 أغسطس) — يعني الـrefactor ما كسرش السلوك المحلي. **مسار Vercel (`@sparticuz/chromium`) مش قابل للاختبار من الجهاز المحلي** (Windows، والـbinary مبني لـLinux/Lambda) — التحقق النهائي محتاج نشر فعلي أو بيئة Linux. `tsc --noEmit`/`eslint`/`next build` كلهم نضاف.
+   **ثغرات أمنية موجودة اتفحصت أثناء التثبيت (مش من هذا التعديل)**: `npm audit` طلّع ثغرة `Next.js critical (RCE على Windows-hosted servers + Image Optimization API)` — موجودة أصلًا في نسخة Next.js الحالية، مش ناتجة عن `puppeteer-core`/`@sparticuz/chromium` (مفحوصة بالاسم، صفر ثغرات جداد منهم) — **محتاجة قرار/ترقية منفصلة، مسجَّلة في BACKLOG**.
 
 ### آخر حاجة اتعملت بالظبط (جلسة 19 سبتمبر — مراجعة ذاتية للـdiff من أمس (be90456..HEAD وقتها) بـ6 وكلاء متوازيين)
 
