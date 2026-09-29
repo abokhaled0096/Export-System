@@ -12,6 +12,7 @@
 import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
 import { computeIncomeStatement, computeBalanceSheet } from "../src/lib/financialStatements";
+import { getDashboardData } from "../src/lib/dashboard";
 
 type Client = Parameters<typeof computeIncomeStatement>[0];
 
@@ -141,6 +142,22 @@ function check(label: string, actual: string, expected: string) {
     const before = await computeBalanceSheet(client, org.id, new Date("2026-01-01"));
     check("ميزانية قبل النشاط متزنة", String(before.isBalanced), "true");
     check("أصول قبل النشاط", before.totalAssets.toFixed(2), "0.00");
+
+    // ---------- لوحة القيادة ----------
+    // الرسم الشهري مبني على $queryRaw — SQL خام، يعني لا tsc ولا Prisma هيمسكوا أي غلط
+    // فيه. الفحص ده هو الضمان الوحيد إنه بيجمّع صح.
+    console.log("\n— لوحة القيادة —");
+    const dash = await getDashboardData(client as never, org.id);
+    check("العملة الوظيفية", dash.currency, "EGP");
+    check("عدد شهور الرسم البياني", String(dash.monthlyRevenue.length), "6");
+    const augRevenue = dash.monthlyRevenue.find((m) => m.month === "أغسطس");
+    check("إيراد أغسطس في الرسم ($queryRaw)", String(augRevenue?.revenue ?? "مفقود"), "60000");
+    check(
+      "باقي الشهور صفر",
+      String(dash.monthlyRevenue.filter((m) => m.month !== "أغسطس").every((m) => m.revenue === 0)),
+      "true"
+    );
+    check("مفيش مستحق على العملاء (مفيش فواتير مبيعات)", dash.outstandingReceivables.toFixed(2), "0.00");
 
     console.log(`\n${fail === 0 ? "✅" : "❌"} ${pass}/${pass + fail} فحوصات ناجحة`);
   } finally {
