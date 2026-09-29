@@ -187,7 +187,10 @@ export default function InvoiceLines({ invoiceId, currency, editable, lines, pro
               <Label htmlFor="line-product" className="text-xs">
                 المنتج
               </Label>
-              <Select name="productId" onValueChange={(v) => fillFromProduct(String(v))}>
+              {/* key بيتغيّر مع كل بند جديد بيرجع من السيرفر، فالـSelect بيترسم من أول وجديد
+                  فاضي بعد كل إضافة. form.reset() لوحده مابيرجّعش Select مبني على زرار وحالة
+                  داخلية، فكان بيفضل مكتوب فيه المنتج القديم جنب حقول اتفضّت. */}
+              <Select key={`product-${lines.length}`} name="productId" onValueChange={(v) => fillFromProduct(String(v))}>
                 <SelectTrigger id="line-product">
                   <SelectValue>{(value: string) => products.find((p) => p.id === value)?.label ?? "— بند حر —"}</SelectValue>
                 </SelectTrigger>
