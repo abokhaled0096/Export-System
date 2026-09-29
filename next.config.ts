@@ -1,6 +1,19 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // ⚠️ علاج السبب الجذري لمشكلة «التبويب القديم بيعلّق على جاري التحميل» (اتلاحظت على
+  // الإنتاج ٢٩ سبتمبر): بعد أي نشر، التبويب المفتوح بيطلب chunks من بناء اتشال، الطلب
+  // بيفشل جوه Suspense من غير ما يرمي خطأ، والصفحة بتفضل معلقة.
+  //
+  // deploymentId بيخلّي Next.js يوسم كل طلب أصول بالنشر اللي طلع منه (?dpl=...). لما تكون
+  // خاصية Skew Protection مفعّلة في إعدادات مشروع Vercel، الطلب ده بيتوجّه للنشر القديم
+  // نفسه فيلاقي ملفاته موجودة بدل 404.
+  //
+  // ⚠️ محتاجة تفعيل «Skew Protection» من لوحة تحكّم Vercel (Settings → Advanced) عشان
+  // تشتغل فعليًا. من غير التفعيل الباراميتر بيتجاهل بلا ضرر. والحارس في
+  // src/components/LoadingWatchdog.tsx هو شبكة الأمان اللي بتشتغل في الحالتين.
+  deploymentId: process.env.VERCEL_DEPLOYMENT_ID,
+
   // الجهاز عنده 16 core لكن ذاكرة محدودة — 15 worker متوازي بيسبب
   // JavaScript heap out of memory أثناء الـbuild. راجع STATUS.md.
   experimental: {

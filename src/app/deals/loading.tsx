@@ -16,6 +16,7 @@ export default function DealsLoading() {
           <div key={i} className="h-64 rounded-xl border-t-4 border-t-muted bg-muted/40 p-3" />
         ))}
       </div>
+    
     </main>
   );
 }

@@ -11,6 +11,7 @@ export default function DealDetailLoading() {
           <div className="mt-3 h-32 rounded-xl border border-border bg-card" />
         </div>
       ))}
+    
     </main>
   );
 }
