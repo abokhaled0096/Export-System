@@ -25,9 +25,7 @@ const nextConfig: NextConfig = {
   // فعلي تشغيل توليد الـPDF. outputFileTracingIncludes بيجبر Next.js يضيف المجلد ده صراحةً لأي
   // route محتاج Chromium (نفس الحل الموثّق في README بتاع @sparticuz/chromium نفسه).
   outputFileTracingIncludes: {
-    "/deals/[id]/quotes/[quoteId]/pdf": ["./node_modules/@sparticuz/chromium/bin/**/*"],
-    "/quote-bundles/[id]/pdf": ["./node_modules/@sparticuz/chromium/bin/**/*"],
-    "/deals/[id]": ["./node_modules/@sparticuz/chromium/bin/**/*"],
+    "*": ["./node_modules/@sparticuz/chromium/bin/**/*"],
   },
 };
 
