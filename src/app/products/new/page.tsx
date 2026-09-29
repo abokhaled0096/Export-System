@@ -8,7 +8,7 @@ export default function NewProductPage() {
       <Button nativeButton={false} variant="link" className="h-auto p-0" render={<Link href="/products">← رجوع لقائمة المنتجات</Link>} />
       <h1 className="mt-3 text-2xl font-semibold text-foreground">منتج جديد</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        بيانات أساسية فقط (نطاق P1) — الحقول الموسّعة (الشهادات، الصور، المصادر) في Phase 2.
+        سجّل البيانات الأساسية للمنتج — تقدر تكمّل باقي التفاصيل بعد الحفظ.
       </p>
       <div className="mt-8">
         <ProductForm />

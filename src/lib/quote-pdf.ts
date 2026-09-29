@@ -88,11 +88,11 @@ function buildQuoteHtml(q: QuotePdfData): string {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    border-bottom: 3px solid #047857;
+    border-bottom: 3px solid #7A0F3D;
     padding-bottom: 16px;
     margin-bottom: 24px;
   }
-  .brand { font-size: 20px; font-weight: 700; color: #047857; }
+  .brand { font-size: 20px; font-weight: 700; color: #7A0F3D; }
   .brand-sub { font-size: 11px; color: #737373; margin-top: 4px; }
   .doc-title { text-align: left; }
   .doc-title h1 { font-size: 18px; margin: 0; }
@@ -105,7 +105,7 @@ function buildQuoteHtml(q: QuotePdfData): string {
     font-size: 11px;
     font-weight: 600;
     background: #d1fae5;
-    color: #047857;
+    color: #7A0F3D;
   }
   .grid { display: flex; gap: 32px; margin-bottom: 24px; }
   .col { flex: 1; }
@@ -116,7 +116,7 @@ function buildQuoteHtml(q: QuotePdfData): string {
   thead th { background: #f5f5f5; color: #737373; font-weight: 500; font-size: 10px; text-transform: uppercase; border-bottom: 1px solid #e5e5e5; }
   tbody td { border-bottom: 1px solid #f0f0f0; }
   tfoot td { font-weight: 700; font-size: 14px; padding-top: 14px; border-top: 2px solid #171717; }
-  .price-total { color: #047857; }
+  .price-total { color: #7A0F3D; }
   .terms { margin-top: 28px; padding: 16px; background: #fafafa; border-radius: 8px; font-size: 11px; color: #525252; }
   .terms h3 { font-size: 12px; margin: 0 0 8px; color: #171717; }
   footer { margin-top: 40px; padding-top: 12px; border-top: 1px solid #e5e5e5; font-size: 10px; color: #a3a3a3; text-align: center; }
@@ -186,7 +186,7 @@ function buildQuoteHtml(q: QuotePdfData): string {
     <p>هذا العرض غير ملزم بعد انتهاء صلاحيته، ويخضع لتأكيد الكمية والجودة النهائية وقت الشحن.</p>
   </div>
 
-  <footer>${q.orgLegalName} — تم إنشاء هذا المستند إلكترونيًا عبر منظومة أبوهيبة للتصدير</footer>
+  <footer>${q.orgLegalName} — تم إنشاء هذا المستند إلكترونيًا عبر منظومة ELHEIBALAND EXPORT · From Egypt to the World with Trust</footer>
 </body>
 </html>`;
 }
@@ -222,8 +222,8 @@ function buildQuoteBundleHtml(b: QuoteBundlePdfData): string {
   * { box-sizing: border-box; }
   body { font-family: 'IBM Plex Sans Arabic', sans-serif; color: #171717; margin: 0; padding: 40px 48px; font-size: 13px; line-height: 1.6; }
   .mono { font-family: 'IBM Plex Mono', monospace; }
-  header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #047857; padding-bottom: 16px; margin-bottom: 24px; }
-  .brand { font-size: 20px; font-weight: 700; color: #047857; }
+  header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #7A0F3D; padding-bottom: 16px; margin-bottom: 24px; }
+  .brand { font-size: 20px; font-weight: 700; color: #7A0F3D; }
   .brand-sub { font-size: 11px; color: #737373; margin-top: 4px; }
   .doc-title { text-align: left; }
   .doc-title h1 { font-size: 18px; margin: 0; }
@@ -237,7 +237,7 @@ function buildQuoteBundleHtml(b: QuoteBundlePdfData): string {
   thead th { background: #f5f5f5; color: #737373; font-weight: 500; font-size: 10px; text-transform: uppercase; border-bottom: 1px solid #e5e5e5; }
   tbody td { border-bottom: 1px solid #f0f0f0; }
   tfoot td { font-weight: 700; font-size: 14px; padding-top: 14px; border-top: 2px solid #171717; }
-  .price-total { color: #047857; }
+  .price-total { color: #7A0F3D; }
   .terms { margin-top: 28px; padding: 16px; background: #fafafa; border-radius: 8px; font-size: 11px; color: #525252; }
   .terms h3 { font-size: 12px; margin: 0 0 8px; color: #171717; }
   footer { margin-top: 40px; padding-top: 12px; border-top: 1px solid #e5e5e5; font-size: 10px; color: #a3a3a3; text-align: center; }
@@ -295,7 +295,7 @@ function buildQuoteBundleHtml(b: QuoteBundlePdfData): string {
     <p>هذا العرض غير ملزم بعد انتهاء صلاحيته، ويخضع لتأكيد الكمية والجودة النهائية وقت الشحن.</p>
   </div>
 
-  <footer>${b.orgLegalName} — تم إنشاء هذا المستند إلكترونيًا عبر منظومة أبوهيبة للتصدير</footer>
+  <footer>${b.orgLegalName} — تم إنشاء هذا المستند إلكترونيًا عبر منظومة ELHEIBALAND EXPORT · From Egypt to the World with Trust</footer>
 </body>
 </html>`;
 }

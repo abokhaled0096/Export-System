@@ -56,7 +56,7 @@ export default function KanbanColumn({
           <Link
             key={d.id}
             href={`/deals/${d.id}`}
-            className="block rounded-lg border border-border bg-card p-3 text-sm hover:border-emerald-400 hover:shadow-sm"
+            className="block rounded-lg border border-border bg-card p-3 text-sm hover:border-primary/40 hover:shadow-sm"
           >
             <p className="font-medium text-foreground">{d.customerName}</p>
             <p className="mt-0.5 text-xs text-muted-foreground">

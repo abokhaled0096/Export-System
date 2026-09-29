@@ -603,14 +603,14 @@ async function main() {
   // منظمات RLS Test/scratch عبر الجلسات (prisma/rls-test.ts وسكريبتات اختبار مؤقتة)، ده أدى
   // فعليًا (16 سبتمبر) لتشغيل الـseed على منظمة تجريبية عشوائية بدل منظمة الإنتاج الحقيقية —
   // راجع BACKLOG.md § وحدة 8. الفلترة بـlegalName هنا لازم تطابق قيمة الـcreate تحت بالحرف.
-  let org = await prisma.organization.findFirst({ where: { legalName: "Abu Heiba Export Co." } });
+  let org = await prisma.organization.findFirst({ where: { legalName: "ELHEIBALAND EXPORT" } });
   if (org) {
     console.log("✓ Organization موجودة بالفعل:", org.id);
   } else {
     org = await prisma.organization.create({
       data: {
-        name: "أبوهيبة للتصدير",
-        legalName: "Abu Heiba Export Co.",
+        name: "ELHEIBALAND EXPORT",
+        legalName: "ELHEIBALAND EXPORT",
         isActive: true,
       },
     });

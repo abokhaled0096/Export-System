@@ -6,7 +6,9 @@ import { prisma } from "../src/lib/prisma";
 
 async function main() {
   const org = await prisma.organization.create({
-    data: { name: "أبوهيبة للتصدير", legalName: "Abu Heiba Export Co." },
+    // ⚠️ اسم متعمّد مختلف عن منظمة الإنتاج ("ELHEIBALAND EXPORT") — لو الاختبار كراش قبل
+    // التنظيف، الصف اللي فاضل ما ينفعش يلتقطه findFirst في prisma/seed.ts بدل المنظمة الحقيقية.
+    data: { name: "Smoke Test Org", legalName: "Smoke Test Org" },
   });
   console.log("✓ Organization:", org.id);
 

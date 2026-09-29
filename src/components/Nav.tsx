@@ -108,8 +108,8 @@ export default async function Nav() {
       {user && <CommandPalette links={paletteLinks} />}
       <header className="relative border-b border-border bg-background">
         <div className="mx-auto flex max-w-5xl items-center gap-6 px-6 py-4">
-          <Link href="/" className="font-semibold text-primary">
-            أبوهيبة للتصدير
+          <Link href="/" className="shrink-0 font-semibold tracking-wide text-primary">
+            ELHEIBALAND
           </Link>
           {user && <CommandPaletteTrigger />}
           {user && (

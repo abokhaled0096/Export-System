@@ -17,7 +17,7 @@ export default function ResetPasswordForm({ userId }: { userId: string }) {
         type="text"
         placeholder="كلمة سر جديدة"
         disabled={pending}
-        className="w-32 rounded-lg border border-neutral-300 bg-white px-2 py-1 text-xs outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+        className="w-32 rounded-lg border border-neutral-300 bg-white px-2 py-1 text-xs outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
       />
       <button
         type="submit"

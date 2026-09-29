@@ -6,7 +6,7 @@ export function isEmailConfigured(): boolean {
 }
 
 /** المرسل الافتراضي — لازم يبقى دومين متحقّق منه في Resend قبل الإنتاج. راجع STATUS.md. */
-const FROM_ADDRESS = process.env.RESEND_FROM_ADDRESS || "quotes@abuheiba-export.com";
+const FROM_ADDRESS = process.env.RESEND_FROM_ADDRESS || "quotes@elheibaland.com";
 
 export async function sendQuoteEmailMessage(params: {
   to: string;
@@ -25,7 +25,8 @@ export async function sendQuoteEmailMessage(params: {
       <p>السادة ${params.customerName}،</p>
       <p>مرفق عرض السعر الخاص بـ${params.productNameAr}.</p>
       <p>لأي استفسار، برجاء الرد على هذا الإيميل.</p>
-      <p>مع تحيات فريق أبوهيبة للتصدير</p>
+      <p>مع تحيات فريق ELHEIBALAND EXPORT</p>
+      <p style="color:#C9A7B8;font-size:11px;letter-spacing:2px;text-transform:uppercase;">From Egypt to the World with Trust</p>
     </div>`,
     attachments: [{ filename: params.pdfFilename, content: params.pdfBuffer }],
   });

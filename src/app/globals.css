@@ -54,9 +54,17 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  /* أخضر emerald-700 (#047857) — نفس لون العلامة المستخدم في كل الواجهة الحالية،
-     عشان الوحدات القديمة والجديدة تفضل متسقة بصريًا أثناء التحويل التدريجي. */
-  --primary: #047857;
+  /* ===== ألوان هوية ELHEIBALAND EXPORT الرسمية (من دليل الهوية) =====
+     أي لون علامة في الواجهة لازم يرجع للمتغيّرات دي، مش يتكتب hex يدوي في الكلاسات.
+     ملحوظة: الأخضر/الأحمر/الكهرماني اللي في شارات الحالة دلالية (نجاح/خطأ/تحذير)
+     ومالهاش علاقة بلون العلامة — سايبينها زي ما هي عن قصد. */
+  --brand: #7A0F3D; /* Burgundy Prestige — لون الأفعال الأساسية */
+  --brand-dark: #3B0F2F; /* Imperial Plum — الحالات الداكنة/hover */
+  --brand-soft: #C9A7B8; /* Mauve Stone — حدود وتلميحات خفيفة */
+  --brand-tint: #FAF7F4; /* Ivory Pure — خلفيات فاتحة */
+  --brand-ink: #1A0E14; /* Noir Ruby — نص داكن جدًا */
+
+  --primary: var(--brand);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
@@ -67,7 +75,7 @@
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  --ring: #047857;
+  --ring: var(--brand);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);

@@ -19,7 +19,7 @@ export default function CreateUserForm({ roles }: { roles: { id: string; name: s
           id="new-user-email"
           name="email"
           type="email"
-          className="w-52 rounded-lg border border-neutral-300 bg-white px-2 py-1.5 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+          className="w-52 rounded-lg border border-neutral-300 bg-white px-2 py-1.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
         />
         {state.errors?.email && <span className="text-xs text-rose-600">{state.errors.email[0]}</span>}
       </div>
@@ -30,7 +30,7 @@ export default function CreateUserForm({ roles }: { roles: { id: string; name: s
         <input
           id="new-user-fullName"
           name="fullName"
-          className="w-40 rounded-lg border border-neutral-300 bg-white px-2 py-1.5 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+          className="w-40 rounded-lg border border-neutral-300 bg-white px-2 py-1.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
         />
         {state.errors?.fullName && <span className="text-xs text-rose-600">{state.errors.fullName[0]}</span>}
       </div>
@@ -41,7 +41,7 @@ export default function CreateUserForm({ roles }: { roles: { id: string; name: s
         <select
           id="new-user-roleId"
           name="roleId"
-          className="rounded-lg border border-neutral-300 bg-white px-2 py-1.5 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+          className="rounded-lg border border-neutral-300 bg-white px-2 py-1.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
         >
           {roles.map((r) => (
             <option key={r.id} value={r.id}>
@@ -58,14 +58,14 @@ export default function CreateUserForm({ roles }: { roles: { id: string; name: s
           id="new-user-password"
           name="password"
           type="text"
-          className="w-40 rounded-lg border border-neutral-300 bg-white px-2 py-1.5 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+          className="w-40 rounded-lg border border-neutral-300 bg-white px-2 py-1.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
         />
         {state.errors?.password && <span className="text-xs text-rose-600">{state.errors.password[0]}</span>}
       </div>
       <button
         type="submit"
         disabled={pending}
-        className="rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-800 disabled:opacity-50"
+        className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-[var(--brand-dark)] disabled:opacity-50"
       >
         {pending ? "جاري الإضافة..." : "+ مستخدم جديد"}
       </button>

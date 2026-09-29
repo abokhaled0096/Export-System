@@ -9,7 +9,7 @@ function Stat({ label, value, href }: { label: string; value: number; href: stri
   return (
     <Link
       href={href}
-      className="flex flex-col gap-1 rounded-xl border border-neutral-200 bg-white px-5 py-4 hover:border-emerald-300 hover:shadow-sm"
+      className="flex flex-col gap-1 rounded-xl border border-neutral-200 bg-white px-5 py-4 hover:border-primary/40 hover:shadow-sm"
     >
       <span className="text-3xl font-semibold text-neutral-900">{value}</span>
       <span className="text-sm text-neutral-500">{label}</span>
@@ -35,9 +35,7 @@ export default async function Home() {
   return (
     <main className="mx-auto max-w-5xl px-6 py-10">
       <h1 className="text-2xl font-semibold text-neutral-900">لوحة القيادة</h1>
-      <p className="mt-1 text-sm text-neutral-500">
-        نطاق P1 — منتج وسوق وتحليل. راجع <code className="text-xs">docs/SCOPE-P1.md</code> لباقي المراحل.
-      </p>
+      <p className="mt-1 text-sm text-neutral-500">نظرة سريعة على نشاط الشركة الحالي.</p>
 
       <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Stat label="منتج مسجّل" value={productCount} href="/products" />

@@ -16,8 +16,8 @@ const plexArabic = IBM_Plex_Sans_Arabic({
 });
 
 export const metadata: Metadata = {
-  title: "منظومة أبوهيبة للتصدير",
-  description: "نظام إدارة التصدير الداخلي — أبوهيبة",
+  title: "ELHEIBALAND EXPORT",
+  description: "منظومة إدارة التصدير والتجارة الدولية — ELHEIBALAND EXPORT",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- علامة ELHEIBALAND EXPORT — القوس + 911، بلون Imperial Plum على Ivory Pure -->
+  <rect width="64" height="64" rx="12" fill="#FAF7F4"/>
+  <!-- القوس: نصف دائرة فوق قائمتين -->
+  <path d="M18 50 L18 28 A14 14 0 0 1 46 28 L46 50"
+        fill="none" stroke="#3B0F2F" stroke-width="4.5" stroke-linecap="square"/>
+  <!-- 911 جوه القوس -->
+  <text x="32" y="43" text-anchor="middle"
+        font-family="Georgia, 'Times New Roman', serif" font-size="15" font-weight="700"
+        fill="#7A0F3D" letter-spacing="0.5">911</text>
+</svg>

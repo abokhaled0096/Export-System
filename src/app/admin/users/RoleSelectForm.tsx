@@ -25,7 +25,7 @@ export default function RoleSelectForm({
         name="roleId"
         defaultValue={currentRoleId}
         disabled={pending}
-        className="rounded-lg border border-neutral-300 bg-white px-2 py-1.5 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+        className="rounded-lg border border-neutral-300 bg-white px-2 py-1.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
       >
         {roles.map((r) => (
           <option key={r.id} value={r.id}>
@@ -36,7 +36,7 @@ export default function RoleSelectForm({
       <button
         type="submit"
         disabled={pending}
-        className="rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-800 disabled:opacity-50"
+        className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-[var(--brand-dark)] disabled:opacity-50"
       >
         {pending ? "جاري الحفظ..." : "حفظ"}
       </button>
