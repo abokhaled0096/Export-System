@@ -57,6 +57,9 @@ export default async function MarketsPage({
           <p className="mt-1 text-sm text-muted-foreground">{total} سوق مسجّل</p>
         </div>
         <div className="flex gap-2">
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- ده Route Handler بيرجّع
+              ملف CSV (Content-Disposition: attachment) مش صفحة. <Link> بيعمل تنقّل client-side
+              وبيكسر التنزيل. */}
           <Button nativeButton={false} variant="outline" render={<a href="/markets/export">تصدير CSV</a>} />
           <Button nativeButton={false} render={<Link href="/markets/new">+ سوق جديد</Link>} />
           <Button nativeButton={false} variant="outline" render={<Link href="/markets/compare">قارن أسواق</Link>} />

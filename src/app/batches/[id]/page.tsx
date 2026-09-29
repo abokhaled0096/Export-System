@@ -298,7 +298,7 @@ export default async function BatchDetailPage({ params }: { params: Promise<{ id
       <section className="mt-8">
         <h2 className="text-lg font-medium text-foreground">الدفعات الجاهزة (Lots)</h2>
         <p className="mt-1 text-xs text-muted-foreground">
-          تسجيل Lot بحالة جودة "مُفرَج عنها" (Released) هيتمنع على مستوى القاعدة لو مفيش إفراج جودة معتمد (فوق) لنفس الدفعة.
+          تسجيل Lot بحالة جودة «مُفرَج عنها» (Released) هيتمنع على مستوى القاعدة لو مفيش إفراج جودة معتمد (فوق) لنفس الدفعة.
         </p>
         <div className="mt-3">
           <LotForm batchId={batch.id} />

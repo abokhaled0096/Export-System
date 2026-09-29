@@ -21,7 +21,6 @@ import {
   complianceCaseStatusStyle,
   requirementCategoryLabel,
   requirementStatusLabel,
-  requirementStatusStyle,
   gateStatusLabel,
   gateStatusStyle,
   hsClassificationStatusLabel,

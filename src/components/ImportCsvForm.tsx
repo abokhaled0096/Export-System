@@ -21,7 +21,7 @@ export default function ImportCsvForm({
   return (
     <form action={formAction} className="flex max-w-xl flex-col gap-4">
       <div className="rounded-lg bg-muted/30 p-3 text-xs text-muted-foreground">
-        الأعمدة المتوقّعة في سطر العناوين (بنفس الترتيب والتسمية دي، زي ملف "تصدير CSV" بالظبط):
+        الأعمدة المتوقّعة في سطر العناوين (بنفس الترتيب والتسمية دي، زي ملف «تصدير CSV» بالظبط):
         <br />
         {templateColumns.join("، ")}
       </div>

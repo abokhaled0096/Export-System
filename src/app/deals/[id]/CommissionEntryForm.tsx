@@ -98,7 +98,7 @@ export default function CommissionEntryForm({
         {pending ? "جاري التسجيل..." : "+ عمولة"}
       </Button>
       <p className="w-full text-xs text-muted-foreground">
-        العمولة بتتسجّل "مستحقة" — الاعتماد والسداد بيحصلوا من الجدول تحت، مش وقت الإنشاء.
+        العمولة بتتسجّل «مستحقة» — الاعتماد والسداد بيحصلوا من الجدول تحت، مش وقت الإنشاء.
       </p>
       {state.formError && <p role="alert" className="w-full text-sm text-destructive">{state.formError}</p>}
     </form>

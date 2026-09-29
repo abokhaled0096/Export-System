@@ -11,6 +11,7 @@ import { createJournalEntryDraft, postJournalEntryById, reverseJournalEntry } fr
 import { logError, isNextControlFlowError, businessRuleMessage } from "@/lib/errorLog";
 import { assertWorkflowTransitionAllowed } from "@/lib/workflow";
 import { currencySchema, optionalCurrencySchema } from "@/lib/currencySchema";
+import type { JournalEntrySourceType } from "@/generated/prisma/client";
 
 const ACCOUNT_TYPES = ["Asset", "Liability", "Equity", "Revenue", "COGS", "Expense"] as const;
 const NORMAL_BALANCES = ["Debit", "Credit"] as const;
@@ -409,8 +410,6 @@ export async function updateProfitCenterAction(
   return { success: true };
 }
 
-const JOURNAL_ENTRY_SOURCE_TYPES = ["Manual", "Automatic", "Recurring", "Reversal", "Accrual", "Adjustment"] as const;
-
 const JournalLineInputSchema = z.object({
   accountId: z.string().uuid("اختر حساب"),
   debit: z.coerce.number().min(0, "لازم يكون 0 أو أكتر"),
@@ -487,7 +486,9 @@ export async function createJournalEntry(_prevState: JournalEntryFormState, form
         orgId: user.orgId,
         entryDate: new Date(entryDate),
         periodId,
-        sourceType: (sourceType as string) as (typeof JOURNAL_ENTRY_SOURCE_TYPES)[number],
+        // النوع من enum بريزما مباشرةً — القايمة اللي كانت مكتوبة بالإيد هنا كانت نسخة
+        // تانية من نفس الحقيقة، ومحدش كان بيستخدم قيمتها وقت التشغيل أصلًا.
+        sourceType: sourceType as JournalEntrySourceType,
         sourceModule: "Manual",
         description: typeof description === "string" && description ? description : undefined,
         preparedBy: user.id,
