@@ -443,7 +443,12 @@ export default async function DealDetailPage({ params }: { params: Promise<{ id:
       <section className="mt-8">
         <h2 className="text-lg font-medium text-foreground">عمولات المبيعات</h2>
         <div className="mt-3">
-          <CommissionEntryForm dealId={deal.id} plans={commissionPlans} users={orgUsers} salesOrders={deal.salesOrders} />
+          <CommissionEntryForm
+            dealId={deal.id}
+            plans={commissionPlans}
+            users={orgUsers}
+            salesOrders={deal.salesOrders.map((so) => ({ id: so.id, soNumber: so.soNumber }))}
+          />
         </div>
         {deal.commissionEntries.length === 0 ? (
           <p className="mt-3 text-sm text-muted-foreground">لسه مفيش عمولات مسجّلة لهذه الصفقة.</p>
