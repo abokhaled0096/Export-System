@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import CurrencySelect from "@/components/CurrencySelect";
 
 const initialState: LCRequirementFormState = {};
 
@@ -41,7 +42,7 @@ export default function LCRequirementForm({ complianceCaseId, dealId }: { compli
           <Label htmlFor="lc-currency" className="text-xs">
             العملة *
           </Label>
-          <Input id="lc-currency" name="currency" placeholder="USD" className="w-20" />
+          <CurrencySelect id="lc-currency" name="currency" className="w-20" />
           {state.errors?.currency && <span className="text-xs text-destructive">{state.errors.currency[0]}</span>}
         </div>
         <div className="flex flex-col gap-1.5">

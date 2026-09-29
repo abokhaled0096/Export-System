@@ -11,6 +11,7 @@ import { postFixedAssetAcquisition, runDepreciationForPeriod, postAssetDisposal,
 import { revalueForeignCurrencyReceivablesPayables } from "@/lib/fxRevaluation";
 import { logError, isNextControlFlowError, businessRuleMessage } from "@/lib/errorLog";
 import { isGlBackedTax } from "@/lib/treasuryLabels";
+import { currencySchema } from "@/lib/currencySchema";
 
 // ==================== Budget ====================
 
@@ -21,7 +22,7 @@ const BudgetSchema = z.object({
   budgetType: z.enum(BUDGET_TYPES, "اختار نوع موازنة صحيح"),
   costCenterId: z.string().uuid().optional().or(z.literal("")),
   amount: z.coerce.number().positive("المبلغ مطلوب"),
-  currency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase(),
+  currency: currencySchema,
 });
 
 export type BudgetFormState = { errors?: Record<string, string[]>; formError?: string };
@@ -192,7 +193,7 @@ const FixedAssetSchema = z.object({
   costCenterId: z.string().uuid().optional().or(z.literal("")),
   purchaseDate: z.string().trim().min(1, "تاريخ الشراء مطلوب"),
   purchaseValue: z.coerce.number().positive("قيمة الشراء مطلوبة"),
-  currency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase(),
+  currency: currencySchema,
   usefulLifeMonths: z.coerce.number().int().positive("العمر الإنتاجي مطلوب (بالشهور)"),
   depreciationMethod: z.enum(DEPRECIATION_METHODS, "اختار طريقة إهلاك صحيحة"),
   fxRate: z.string().trim().optional().or(z.literal("")),
@@ -529,7 +530,7 @@ const TaxRecordSchema = z.object({
   taxType: z.enum(TAX_TYPES, "اختار نوع ضريبة صحيح"),
   periodId: z.string().uuid("اختر فترة محاسبية"),
   amount: z.coerce.number().positive("المبلغ مطلوب"),
-  currency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase(),
+  currency: currencySchema,
   etaReference: z.string().trim().optional().or(z.literal("")),
 });
 

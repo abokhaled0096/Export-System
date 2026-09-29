@@ -13,6 +13,7 @@ import { logError, isNextControlFlowError } from "@/lib/errorLog";
 import { requestEntityCreation } from "@/lib/masterDataChangeRequest";
 import { PurchaseOrderSchema } from "@/lib/purchaseOrderSchema";
 import { generatePoNumber } from "@/lib/purchaseOrder";
+import { currencySchema } from "@/lib/currencySchema";
 
 const SourcingRequestSchema = z.object({
   specificationId: z.string().uuid().optional().or(z.literal("")),
@@ -20,7 +21,7 @@ const SourcingRequestSchema = z.object({
   saleableQuantityRequired: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
   maximumPurchasePrice: z.coerce.number().positive("الحد الأقصى للسعر مطلوب"),
   targetPurchasePrice: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
-  currency: z.string().trim().min(1, "العملة مطلوبة"),
+  currency: currencySchema,
   requiredCargoReadyDate: z.string().trim().optional().or(z.literal("")),
 });
 
@@ -158,7 +159,7 @@ const SupplierQuoteSchema = z.object({
   supplierId: z.string().uuid("اختر مورّد"),
   unitPrice: z.coerce.number().positive("سعر الوحدة مطلوب"),
   priceUnit: z.string().trim().optional().or(z.literal("")),
-  currency: z.string().trim().min(1, "العملة مطلوبة"),
+  currency: currencySchema,
   packagingIncluded: z.coerce.boolean().optional(),
   transportIncluded: z.coerce.boolean().optional(),
   paymentTerms: z.string().trim().optional().or(z.literal("")),

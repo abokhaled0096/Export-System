@@ -12,6 +12,7 @@ import { requireAal2 } from "@/lib/mfa";
 import { encryptSecret, updateSecret } from "@/lib/vault";
 import { requestEntityCreation } from "@/lib/masterDataChangeRequest";
 import { SupplierSchema } from "@/lib/supplierSchema";
+import { optionalCurrencySchema } from "@/lib/currencySchema";
 
 export type SupplierFormState = { errors?: Record<string, string[]>; formError?: string };
 
@@ -153,7 +154,7 @@ const NCRSchema = z.object({
   severity: z.enum(NCR_SEVERITIES, "اختار درجة خطورة صحيحة"),
   quantityAffected: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
   financialExposure: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
-  currency: z.string().trim().optional().or(z.literal("")),
+  currency: optionalCurrencySchema,
   immediateContainment: z.string().trim().optional().or(z.literal("")),
 });
 
@@ -374,7 +375,7 @@ const PackagingMaterialSchema = z.object({
   quantityReceived: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
   quantityAccepted: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
   unitCost: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
-  currency: z.string().trim().optional().or(z.literal("")),
+  currency: optionalCurrencySchema,
 });
 
 export type PackagingMaterialFormState = { errors?: Record<string, string[]>; formError?: string };
@@ -440,7 +441,7 @@ const SupplierSampleSchema = z.object({
   purpose: z.enum(SUPPLIER_SAMPLE_PURPOSES, "اختار غرض عيّنة صحيح"),
   quantity: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
   cost: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
-  currency: z.string().trim().optional().or(z.literal("")),
+  currency: optionalCurrencySchema,
   result: z.enum(SUPPLIER_SAMPLE_RESULTS, "اختار نتيجة عيّنة صحيحة"),
 });
 

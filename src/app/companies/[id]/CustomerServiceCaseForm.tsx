@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import CurrencySelect from "@/components/CurrencySelect";
 
 const initialState: CustomerServiceCaseFormState = {};
 const caseTypes = Object.keys(customerServiceCaseTypeLabel);
@@ -87,7 +88,7 @@ export default function CustomerServiceCaseForm({
         <Label htmlFor="csc-currency" className="text-xs">
           العملة
         </Label>
-        <Input id="csc-currency" name="currency" placeholder="USD" className="w-20" />
+        <CurrencySelect id="csc-currency" name="currency" className="w-20" />
       </div>
       <Button type="submit" variant="outline" disabled={pending}>
         {pending ? "جاري الإضافة..." : "+ حالة خدمة عملاء"}

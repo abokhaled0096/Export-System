@@ -8,6 +8,7 @@ import { requirePermission } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 import { logError, isNextControlFlowError } from "@/lib/errorLog";
 import { computeSalesTargetActual } from "@/lib/salesTargetEngine";
+import { optionalCurrencySchema } from "@/lib/currencySchema";
 
 const SALES_TARGET_TYPES = ["Revenue", "Volume", "DealsCount"] as const;
 
@@ -22,7 +23,7 @@ const SalesTargetSchema = z.object({
   periodEnd: z.string().trim().optional().or(z.literal("")),
   targetType: z.enum(SALES_TARGET_TYPES, "اختار نوع هدف مبيعات صحيح"),
   targetValue: z.coerce.number().positive("القيمة المستهدفة مطلوبة"),
-  currency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase().optional().or(z.literal("")),
+  currency: optionalCurrencySchema,
 });
 
 export type SalesTargetFormState = { errors?: Record<string, string[]>; formError?: string };

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { currencySchema } from "@/lib/currencySchema";
 
 /** مفصولة عن src/app/accounting/arap-actions.ts لأنها "use server" file، وممنوع تصدّر غير
  * async functions — الـschema ده بيتستخدم كمان في src/app/governance/actions.ts (إعادة تحقق
@@ -6,6 +7,6 @@ import { z } from "zod";
 export const BankAccountSchema = z.object({
   accountName: z.string().trim().min(1, "اسم الحساب مطلوب"),
   bankName: z.string().trim().min(1, "اسم البنك مطلوب"),
-  currency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase(),
+  currency: currencySchema,
   openingBalance: z.coerce.number().optional(),
 });

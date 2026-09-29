@@ -5,6 +5,7 @@ import { createBankAccount, type BankAccountFormState } from "../arap-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import CurrencySelect from "@/components/CurrencySelect";
 
 const initialState: BankAccountFormState = {};
 
@@ -31,7 +32,7 @@ export default function BankAccountForm() {
         <Label htmlFor="ba-currency" className="text-xs">
           العملة *
         </Label>
-        <Input id="ba-currency" name="currency" defaultValue="EGP" className="w-20" />
+        <CurrencySelect id="ba-currency" name="currency" defaultValue="EGP" className="w-20" />
         {state.errors?.currency && <span className="text-xs text-destructive">{state.errors.currency[0]}</span>}
       </div>
       <div className="flex flex-col gap-1.5">

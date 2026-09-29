@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import CurrencySelect from "@/components/CurrencySelect";
 
 const initialState: FixedAssetFormState = {};
 const categories = Object.keys(fixedAssetCategoryLabel);
@@ -96,7 +97,7 @@ export default function FixedAssetForm({ costCenters, functionalCurrency }: { co
         <Label htmlFor="fa-currency" className="text-xs">
           العملة *
         </Label>
-        <Input id="fa-currency" name="currency" value={currency} onChange={(e) => setCurrency(e.target.value)} />
+        <CurrencySelect id="fa-currency" value={currency} onValueChange={setCurrency} />
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="fa-life" className="text-xs">

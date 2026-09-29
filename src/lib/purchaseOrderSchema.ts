@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { currencySchema } from "@/lib/currencySchema";
 
 /** مفصولة عن src/app/sourcing/actions.ts لأنها "use server" file، وملفات "use server" في
  * Next.js الحديث ممنوع تصدّر غير async functions — الـschema ده بيتستخدم كمان في
@@ -9,7 +10,7 @@ export const PurchaseOrderSchema = z.object({
   specificationId: z.string().uuid().optional().or(z.literal("")),
   quantity: z.coerce.number().positive("الكمية مطلوبة"),
   unitPrice: z.coerce.number().positive("سعر الوحدة مطلوب"),
-  currency: z.string().trim().min(1, "العملة مطلوبة"),
+  currency: currencySchema,
   paymentTerms: z.string().trim().optional().or(z.literal("")),
   penalties: z.string().trim().optional().or(z.literal("")),
 });

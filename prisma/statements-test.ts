@@ -16,6 +16,7 @@ import { getDashboardData } from "../src/lib/dashboard";
 import { weekKey } from "../src/lib/treasuryLabels";
 import { formatDate, toDateInputValue } from "../src/lib/format";
 import { amountToArabicWords } from "../src/lib/numberToArabicWords";
+import { currencySchema, optionalCurrencySchema } from "../src/lib/currencySchema";
 
 type Client = Parameters<typeof computeIncomeStatement>[0];
 
@@ -161,6 +162,20 @@ function check(label: string, actual: string, expected: string) {
     check("toDateInputValue لـ<input type=date>", toDateInputValue(sampleMonday), "2026-09-28");
     // تاريخ متأخر بتوقيت UTC بيقع في اليوم اللي بعده بتوقيت القاهرة
     check("formatDate بيحترم توقيت القاهرة", formatDate(new Date("2026-09-29T22:30:00Z")), "30/09/2026");
+
+    // ---------- التحقق من العملة ----------
+    // `length(3)` القديمة كانت بتقبل أي ٣ حروف. العملة بتتقارن حرفيًا في تخصيص الدفعات
+    // على الفواتير وفي اختيار حساب النقدية — قيمة غلط بتعدّي وبعدين الفاتورة مابتتخصّصش
+    // عليها دفعة ومحدش يعرف السبب.
+    console.log("\n— التحقق من العملة —");
+    const okCur = (v: string) => String(currencySchema.safeParse(v).success);
+    check("XXX اترفضت", okCur("XXX"), "false");
+    check("EURO اترفضت", okCur("EURO"), "false");
+    check("عملة بالعربي اترفضت", okCur("يور"), "false");
+    check("EUR اتقبلت", okCur("EUR"), "true");
+    check("'  eur ' اتقبلت واتحوّلت", String(currencySchema.safeParse("  eur ").data), "EUR");
+    check("الاختيارية بتقبل الفراغ", String(optionalCurrencySchema.safeParse("").success), "true");
+    check("الاختيارية بترفض XXX", String(optionalCurrencySchema.safeParse("XXX").success), "false");
 
     // ---------- التفقيط ----------
     // الفاتورة التجارية وخطاب الاعتماد لازم فيهم الإجمالي كتابةً، والبنك بيقارنه بالأرقام.

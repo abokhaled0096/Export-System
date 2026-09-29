@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import CurrencySelect from "@/components/CurrencySelect";
 
 const initialState: NCRFormState = {};
 const ncrTypes = Object.keys(ncrTypeLabel);
@@ -119,7 +120,7 @@ export default function NCRForm({
         <Label htmlFor="ncr-currency" className="text-xs">
           العملة
         </Label>
-        <Input id="ncr-currency" name="currency" className="w-20" placeholder="USD" />
+        <CurrencySelect id="ncr-currency" name="currency" className="w-20" />
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="immediateContainment" className="text-xs">

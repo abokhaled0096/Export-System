@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import CurrencySelect from "@/components/CurrencySelect";
 
 const initialState: CostItemFormState = {};
 
@@ -81,13 +82,7 @@ export default function CostItemForm({
         <Label htmlFor="ci-currency" className="text-xs">
           العملة *
         </Label>
-        <Input
-          id="ci-currency"
-          name="currency"
-          className="w-20 uppercase"
-          value={currency}
-          onChange={(e) => setCurrency(e.target.value)}
-        />
+        <CurrencySelect id="ci-currency" className="w-36" value={currency} onValueChange={setCurrency} />
         {state.errors?.currency && <span className="text-xs text-destructive">{state.errors.currency[0]}</span>}
       </div>
       {needsFxRate && (

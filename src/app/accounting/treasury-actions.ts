@@ -13,6 +13,7 @@ import { requireAal2 } from "@/lib/mfa";
 import { parseCsv, deterministicUuid } from "@/lib/csv";
 import { bankTransactionTypeLabel, isInflow } from "@/lib/treasuryLabels";
 import { generateAmortizationSchedule } from "@/lib/loanAmortization";
+import { currencySchema } from "@/lib/currencySchema";
 
 // ==================== BankTransaction ====================
 
@@ -1221,7 +1222,7 @@ const CashFlowLineSchema = z.object({
   weekStartDate: z.string().trim().min(1, "الأسبوع مطلوب"),
   category: z.enum(CASH_FLOW_CATEGORIES, "اختار فئة تدفّق نقدي صحيحة"),
   amount: z.coerce.number(),
-  currency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase(),
+  currency: currencySchema,
   notes: z.string().trim().optional().or(z.literal("")),
   costCenterId: z.string().trim().optional().or(z.literal("")),
   profitCenterId: z.string().trim().optional().or(z.literal("")),

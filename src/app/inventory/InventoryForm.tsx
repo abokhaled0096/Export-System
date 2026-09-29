@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import CurrencySelect from "@/components/CurrencySelect";
 
 const initialState: InventoryFormState = {};
 const inventoryTypes = Object.keys(inventoryTypeLabel);
@@ -150,7 +151,7 @@ export default function InventoryForm({
         <Label htmlFor="inv-currency" className="text-xs">
           العملة
         </Label>
-        <Input id="inv-currency" name="currency" className="w-20" placeholder="USD" />
+        <CurrencySelect id="inv-currency" name="currency" className="w-20" />
       </div>
       <Button type="submit" disabled={pending}>
         {pending ? "جاري الإضافة..." : "+ سجل مخزون"}

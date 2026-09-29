@@ -7,6 +7,7 @@ import { requireCurrentUser } from "@/lib/session";
 import { requirePermission } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 import { logError, isNextControlFlowError } from "@/lib/errorLog";
+import { optionalCurrencySchema } from "@/lib/currencySchema";
 
 const INVENTORY_TYPES = ["RawMaterial", "WIP", "FinishedGoods", "PackagingMaterial"] as const;
 const INVENTORY_STATUSES = [
@@ -24,7 +25,7 @@ const InventorySchema = z.object({
   status: z.enum(INVENTORY_STATUSES, "اختار حالة مخزون صحيحة"),
   expiryDate: z.string().trim().optional().or(z.literal("")),
   unitCost: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
-  currency: z.string().trim().optional().or(z.literal("")),
+  currency: optionalCurrencySchema,
 });
 
 export type InventoryFormState = { errors?: Record<string, string[]>; formError?: string };

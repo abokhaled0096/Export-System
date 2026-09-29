@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import CurrencySelect from "@/components/CurrencySelect";
 
 const initialState: SalesTargetFormState = {};
 const targetTypes = Object.keys(salesTargetTypeLabel);
@@ -107,7 +108,7 @@ export default function SalesTargetForm({
         <Label htmlFor="st-currency" className="text-xs">
           العملة
         </Label>
-        <Input id="st-currency" name="currency" placeholder="USD" className="w-20" />
+        <CurrencySelect id="st-currency" name="currency" className="w-20" />
       </div>
       <Button type="submit" disabled={pending}>
         {pending ? "جاري الإضافة..." : "+ هدف"}

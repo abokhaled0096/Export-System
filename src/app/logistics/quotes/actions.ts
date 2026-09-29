@@ -8,6 +8,7 @@ import { requireCurrentUser } from "@/lib/session";
 import { requirePermission } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 import { logError, isNextControlFlowError } from "@/lib/errorLog";
+import { optionalCurrencySchema } from "@/lib/currencySchema";
 
 const CONTAINER_TYPES = ["GP20", "GP40", "HC40", "RF20", "RF40", "HCRF40", "OpenTop", "FlatRack", "Tank"] as const;
 const FREIGHT_QUOTE_STATUSES = ["Draft", "Approved", "Expired"] as const;
@@ -20,7 +21,7 @@ const FreightQuoteSchema = z.object({
   mainFreight: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
   destinationCharges: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
   insurance: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
-  currency: z.string().trim().optional().or(z.literal("")),
+  currency: optionalCurrencySchema,
   transitDays: z.coerce.number().int().min(0, "لازم يكون 0 أو أكتر").optional(),
   freeTimeDays: z.coerce.number().int().min(0, "لازم يكون 0 أو أكتر").optional(),
   validFrom: z.string().trim().optional().or(z.literal("")),
@@ -97,7 +98,7 @@ const FreightQuoteLineSchema = z.object({
   chargeCode: z.string().trim().min(1, "كود البند مطلوب"),
   category: z.enum(LINE_CATEGORIES, "اختار فئة بند صحيحة"),
   amount: z.coerce.number().min(0, "المبلغ مطلوب"),
-  currency: z.string().trim().optional().or(z.literal("")),
+  currency: optionalCurrencySchema,
 });
 
 export type FreightQuoteLineFormState = { errors?: Record<string, string[]>; formError?: string };

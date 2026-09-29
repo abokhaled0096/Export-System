@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import CurrencySelect from "@/components/CurrencySelect";
 
 const initialState: PaymentFormState = {};
 const directions = Object.keys(paymentDirectionLabel);
@@ -132,7 +133,7 @@ export default function PaymentForm({ bankAccounts, companies, suppliers }: Prop
         <Label htmlFor="pay-currency" className="text-xs">
           العملة *
         </Label>
-        <Input id="pay-currency" name="currency" defaultValue={selectedBank?.currency ?? "EGP"} key={selectedBank?.currency ?? "cur"} />
+        <CurrencySelect id="pay-currency" name="currency" defaultValue={selectedBank?.currency ?? "EGP"} key={selectedBank?.currency ?? "cur"} />
         <span className="text-[11px] text-muted-foreground">لازم تطابق عملة الفواتير اللي هتتخصّص عليها.</span>
       </div>
 

@@ -11,6 +11,7 @@ import { logAudit } from "@/lib/audit";
 import { notifyApprovers } from "@/lib/notification";
 import { logError, isNextControlFlowError, businessRuleMessage } from "@/lib/errorLog";
 import { assertWorkflowTransitionAllowed } from "@/lib/workflow";
+import { currencySchema, optionalCurrencySchema } from "@/lib/currencySchema";
 
 /** بيرجّع ownerId الصفقة اللي ملف الامتثال ده تابع لها — بيتستخدم لفحص Own/Team scope. مفيش
  * ownerId مباشر على ComplianceCase نفسه (نفس تعليق seed.ts)، لكن نفس المنطق ده مُطبَّق فعليًا على
@@ -884,7 +885,7 @@ const RejectionCaseSchema = z.object({
   authority: z.string().trim().min(1, "الجهة مطلوبة"),
   severity: z.enum(REJECTION_SEVERITIES, "اختار درجة خطورة صحيحة"),
   financialExposure: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
-  currency: z.string().trim().optional().or(z.literal("")),
+  currency: optionalCurrencySchema,
   finalResult: z.string().trim().optional().or(z.literal("")),
 });
 
@@ -958,7 +959,7 @@ const LCRequirementSchema = z.object({
   lcNumber: z.string().trim().min(1, "رقم خطاب الاعتماد مطلوب"),
   issuingBank: z.string().trim().min(1, "البنك المُصدر مطلوب"),
   amount: z.coerce.number().min(0, "المبلغ مطلوب"),
-  currency: z.string().trim().min(1, "العملة مطلوبة"),
+  currency: currencySchema,
   expiryDate: z.string().trim().min(1, "تاريخ الانتهاء مطلوب"),
   latestShipmentDate: z.string().trim().optional().or(z.literal("")),
   presentationPeriodDays: z.coerce.number().int().min(0, "لازم يكون 0 أو أكتر").optional(),

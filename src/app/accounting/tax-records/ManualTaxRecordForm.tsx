@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import CurrencySelect from "@/components/CurrencySelect";
 
 const initialState: TaxRecordFormState = {};
 const MANUAL_TYPES = ["WithholdingTax", "PayrollTax"] as const;
@@ -65,7 +66,7 @@ export default function ManualTaxRecordForm({ periods }: { periods: PeriodOption
         <Label htmlFor="tx-currency" className="text-xs">
           العملة *
         </Label>
-        <Input id="tx-currency" name="currency" defaultValue="EGP" className="w-20" />
+        <CurrencySelect id="tx-currency" name="currency" defaultValue="EGP" className="w-20" />
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="tx-eta" className="text-xs">

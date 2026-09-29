@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import CurrencySelect from "@/components/CurrencySelect";
 
 const initialState: PurchaseOrderFormState = {};
 
@@ -109,7 +110,7 @@ export default function PurchaseOrderForm({
         <Label htmlFor="po-currency" className="text-xs">
           العملة *
         </Label>
-        <Input id="po-currency" name="currency" defaultValue={currency} className="w-20" />
+        <CurrencySelect id="po-currency" name="currency" defaultValue={currency} className="w-20" />
         {state.errors?.currency && <span className="text-xs text-destructive">{state.errors.currency[0]}</span>}
       </div>
       <div className="flex flex-col gap-1.5">

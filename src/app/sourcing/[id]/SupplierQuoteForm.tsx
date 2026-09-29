@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import CurrencySelect from "@/components/CurrencySelect";
 
 const initialState: SupplierQuoteFormState = {};
 
@@ -57,7 +58,7 @@ export default function SupplierQuoteForm({
         <Label htmlFor="sq-currency" className="text-xs">
           العملة *
         </Label>
-        <Input id="sq-currency" name="currency" className="w-20" placeholder="USD" />
+        <CurrencySelect id="sq-currency" name="currency" className="w-20" />
         {state.errors?.currency && <span className="text-xs text-destructive">{state.errors.currency[0]}</span>}
       </div>
       <div className="flex flex-col gap-1.5">

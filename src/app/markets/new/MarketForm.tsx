@@ -5,6 +5,7 @@ import { createMarket, type MarketFormState } from "../actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import CurrencySelect from "@/components/CurrencySelect";
 
 const initialState: MarketFormState = {};
 
@@ -45,7 +46,11 @@ export default function MarketForm() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Field label="كود الدولة" name="countryCode" error={state.errors?.countryCode} required placeholder="DE" />
         <Field label="القارة" name="continent" error={state.errors?.continent} required placeholder="Europe" />
-        <Field label="العملة" name="currency" error={state.errors?.currency} required placeholder="EUR" />
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="market-currency">العملة *</Label>
+          <CurrencySelect id="market-currency" defaultValue="EUR" />
+          {state.errors?.currency && <span className="text-xs text-destructive">{state.errors.currency[0]}</span>}
+        </div>
       </div>
       <Field
         label="الموانئ الرئيسية (مفصولة بفاصلة)"

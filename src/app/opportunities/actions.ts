@@ -10,6 +10,7 @@ import { logAudit } from "@/lib/audit";
 import { logError, isNextControlFlowError, businessRuleMessage } from "@/lib/errorLog";
 import { OPPORTUNITY_ALL_STAGES } from "@/lib/opportunityLabels";
 import { assertWorkflowTransitionAllowed } from "@/lib/workflow";
+import { optionalCurrencySchema } from "@/lib/currencySchema";
 
 const OpportunitySchema = z.object({
   companyId: z.string().uuid("اختر شركة"),
@@ -17,7 +18,7 @@ const OpportunitySchema = z.object({
   productId: z.string().uuid("اختر منتج"),
   marketId: z.string().uuid("اختر سوق"),
   expectedValue: z.coerce.number().positive("لازم يكون أكبر من صفر").optional(),
-  currency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase().optional().or(z.literal("")),
+  currency: optionalCurrencySchema,
   indicativeIncoterm: z.string().trim().optional(),
 });
 

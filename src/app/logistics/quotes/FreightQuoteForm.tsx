@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import CurrencySelect from "@/components/CurrencySelect";
 
 const initialState: FreightQuoteFormState = {};
 const statuses = Object.keys(freightQuoteStatusLabel);
@@ -109,7 +110,7 @@ export default function FreightQuoteForm({
         <Label htmlFor="fq-currency" className="text-xs">
           العملة
         </Label>
-        <Input id="fq-currency" name="currency" className="w-20" placeholder="USD" />
+        <CurrencySelect id="fq-currency" name="currency" className="w-20" />
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="transitDays" className="text-xs">

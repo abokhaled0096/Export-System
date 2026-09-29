@@ -8,6 +8,7 @@ import { requireCurrentUser } from "@/lib/session";
 import { requirePermission } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 import { logError, isNextControlFlowError } from "@/lib/errorLog";
+import { currencySchema } from "@/lib/currencySchema";
 
 const MarketSchema = z.object({
   countryNameAr: z.string().trim().min(2, "اسم الدولة بالعربية مطلوب"),
@@ -18,7 +19,7 @@ const MarketSchema = z.object({
     .length(2, "كود الدولة لازم يكون حرفين (ISO 3166)")
     .toUpperCase(),
   continent: z.string().trim().min(1, "القارة مطلوبة"),
-  currency: z.string().trim().length(3, "العملة لازم تكون 3 أحرف (ISO 4217)").toUpperCase(),
+  currency: currencySchema,
   mainPorts: z.string().trim().optional(),
   tradeAgreement: z.string().trim().optional(),
   politicalRiskScore: z.coerce.number().int().min(0, "لازم يكون 0 أو أكتر").max(100, "لازم يكون 100 أو أقل").optional(),

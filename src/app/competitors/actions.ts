@@ -9,6 +9,7 @@ import { requirePermission } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 import { analyzeCompetitorsWithAI, type AiCompetitor } from "@/lib/ai/analyzeCompetitors";
 import { logError, isNextControlFlowError, businessRuleMessage } from "@/lib/errorLog";
+import { currencySchema } from "@/lib/currencySchema";
 
 const monthsField = z
   .array(z.string())
@@ -25,7 +26,7 @@ const CompetitorSchema = z
     weaknessMonths: monthsField,
     priceRangeMin: z.coerce.number().min(0, "السعر لازم يكون موجب").optional(),
     priceRangeMax: z.coerce.number().min(0, "السعر لازم يكون موجب").optional(),
-    currency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase(),
+    currency: currencySchema,
   })
   .refine((data) => data.priceRangeMin === undefined || data.priceRangeMax === undefined || data.priceRangeMin <= data.priceRangeMax, {
     message: "أقل سعر لازم يكون أصغر من أو يساوي أعلى سعر",

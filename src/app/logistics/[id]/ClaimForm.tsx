@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import CurrencySelect from "@/components/CurrencySelect";
 
 const initialState: ClaimFormState = {};
 const types = Object.keys(claimTypeLabel);
@@ -68,7 +69,7 @@ export default function ClaimForm({ shipmentId }: { shipmentId: string }) {
         <Label htmlFor="claim-currency" className="text-xs">
           العملة
         </Label>
-        <Input id="claim-currency" name="currency" className="w-20" placeholder="USD" />
+        <CurrencySelect id="claim-currency" name="currency" className="w-20" />
       </div>
       <Button type="submit" disabled={pending}>
         {pending ? "جاري التسجيل..." : "+ مطالبة"}

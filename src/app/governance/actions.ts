@@ -19,6 +19,7 @@ import { ProductSchema } from "@/lib/productSchema";
 import { PurchaseOrderSchema } from "@/lib/purchaseOrderSchema";
 import { generatePoNumber } from "@/lib/purchaseOrder";
 import { Prisma } from "@/generated/prisma/client";
+import { currencySchema } from "@/lib/currencySchema";
 
 /**
  * بيحوّل طلب إنشاء (entityId === NEW_ENTITY_SENTINEL) لكيان حقيقي وقت الاعتماد — هنا بالظبط
@@ -316,7 +317,7 @@ const RiskSchema = z.object({
   category: z.string().trim().min(1, "الفئة مطلوبة"),
   probability: z.coerce.number().int().min(0, "من 0 لـ100").max(100, "من 0 لـ100"),
   financialImpact: z.coerce.number().min(0, "الأثر المالي مطلوب"),
-  currency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase(),
+  currency: currencySchema,
   ownerId: z.string().uuid("اختر المسؤول"),
   mitigation: z.string().trim().optional().or(z.literal("")),
 });

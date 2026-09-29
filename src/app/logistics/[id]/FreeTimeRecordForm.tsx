@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import CurrencySelect from "@/components/CurrencySelect";
 
 const initialState: FreeTimeRecordFormState = {};
 const chargeTypes = Object.keys(freeTimeChargeTypeLabel);
@@ -111,7 +112,7 @@ export default function FreeTimeRecordForm({
         <Label htmlFor="ft-currency" className="text-xs">
           العملة
         </Label>
-        <Input id="ft-currency" name="currency" className="w-20" placeholder="USD" />
+        <CurrencySelect id="ft-currency" name="currency" className="w-20" />
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="responsibleParty" className="text-xs">

@@ -5,6 +5,7 @@ import { createTransportTrip, type TransportTripFormState } from "../actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import CurrencySelect from "@/components/CurrencySelect";
 
 const initialState: TransportTripFormState = {};
 
@@ -78,7 +79,7 @@ export default function TransportTripForm({ shipmentId }: { shipmentId: string }
         <Label htmlFor="tt-currency" className="text-xs">
           العملة
         </Label>
-        <Input id="tt-currency" name="currency" className="w-20" placeholder="USD" />
+        <CurrencySelect id="tt-currency" name="currency" className="w-20" />
       </div>
       <Button type="submit" disabled={pending}>
         {pending ? "جاري التسجيل..." : "+ رحلة"}

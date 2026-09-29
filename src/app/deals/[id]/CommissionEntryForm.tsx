@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import CurrencySelect from "@/components/CurrencySelect";
 
 const initialState: CommissionEntryFormState = {};
 
@@ -91,7 +92,7 @@ export default function CommissionEntryForm({
         <Label htmlFor="ce-currency" className="text-xs">
           العملة
         </Label>
-        <Input id="ce-currency" name="currency" placeholder="USD" className="w-20" />
+        <CurrencySelect id="ce-currency" name="currency" className="w-20" />
       </div>
       <Button type="submit" variant="outline" disabled={pending}>
         {pending ? "جاري التسجيل..." : "+ عمولة"}

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import CurrencySelect from "@/components/CurrencySelect";
 
 const initialState: OpportunityFormState = {};
 
@@ -159,12 +160,10 @@ export default function OpportunityForm({
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="currency">العملة</Label>
-          <Input
+          <CurrencySelect
             id="currency"
-            name="currency"
-            placeholder="EUR"
-            value={val("currency")}
-            onChange={(e) => draft.setField("currency", e.target.value)}
+            value={val("currency") || "EUR"}
+            onValueChange={(v) => draft.setField("currency", v)}
           />
         </div>
         <div className="flex flex-col gap-1.5">

@@ -12,6 +12,7 @@ import { logError, isNextControlFlowError } from "@/lib/errorLog";
 import { deleteSecret } from "@/lib/vault";
 import { requestEntityCreation } from "@/lib/masterDataChangeRequest";
 import { CompanySchema } from "@/lib/companySchema";
+import { optionalCurrencySchema } from "@/lib/currencySchema";
 
 export type CompanyFormState = {
   errors?: Partial<Record<keyof z.infer<typeof CompanySchema>, string[]>>;
@@ -460,7 +461,7 @@ const CustomerServiceCaseSchema = z.object({
   rootCause: z.string().trim().optional().or(z.literal("")),
   capaId: z.string().uuid().optional().or(z.literal("")),
   compensationAmount: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
-  currency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase().optional().or(z.literal("")),
+  currency: optionalCurrencySchema,
 });
 
 export type CustomerServiceCaseFormState = { errors?: Record<string, string[]>; formError?: string };

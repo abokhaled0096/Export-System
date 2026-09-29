@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import CurrencySelect from "@/components/CurrencySelect";
 
 const initialState: BudgetFormState = {};
 const types = Object.keys(budgetTypeLabel);
@@ -91,7 +92,7 @@ export default function BudgetForm({ periods, costCenters }: { periods: PeriodOp
         <Label htmlFor="bg-currency" className="text-xs">
           العملة *
         </Label>
-        <Input id="bg-currency" name="currency" defaultValue="EGP" className="w-20" />
+        <CurrencySelect id="bg-currency" name="currency" defaultValue="EGP" className="w-20" />
       </div>
       <Button type="submit" disabled={pending}>
         {pending ? "جاري الإضافة..." : "+ بند موازنة"}

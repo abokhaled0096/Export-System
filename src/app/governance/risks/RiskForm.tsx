@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import CurrencySelect from "@/components/CurrencySelect";
 
 const initialState: RiskFormState = {};
 
@@ -84,7 +85,7 @@ export default function RiskForm({
         <Label htmlFor="risk-currency" className="text-xs">
           العملة *
         </Label>
-        <Input id="risk-currency" name="currency" defaultValue="EGP" />
+        <CurrencySelect id="risk-currency" name="currency" defaultValue="EGP" />
       </div>
       <div className="flex flex-col gap-1.5 sm:col-span-2 lg:col-span-3">
         <Label htmlFor="risk-mitigation" className="text-xs">

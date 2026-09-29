@@ -10,6 +10,7 @@ import { logAudit } from "@/lib/audit";
 import { createJournalEntryDraft, postJournalEntryById, reverseJournalEntry } from "@/lib/accounting";
 import { logError, isNextControlFlowError, businessRuleMessage } from "@/lib/errorLog";
 import { assertWorkflowTransitionAllowed } from "@/lib/workflow";
+import { currencySchema, optionalCurrencySchema } from "@/lib/currencySchema";
 
 const ACCOUNT_TYPES = ["Asset", "Liability", "Equity", "Revenue", "COGS", "Expense"] as const;
 const NORMAL_BALANCES = ["Debit", "Credit"] as const;
@@ -21,7 +22,7 @@ const ChartOfAccountSchema = z.object({
   accountType: z.enum(ACCOUNT_TYPES, "اختار نوع حساب صحيح"),
   normalBalance: z.enum(NORMAL_BALANCES, "اختار طبيعة رصيد صحيحة"),
   parentAccountId: z.string().uuid().optional().or(z.literal("")),
-  currency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase().optional().or(z.literal("")),
+  currency: optionalCurrencySchema,
 });
 
 export type ChartOfAccountFormState = { errors?: Record<string, string[]>; formError?: string };
@@ -414,7 +415,7 @@ const JournalLineInputSchema = z.object({
   accountId: z.string().uuid("اختر حساب"),
   debit: z.coerce.number().min(0, "لازم يكون 0 أو أكتر"),
   credit: z.coerce.number().min(0, "لازم يكون 0 أو أكتر"),
-  currency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase(),
+  currency: currencySchema,
   costCenterId: z.string().uuid().optional().or(z.literal("")),
   profitCenterId: z.string().uuid().optional().or(z.literal("")),
   description: z.string().trim().optional().or(z.literal("")),

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import CurrencySelect from "@/components/CurrencySelect";
 
 const initialState: ScenarioFormState = {};
 
@@ -103,12 +104,10 @@ export default function ScenarioForm({ dealId }: { dealId: string }) {
 
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="currency">العملة *</Label>
-        <Input
+        <CurrencySelect
           id="currency"
-          name="currency"
-          placeholder="USD"
-          value={val("currency")}
-          onChange={(e) => draft.setField("currency", e.target.value)}
+          value={val("currency") || "USD"}
+          onValueChange={(v) => draft.setField("currency", v)}
         />
         {field("currency") && <span className="text-xs text-destructive">{field("currency")}</span>}
       </div>

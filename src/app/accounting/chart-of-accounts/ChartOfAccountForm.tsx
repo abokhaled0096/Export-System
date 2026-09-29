@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import CurrencySelect from "@/components/CurrencySelect";
 
 const initialState: ChartOfAccountFormState = {};
 const accountTypes = Object.keys(accountTypeLabel);
@@ -100,7 +101,7 @@ export default function ChartOfAccountForm({ accounts }: { accounts: { id: strin
         <Label htmlFor="coa-currency" className="text-xs">
           العملة
         </Label>
-        <Input id="coa-currency" name="currency" placeholder="USD" className="w-20" />
+        <CurrencySelect id="coa-currency" name="currency" className="w-20" />
       </div>
       <Button type="submit" disabled={pending}>
         {pending ? "جاري الإضافة..." : "+ حساب"}

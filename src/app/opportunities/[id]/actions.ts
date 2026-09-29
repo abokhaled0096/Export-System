@@ -7,6 +7,7 @@ import { requireCurrentUser } from "@/lib/session";
 import { requirePermission, assertOwnScope } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 import { logError, isNextControlFlowError } from "@/lib/errorLog";
+import { optionalCurrencySchema } from "@/lib/currencySchema";
 
 /** بيرجّع الفرصة نفسها (مش بس تفحص scope) — لازم نستخدم بياناتها (companyId مثلًا) للتحقق من
  * إن أي FK تاني بيتبعت من الفورم (contactId/negotiationId..) فعلًا بتاعها هي، مش فرصة/كيان
@@ -184,7 +185,7 @@ const CustomerSampleSchema = z.object({
   batchId: z.string().uuid().optional().or(z.literal("")),
   quantity: z.coerce.number().positive("لازم يكون أكبر من صفر").optional(),
   totalCost: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
-  currency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase().optional().or(z.literal("")),
+  currency: optionalCurrencySchema,
   trackingNumber: z.string().trim().optional().or(z.literal("")),
   status: z.enum(CUSTOMER_SAMPLE_STATUSES, "اختار حالة عيّنة صحيحة"),
 });
@@ -252,7 +253,7 @@ const NEGOTIATION_STATUSES = ["Open", "Stalled", "Agreed", "Failed"] as const;
 const NegotiationSchema = z.object({
   status: z.enum(NEGOTIATION_STATUSES, "اختار حالة تفاوض صحيحة"),
   currentPrice: z.coerce.number().positive("لازم يكون أكبر من صفر").optional(),
-  currency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase().optional().or(z.literal("")),
+  currency: optionalCurrencySchema,
 });
 
 export type NegotiationFormState = { errors?: Record<string, string[]>; formError?: string };

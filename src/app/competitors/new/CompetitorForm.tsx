@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import CurrencySelect from "@/components/CurrencySelect";
 
 const initialState: CompetitorFormState = {};
 type Option = { id: string; label: string };
@@ -99,7 +100,7 @@ export default function CompetitorForm({ products, markets }: { products: Option
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="currency">العملة *</Label>
-          <Input id="currency" name="currency" defaultValue="USD" />
+          <CurrencySelect id="currency" name="currency" defaultValue="USD" />
           {state.errors?.currency && <span className="text-xs text-destructive">{state.errors.currency[0]}</span>}
         </div>
       </div>

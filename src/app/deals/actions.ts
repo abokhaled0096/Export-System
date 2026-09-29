@@ -15,6 +15,7 @@ import { isEmailConfigured, sendQuoteEmailMessage } from "@/lib/email";
 import { uploadDocumentFile } from "@/lib/storage";
 import { logError, isNextControlFlowError, businessRuleMessage } from "@/lib/errorLog";
 import { postCommissionPayment, resolveFxRateId } from "@/lib/accounting";
+import { currencySchema, optionalCurrencySchema } from "@/lib/currencySchema";
 
 const DealSchema = z.object({
   opportunityId: z.string().uuid("اختر فرصة"),
@@ -85,7 +86,7 @@ const ScenarioSchema = z.object({
   yieldRate: z.coerce.number().positive("لازم يكون أكبر من صفر").max(1, "نسبة بين 0 و1 (مثال: 0.85 يعني 85%)").optional(),
   incoterm: z.enum(["EXW", "FCA", "FAS", "FOB", "CFR", "CIF", "CPT", "CIP", "DAP", "DPU", "DDP"], "اختار Incoterm صحيح"),
   namedPlace: z.string().trim().optional().or(z.literal("")),
-  currency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase(),
+  currency: currencySchema,
   walkAwayPrice: z.coerce.number().positive("الحد الأدنى للسعر مطلوب"),
   openingPrice: z.coerce.number().positive("لازم يكون أكبر من صفر").optional(),
   targetPrice: z.coerce.number().positive("لازم يكون أكبر من صفر").optional(),
@@ -220,7 +221,7 @@ const CostItemSchema = z.object({
   ),
   subcategory: z.string().trim().optional().or(z.literal("")),
   amount: z.coerce.number().positive("المبلغ لازم يكون أكبر من صفر"),
-  currency: z.string().trim().length(3, "العملة لازم تكون 3 حروف (زي USD)").toUpperCase(),
+  currency: currencySchema,
   // لازم بس لو currency مختلفة عن عملة السيناريو — بيتحقق منه يدويًا تحت (مش هنا) لأن
   // Zod مش عارف عملة السيناريو وقت التحقق.
   fxRate: z.coerce.number().positive("سعر الصرف لازم يكون أكبر من صفر").optional(),
@@ -1207,7 +1208,7 @@ const CommissionEntrySchema = z.object({
   userId: z.string().uuid("اختر مستخدم"),
   salesOrderId: z.string().uuid().optional().or(z.literal("")),
   amount: z.coerce.number().positive("المبلغ مطلوب"),
-  currency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase().optional().or(z.literal("")),
+  currency: optionalCurrencySchema,
 });
 
 export type CommissionEntryFormState = { errors?: Record<string, string[]>; formError?: string };

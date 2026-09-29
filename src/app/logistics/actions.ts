@@ -12,6 +12,7 @@ import { requireAal2 } from "@/lib/mfa";
 import { encryptSecret, updateSecret } from "@/lib/vault";
 import { DEFAULT_MILESTONES } from "@/lib/logisticsLabels";
 import { assertWorkflowTransitionAllowed } from "@/lib/workflow";
+import { optionalCurrencySchema } from "@/lib/currencySchema";
 
 const SHIPMENT_TYPES = ["Commercial", "Sample", "Trial", "Tender", "Consolidated"] as const;
 const TRANSPORT_MODES = ["Sea", "Air", "Road", "Rail", "Multimodal", "Courier"] as const;
@@ -628,7 +629,7 @@ const FreeTimeRecordSchema = z.object({
   endDate: z.string().trim().optional().or(z.literal("")),
   estimatedCost: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
   actualCost: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
-  currency: z.string().trim().optional().or(z.literal("")),
+  currency: optionalCurrencySchema,
   responsibleParty: z.string().trim().optional().or(z.literal("")),
 });
 
@@ -700,7 +701,7 @@ const ActualLogisticsCostSchema = z.object({
   costType: z.string().trim().min(1, "نوع التكلفة مطلوب"),
   expectedAmount: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
   actualAmount: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
-  currency: z.string().trim().optional().or(z.literal("")),
+  currency: optionalCurrencySchema,
   invoiceReference: z.string().trim().optional().or(z.literal("")),
 });
 
@@ -836,7 +837,7 @@ const TransportTripSchema = z.object({
   gateInAt: z.string().trim().optional().or(z.literal("")),
   emptyReturnAt: z.string().trim().optional().or(z.literal("")),
   cost: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
-  currency: z.string().trim().optional().or(z.literal("")),
+  currency: optionalCurrencySchema,
 });
 
 export type TransportTripFormState = { errors?: Record<string, string[]>; formError?: string };
@@ -979,7 +980,7 @@ const ClaimSchema = z.object({
   notificationDate: z.string().trim().optional().or(z.literal("")),
   claimDeadline: z.string().trim().optional().or(z.literal("")),
   claimedAmount: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
-  currency: z.string().trim().optional().or(z.literal("")),
+  currency: optionalCurrencySchema,
 });
 
 export type ClaimFormState = { errors?: Record<string, string[]>; formError?: string };

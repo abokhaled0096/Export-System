@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import CurrencySelect from "@/components/CurrencySelect";
 
 const initialState: PackagingMaterialFormState = {};
 const materialTypes = Object.keys(packagingMaterialTypeLabel);
@@ -99,7 +100,7 @@ export default function PackagingMaterialForm({ supplierId }: { supplierId: stri
         <Label htmlFor="packaging-currency" className="text-xs">
           العملة
         </Label>
-        <Input id="packaging-currency" name="currency" className="w-20" placeholder="USD" />
+        <CurrencySelect id="packaging-currency" name="currency" className="w-20" />
       </div>
       <Button type="submit" variant="outline" disabled={pending}>
         {pending ? "جاري الإضافة..." : "+ مادة تعبئة"}

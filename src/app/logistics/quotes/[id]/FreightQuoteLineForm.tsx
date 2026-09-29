@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import CurrencySelect from "@/components/CurrencySelect";
 
 const initialState: FreightQuoteLineFormState = {};
 const categories = Object.keys(freightQuoteLineCategoryLabel);
@@ -52,7 +53,7 @@ export default function FreightQuoteLineForm({ freightQuoteId }: { freightQuoteI
         <Label htmlFor="fql-currency" className="text-xs">
           العملة
         </Label>
-        <Input id="fql-currency" name="currency" className="w-20" placeholder="USD" />
+        <CurrencySelect id="fql-currency" name="currency" className="w-20" />
       </div>
       <Button type="submit" disabled={pending}>
         {pending ? "جاري الإضافة..." : "+ بند"}

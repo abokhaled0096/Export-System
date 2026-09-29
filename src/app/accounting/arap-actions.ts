@@ -15,6 +15,7 @@ import { requireAal2 } from "@/lib/mfa";
 import { encryptSecret, updateSecret } from "@/lib/vault";
 import { requestEntityCreation } from "@/lib/masterDataChangeRequest";
 import { BankAccountSchema } from "@/lib/bankAccountSchema";
+import { currencySchema } from "@/lib/currencySchema";
 
 // ==================== BankAccount ====================
 
@@ -240,7 +241,7 @@ const InvoiceSchema = z.object({
   companyId: z.string().uuid().optional().or(z.literal("")),
   supplierId: z.string().uuid().optional().or(z.literal("")),
   documentId: z.string().uuid().optional().or(z.literal("")),
-  currency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase(),
+  currency: currencySchema,
   // ⚠️ مفيش subtotal/taxAmount هنا عمدًا: الإجماليات بقت مشتقّة من InvoiceLine بـTrigger
   // sync_invoice_totals_from_lines (هجرة 20260929100000). أي رقم يتبعت من الفورم هيتكتب
   // فوقه في القاعدة أول ما يتضاف بند، فقبوله في الفورم كان هيبقى وعد كاذب للمستخدم.
@@ -647,7 +648,7 @@ const PaymentSchema = z.object({
   supplierId: z.string().uuid().optional().or(z.literal("")),
   bankAccountId: z.string().uuid("اختر حساب بنكي"),
   amount: z.coerce.number().positive("المبلغ مطلوب"),
-  currency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase(),
+  currency: currencySchema,
   paymentMethod: z.enum(PAYMENT_METHODS, "اختار طريقة دفع صحيحة"),
   paymentDate: z.string().trim().min(1, "تاريخ الدفعة مطلوب"),
   reference: z.string().trim().optional().or(z.literal("")),
