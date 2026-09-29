@@ -33,6 +33,8 @@ const links = [
   { href: "/accounting/periods", label: "الفترات المحاسبية" },
   { href: "/accounting/journal-entries", label: "القيود اليومية" },
   { href: "/accounting/trial-balance", label: "ميزان المراجعة" },
+  { href: "/accounting/income-statement", label: "قائمة الدخل" },
+  { href: "/accounting/balance-sheet", label: "الميزانية العمومية" },
   { href: "/accounting/cost-centers", label: "مراكز التكلفة" },
   { href: "/accounting/profit-centers", label: "مراكز الربحية" },
   { href: "/accounting/bank-accounts", label: "الحسابات البنكية" },
