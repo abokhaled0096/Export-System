@@ -1,6 +1,5 @@
 import Papa from "papaparse";
 import { createHash } from "crypto";
-import { formatDate } from "@/lib/format";
 
 /** بيولّد نص CSV من صفوف كائنات — الأعمدة بترتيب `columns` بالظبط. */
 export function toCsv<T extends Record<string, unknown>>(
@@ -15,7 +14,10 @@ export function toCsv<T extends Record<string, unknown>>(
 function formatCell(value: unknown): string {
   if (value === null || value === undefined) return "";
   if (Array.isArray(value)) return value.join("؛ ");
-  if (value instanceof Date) return formatDate(value);
+  // ⚠️ ISO عن قصد، مش صيغة العرض dd/mm/yyyy: الملف ده بيانات بتتفتح في Excel وبتترفع
+  // لأنظمة تانية. Excel بلغة إنجليزية بيقرا 01/02/2026 على إنه ٢ يناير، وISO بيتفرز صح
+  // كنص. صيغة العرض للشاشة بس.
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
   if (typeof value === "object" && "toString" in value) return String(value); // Prisma.Decimal
   return String(value);
 }

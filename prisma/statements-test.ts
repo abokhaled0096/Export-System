@@ -144,14 +144,14 @@ function check(label: string, actual: string, expected: string) {
     check("أصول قبل النشاط", before.totalAssets.toFixed(2), "0.00");
 
     // ---------- لوحة القيادة ----------
-    // الرسم الشهري مبني على $queryRaw — SQL خام، يعني لا tsc ولا Prisma هيمسكوا أي غلط
-    // فيه. الفحص ده هو الضمان الوحيد إنه بيجمّع صح.
+    // التجميع الشهري بيحصل في JS فوق نتيجة findMany (مش date_trunc في SQL) — الفحص ده
+    // بيتأكد إن البَكَتة بالشهر واتجاه الحساب الدائن مظبوطين على أرقام حقيقية.
     console.log("\n— لوحة القيادة —");
     const dash = await getDashboardData(client as never, org.id);
     check("العملة الوظيفية", dash.currency, "EGP");
     check("عدد شهور الرسم البياني", String(dash.monthlyRevenue.length), "6");
     const augRevenue = dash.monthlyRevenue.find((m) => m.month === "أغسطس");
-    check("إيراد أغسطس في الرسم ($queryRaw)", String(augRevenue?.revenue ?? "مفقود"), "60000");
+    check("إيراد أغسطس في الرسم الشهري", String(augRevenue?.revenue ?? "مفقود"), "60000");
     check(
       "باقي الشهور صفر",
       String(dash.monthlyRevenue.filter((m) => m.month !== "أغسطس").every((m) => m.revenue === 0)),

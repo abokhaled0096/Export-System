@@ -1,5 +1,4 @@
 import { Prisma } from "@/generated/prisma/client";
-import { formatDate } from "@/lib/format";
 
 export const exchangeRateTypeLabel: Record<string, string> = {
   Spot: "فوري",
@@ -112,8 +111,16 @@ export function thirteenWeeksFrom(start: Date): Date[] {
   });
 }
 
+/**
+ * مفتاح الأسبوع — **قيمة مش نص للعرض**، ولازم تفضل ISO (yyyy-mm-dd).
+ *
+ * ⚠️ الناتج ده بيتبعت كقيمة `weekStartDate` في فورم التدفّق النقدي وبيتقري في
+ * `createCashFlowForecastLine` بـ`new Date(weekStartDate)`. أي صيغة تانية (زي dd/mm/yyyy)
+ * بتدّي `Invalid Date` وتكتب تاريخ باظ في القاعدة. للعرض استخدم `formatDate()` على
+ * الـ`Date` الأصلي — مش على المفتاح ده.
+ */
 export function weekKey(date: Date): string {
-  return formatDate(date);
+  return date.toISOString().slice(0, 10);
 }
 
 /** القسط متأخر = مستحق + تاريخ استحقاقه عدّى. حالة زمنية بتتحسب وقت العرض مش مخزَّنة

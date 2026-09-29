@@ -92,21 +92,32 @@ export async function getDashboardData(prisma: ScopedPrismaClient, orgId: string
 
   // ---------- 3) الاتجاه ----------
   // إيراد آخر ٦ شهور — استعلام واحد مجمَّع بالشهر بدل ٦ استعلامات منفصلة.
+  //
+  // ⚠️ التجميع بالشهر بيتعمل في JS مش بـ`$queryRaw` + `date_trunc` عن قصد: الـextension
+  // بتاع RLS في scoped-prisma.ts بيتخطّى أي عملية بلا `model` — وده حال `$queryRaw` —
+  // فكانت هتشتغل بدور `postgres` اللي بيتجاهل كل RLS Policy. إضافة فلتر orgId في
+  // الاستعلام كانت هتمنع التسريب فعلًا، لكن الاعتماد على فلتر في التطبيق بدل RLS هو
+  // بالظبط "الموافقات الشكلية" اللي CLAUDE.md بيمنعها، والنمط ده بيتنسخ وبيتنسي فلتره.
+  //
+  // الحجم مقبول: بنود إيراد شركة واحدة في ٦ شهور، مش ملايين صفوف.
   const sixMonthsAgo = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 5, 1));
-  const revenueRows = await prisma.$queryRaw<{ month: Date; revenue: Prisma.Decimal }[]>`
-    SELECT date_trunc('month', je."entryDate") AS month,
-           COALESCE(SUM(jl."functionalCredit" - jl."functionalDebit"), 0) AS revenue
-      FROM "JournalLine" jl
-      JOIN "JournalEntry" je ON je."id" = jl."journalEntryId"
-      JOIN "ChartOfAccount" coa ON coa."id" = jl."accountId"
-     WHERE jl."orgId" = ${orgId}::uuid
-       AND je."status" IN ('Posted', 'Reversed')
-       AND coa."accountType" = 'Revenue'
-       AND je."entryDate" >= ${sixMonthsAgo}
-     GROUP BY 1
-     ORDER BY 1`;
+  const revenueLines = await prisma.journalLine.findMany({
+    where: {
+      orgId,
+      account: { accountType: "Revenue" },
+      journalEntry: { status: { in: ["Posted", "Reversed"] }, entryDate: { gte: sixMonthsAgo } },
+    },
+    select: { functionalDebit: true, functionalCredit: true, journalEntry: { select: { entryDate: true } } },
+  });
 
-  const revenueByMonth = new Map(revenueRows.map((r) => [`${r.month.getUTCFullYear()}-${r.month.getUTCMonth()}`, Number(r.revenue)]));
+  const revenueByMonth = new Map<string, number>();
+  for (const line of revenueLines) {
+    const d = line.journalEntry.entryDate;
+    const key = `${d.getUTCFullYear()}-${d.getUTCMonth()}`;
+    // الإيراد حساب دائن — الرصيد في اتجاهه الطبيعي = دائن − مدين.
+    const amount = Number(line.functionalCredit.sub(line.functionalDebit));
+    revenueByMonth.set(key, (revenueByMonth.get(key) ?? 0) + amount);
+  }
   const monthlyRevenue: MonthlyRevenue[] = [];
   for (let i = 5; i >= 0; i--) {
     const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));

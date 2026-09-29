@@ -14,6 +14,7 @@ import {
   signedAmount,
 } from "@/lib/treasuryLabels";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { formatDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -197,7 +198,8 @@ export default async function CashFlowPage({ searchParams }: { searchParams: Sea
 
   const lowestWeek = withBalances.reduce((lowest, w) => (w.closing.lt(lowest.closing) ? w : lowest), withBalances[0]);
   const finalBalance = withBalances.length > 0 ? withBalances[withBalances.length - 1].closing : openingCash;
-  const weekOptions = weeks.map((w) => weekKey(w));
+  // القيمة ISO (بتتقري بـnew Date في الـaction)، والنص المعروض بصيغة العرض الموحّدة.
+  const weekOptions = weeks.map((w) => ({ value: weekKey(w), label: formatDate(w) }));
 
   return (
     <main className="mx-auto max-w-[1400px] px-6 py-10">
@@ -205,7 +207,7 @@ export default async function CashFlowPage({ searchParams }: { searchParams: Sea
         <div>
           <h1 className="text-2xl font-semibold text-foreground">التدفّق النقدي — 13 أسبوع</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            من {weekKey(weeks[0])} لـ {weekKey(weeks[12])} · {accountsInCurrency.length} حساب بعملة {currency}
+            من {formatDate(weeks[0])} لـ {formatDate(weeks[12])} · {accountsInCurrency.length} حساب بعملة {currency}
           </p>
         </div>
         {currencies.length > 1 && (
@@ -243,7 +245,7 @@ export default async function CashFlowPage({ searchParams }: { searchParams: Sea
           <p className={`mt-1 font-mono text-2xl font-semibold ${lowestWeek.closing.lt(0) ? "text-rose-700" : "text-foreground"}`}>
             {lowestWeek.closing.toFixed(2)}
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">أسبوع {weekKey(lowestWeek.week)}</p>
+          <p className="mt-1 text-xs text-muted-foreground">أسبوع {formatDate(lowestWeek.week)}</p>
         </div>
       </div>
 
@@ -267,7 +269,7 @@ export default async function CashFlowPage({ searchParams }: { searchParams: Sea
           <TableBody>
             {withBalances.map((w) => (
               <TableRow key={weekKey(w.week)}>
-                <TableCell className="sticky right-0 bg-card font-mono text-xs text-foreground">{weekKey(w.week)}</TableCell>
+                <TableCell className="sticky right-0 bg-card font-mono text-xs text-foreground">{formatDate(w.week)}</TableCell>
                 <TableCell className="font-mono text-xs text-muted-foreground">{w.opening.toFixed(2)}</TableCell>
                 {MANUAL_CASH_FLOW_CATEGORIES.map((c) => {
                   const v = w.row.get(c)!;

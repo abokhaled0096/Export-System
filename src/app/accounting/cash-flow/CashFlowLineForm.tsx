@@ -16,7 +16,8 @@ export default function CashFlowLineForm({
   costCenters,
   profitCenters,
 }: {
-  weeks: string[];
+  /** ⚠️ `value` لازم يفضل ISO — بيتقري بـ`new Date()` في الـaction. `label` للعرض بس. */
+  weeks: Array<{ value: string; label: string }>;
   currency: string;
   costCenters: Array<{ id: string; code: string; name: string }>;
   profitCenters: Array<{ id: string; code: string; name: string }>;
@@ -30,14 +31,14 @@ export default function CashFlowLineForm({
         <Label htmlFor="cf-week" className="text-xs">
           الأسبوع *
         </Label>
-        <Select name="weekStartDate" defaultValue={weeks[0]}>
+        <Select name="weekStartDate" defaultValue={weeks[0]?.value}>
           <SelectTrigger id="cf-week" className="w-40">
-            <SelectValue>{(value: string) => value || "—"}</SelectValue>
+            <SelectValue>{(value: string) => weeks.find((w) => w.value === value)?.label ?? "—"}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             {weeks.map((w) => (
-              <SelectItem key={w} value={w}>
-                {w}
+              <SelectItem key={w.value} value={w.value}>
+                {w.label}
               </SelectItem>
             ))}
           </SelectContent>
