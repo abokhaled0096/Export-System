@@ -137,6 +137,7 @@ model Organization {
   profitCenters            ProfitCenter[]
   bankAccounts             BankAccount[]
   invoices                 Invoice[]
+  invoiceLines             InvoiceLine[]
   payments                 Payment[]
   paymentAllocations       PaymentAllocation[]
   bankTransactions         BankTransaction[]
@@ -479,6 +480,7 @@ model Product {
   opportunities     Opportunity[]
   deals             Deal[]
   salesOrderLines   SalesOrderLine[]
+  invoiceLines      InvoiceLine[]
   complianceCases   ComplianceCase[]
   requirements      Requirement[]
   hsClassifications HSClassification[]
@@ -4517,6 +4519,7 @@ model Invoice {
   journalEntry           JournalEntry?       @relation(fields: [journalEntryId], references: [id])
   lastFxRevaluationRateRef ExchangeRate?     @relation(fields: [lastFxRevaluationRateId], references: [id])
   allocations            PaymentAllocation[]
+  lines                  InvoiceLine[]
 
   @@unique([orgId, invoiceNumber])
   @@unique([orgId, idempotencyKey])
@@ -4524,6 +4527,50 @@ model Invoice {
   @@index([companyId])
   @@index([supplierId])
   @@index([status])
+}
+
+/// بند فاتورة — الوحدة الفعلية اللي الفاتورة بتتبني منها. فاتورة تصدير بمبلغ مجمّع بلا أصناف
+/// مرفوضة جمركيًا ومن منظومة الفاتورة الإلكترونية (ETA)، فالحقول دي مش تحسين واجهة: `description`
+/// و`hsCode` و`quantity` و`unit` و`unitPrice` و`countryOfOrigin` هي الحد الأدنى للفاتورة التجارية.
+///
+/// ⚠️ `lineTotal` و`lineTax` **بتتحسب بـTrigger على مستوى القاعدة** (`compute_invoice_line_amounts`)
+/// وأي قيمة بتتبعت فيهم من الواجهة بتتجاهل — ومنها `Invoice.subtotal`/`taxAmount`/`totalAmount`
+/// بيتجمّعوا بـTrigger تاني (`sync_invoice_totals_from_lines`). ده نفس مبدأ CLAUDE.md §"قيد عمل
+/// حرج لازم يتمنع على مستوى القاعدة": إجمالي الفاتورة ما ينفعش يبقى رقم مكتوب بالإيد جنب بنود
+/// بتقول حاجة تانية، ولا ينفع يتحمي بحساب في الواجهة بس.
+model InvoiceLine {
+  id              String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId           String   @db.Uuid
+  invoiceId       String   @db.Uuid
+  /// ترتيب البند في الفاتورة المطبوعة — فريد داخل الفاتورة عشان الترتيب يفضل ثابت بعد أي تعديل.
+  lineNumber      Int
+  /// اختياري عمدًا: بنود زي النولون والتأمين ورسوم المستندات بتظهر في الفاتورة التجارية
+  /// من غير ما تكون منتج في الكتالوج.
+  productId       String?  @db.Uuid
+  description     String
+  hsCode          String?
+  countryOfOrigin String?
+  quantity        Decimal  @db.Decimal(14, 3)
+  unit            String
+  unitPrice       Decimal  @db.Decimal(14, 4)
+  taxRatePct      Decimal  @default(0) @db.Decimal(5, 2)
+  /// محسوب بـTrigger = round(quantity × unitPrice, 2). لا تكتبه من التطبيق.
+  lineTotal       Decimal  @db.Decimal(14, 2)
+  /// محسوب بـTrigger = round(lineTotal × taxRatePct / 100, 2). لا تكتبه من التطبيق.
+  lineTax         Decimal  @db.Decimal(14, 2)
+  netWeightKg     Decimal? @db.Decimal(14, 3)
+  grossWeightKg   Decimal? @db.Decimal(14, 3)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  invoice      Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  product      Product?     @relation(fields: [productId], references: [id])
+
+  @@unique([invoiceId, lineNumber])
+  @@index([orgId])
+  @@index([invoiceId])
+  @@index([productId])
 }
 
 enum PaymentDirection {

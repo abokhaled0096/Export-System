@@ -1228,16 +1228,93 @@ async function main() {
     }
     record("إصدار فاتورة مبيعات بلا مستند ETA معتمد اتمنع فعليًا على مستوى القاعدة (قيد قانوني)", issueWithoutEtaRejected);
 
+    // (ج) بنود الفاتورة (InvoiceLine) — هجرة 20260929100000/20260929110000
+    // فاتورة بتتولد مُصدَرة مباشرةً لازم ترفض: ده كان بيتخطّى فحص "ممنوع إصدار بلا بنود" كله.
+    let bornIssuedRejected = false;
+    try {
+      await asUser(userA.id, (tx) =>
+        tx.invoice.create({
+          data: {
+            orgId: orgA.id, invoiceNumber: "INV-RLS-BORN-ISSUED", invoiceType: "PurchaseInvoice", supplierId: supplierA.id,
+            currency: "USD", subtotal: 1000, taxAmount: 0, totalAmount: 1000,
+            issueDate: inPeriodDate, dueDate: new Date("2026-02-15"), status: "Issued",
+          },
+        })
+      );
+    } catch (e) {
+      bornIssuedRejected = e instanceof Error && e.message.includes("لازم تتعمل كمسودة الأول");
+    }
+    record("فاتورة بتتولد بحالة Issued مباشرة اتمنعت فعليًا على مستوى القاعدة (Trigger)", bornIssuedRejected);
+
     // فاتورة مشتريات مالهاش قيد ETA — دي اللي هنكمل عليها فحوصات التخصيص
     const purchaseInvoiceA = await asUser(userA.id, (tx) =>
       tx.invoice.create({
         data: {
           orgId: orgA.id, invoiceNumber: "INV-RLS-0002", invoiceType: "PurchaseInvoice", supplierId: supplierA.id,
           currency: "USD", subtotal: 1000, taxAmount: 0, totalAmount: 1000,
-          issueDate: inPeriodDate, dueDate: new Date("2026-02-15"), status: "Issued",
+          issueDate: inPeriodDate, dueDate: new Date("2026-02-15"),
         },
       })
     );
+
+    // إصدار المسودة دي بلا بنود لازم يترفض
+    let issueWithoutLinesRejected = false;
+    try {
+      await asUser(userA.id, (tx) => tx.invoice.update({ where: { id: purchaseInvoiceA.id }, data: { status: "Issued" } }));
+    } catch (e) {
+      issueWithoutLinesRejected = e instanceof Error && e.message.includes("مالهاش بنود");
+    }
+    record("إصدار فاتورة بلا بنود اتمنع فعليًا على مستوى القاعدة (Trigger)", issueWithoutLinesRejected);
+
+    // البند بيتحسب في القاعدة: lineTotal = 1000×1 رغم إن التطبيق باعت أصفار عمدًا.
+    const invoiceLineA = await asUser(userA.id, (tx) =>
+      tx.invoiceLine.create({
+        data: {
+          orgId: orgA.id, invoiceId: purchaseInvoiceA.id, lineNumber: 1, productId: productA.id,
+          description: "فراولة مجمدة", hsCode: "0811.10", countryOfOrigin: "Egypt",
+          quantity: 1000, unit: "kg", unitPrice: 1, taxRatePct: 0,
+          lineTotal: 0, lineTax: 0, // ⚠️ قيم غلط عمدًا — الـTrigger لازم يكتب فوقها
+        },
+      })
+    );
+    record("lineTotal اتحسب في القاعدة وتجاهل القيمة الجاية من التطبيق", invoiceLineA.lineTotal.toFixed(2) === "1000.00");
+
+    // إجماليات الفاتورة لازم تكون اتزامنت من البنود
+    const afterLineSync = await asUser(userA.id, (tx) => tx.invoice.findUniqueOrThrow({ where: { id: purchaseInvoiceA.id } }));
+    record(
+      "إجماليات الفاتورة اتزامنت تلقائيًا من بنودها (Trigger)",
+      afterLineSync.subtotal.toFixed(2) === "1000.00" && afterLineSync.totalAmount.toFixed(2) === "1000.00"
+    );
+
+    // كمية سالبة لازم ترفض (CHECK constraint)
+    let negativeQuantityRejected = false;
+    try {
+      await asUser(userA.id, (tx) =>
+        tx.invoiceLine.create({
+          data: {
+            orgId: orgA.id, invoiceId: purchaseInvoiceA.id, lineNumber: 99, description: "كمية سالبة",
+            quantity: -5, unit: "kg", unitPrice: 1, lineTotal: 0, lineTax: 0,
+          },
+        })
+      );
+    } catch {
+      negativeQuantityRejected = true;
+    }
+    record("بند بكمية سالبة اتمنع فعليًا على مستوى القاعدة (CHECK)", negativeQuantityRejected);
+
+    // دلوقتي الإصدار لازم ينجح — الفاتورة بقى لها بند
+    await asUser(userA.id, (tx) => tx.invoice.update({ where: { id: purchaseInvoiceA.id }, data: { status: "Issued" } }));
+    const afterIssue = await asUser(userA.id, (tx) => tx.invoice.findUniqueOrThrow({ where: { id: purchaseInvoiceA.id } }));
+    record("إصدار فاتورة عندها بند واحد على الأقل نجح فعليًا", afterIssue.status === "Issued");
+
+    // وبعد الإصدار البنود بتتقفل — التعديل بيبقى بإشعار خصم/إضافة مش بتحرير البند
+    let lineEditAfterIssueRejected = false;
+    try {
+      await asUser(userA.id, (tx) => tx.invoiceLine.update({ where: { id: invoiceLineA.id }, data: { quantity: 2000 } }));
+    } catch (e) {
+      lineEditAfterIssueRejected = e instanceof Error && e.message.includes("ما تتعدّلش بعد الإصدار");
+    }
+    record("تعديل بند فاتورة بعد إصدارها اتمنع فعليًا على مستوى القاعدة (Trigger)", lineEditAfterIssueRejected);
 
     const paymentA = await asUser(userA.id, (tx) =>
       tx.payment.create({
@@ -1334,10 +1411,21 @@ async function main() {
         data: {
           orgId: orgA.id, invoiceNumber: "INV-RLS-0003", invoiceType: "PurchaseInvoice", supplierId: supplierA.id,
           currency: "USD", subtotal: 500, taxAmount: 0, totalAmount: 500,
-          issueDate: inPeriodDate, dueDate: new Date("2026-02-15"), status: "Issued",
+          issueDate: inPeriodDate, dueDate: new Date("2026-02-15"),
         },
       })
     );
+    // الفاتورة لازم تتولد مسودة وياخد لها بند قبل الإصدار (هجرة 20260929110000).
+    // البند 500×1 بيخلّي الإجمالي اللي الـTrigger بيزامنه = 500 زي ما الفحوصات تحت مفترضة.
+    await asUser(userA.id, (tx) =>
+      tx.invoiceLine.create({
+        data: {
+          orgId: orgA.id, invoiceId: pendingInvoiceA.id, lineNumber: 1, productId: productA.id,
+          description: "فراولة مجمدة", quantity: 500, unit: "kg", unitPrice: 1, lineTotal: 0, lineTax: 0,
+        },
+      })
+    );
+    await asUser(userA.id, (tx) => tx.invoice.update({ where: { id: pendingInvoiceA.id }, data: { status: "Issued" } }));
     const pendingPaymentA = await asUser(userA.id, (tx) =>
       tx.payment.create({
         data: {
@@ -2094,6 +2182,9 @@ async function main() {
     // AR/AP قبل القيود لأن Invoice/Payment بيشاوروا على JournalEntry، وقبل Document لأن Invoice بيشاور عليه.
     await prisma.paymentAllocation.deleteMany({ where: { orgId: { in: [orgA.id, orgB.id] } } });
     await prisma.payment.deleteMany({ where: { orgId: { in: [orgA.id, orgB.id] } } });
+    // InvoiceLine بيتحذف بالـCASCADE مع الفاتورة عمدًا، مش بحذف مباشر: Trigger
+    // enforce_invoice_lines_draft_only بيرفض حذف بند فاتورة مُصدَرة، لكنه بيسمح لما تكون
+    // الفاتورة نفسها اتحذفت (الـCASCADE بيشتغل بعد حذف صف الأب، فالحالة بتبقى NULL).
     await prisma.invoice.deleteMany({ where: { orgId: { in: [orgA.id, orgB.id] } } });
     await prisma.bankAccount.deleteMany({ where: { orgId: { in: [orgA.id, orgB.id] } } });
     await prisma.$executeRawUnsafe(`ALTER TABLE "JournalLine" DISABLE TRIGGER USER`);
