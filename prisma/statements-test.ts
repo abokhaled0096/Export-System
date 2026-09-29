@@ -114,6 +114,17 @@ function check(label: string, actual: string, expected: string) {
     check("هامش مجمل الربح", is.grossMarginPct!.toFixed(2), "41.67");
     check("هامش صافي الربح", is.netMarginPct!.toFixed(2), "33.33");
 
+    // نفس الأرقام بلا فلتر فترة خالص — المسار ده كان بيبني `{ entryDate: {} }` ويعلّق
+    // الصفحة على "جاري التحميل" بلا أي خطأ ظاهر (اتكشف على الإنتاج، 29 سبتمبر).
+    const isAll = await computeIncomeStatement(client, org.id, {});
+    check("صافي الربح بلا فلتر فترة", isAll.netProfit.toFixed(2), "20000.00");
+
+    // مدى تواريخ مفتوح من ناحية واحدة
+    const isFrom = await computeIncomeStatement(client, org.id, { from: new Date("2026-08-01") });
+    check("صافي الربح من 2026-08-01", isFrom.netProfit.toFixed(2), "20000.00");
+    const isBefore = await computeIncomeStatement(client, org.id, { to: new Date("2026-08-01") });
+    check("صافي الربح لحد 2026-08-01", isBefore.netProfit.toFixed(2), "0.00");
+
     console.log("\n— الميزانية العمومية —");
     const bs = await computeBalanceSheet(client, org.id, new Date("2026-09-30"));
     // نقدية 100,000 − 5,000 = 95,000 · ذمم مدينة 60,000 → أصول 155,000

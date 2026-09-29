@@ -131,9 +131,14 @@ export async function computeIncomeStatement(
   orgId: string,
   range: { periodId?: string; from?: Date; to?: Date }
 ): Promise<IncomeStatement> {
-  const entryWhere: Prisma.JournalEntryWhereInput = range.periodId
-    ? { periodId: range.periodId }
-    : { entryDate: { ...(range.from ? { gte: range.from } : {}), ...(range.to ? { lte: range.to } : {}) } };
+  // ⚠️ لازم يفضل `{}` لو مفيش فترة ولا مدى — `{ entryDate: {} }` (فلتر تاريخ فاضي) مش
+  // "من غير فلتر"، وبيطلّع استعلام معطوب بيعلّق الصفحة على "جاري التحميل" بلا خطأ ظاهر.
+  const entryWhere: Prisma.JournalEntryWhereInput = {};
+  if (range.periodId) {
+    entryWhere.periodId = range.periodId;
+  } else if (range.from || range.to) {
+    entryWhere.entryDate = { ...(range.from ? { gte: range.from } : {}), ...(range.to ? { lte: range.to } : {}) };
+  }
 
   const buckets = await balancesByType(prisma, orgId, entryWhere);
 
