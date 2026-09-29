@@ -1,4 +1,4 @@
-import type { Browser } from "puppeteer-core";
+import { renderHtmlToPdf } from "@/lib/pdf-browser";
 
 export type QuotePdfData = {
   orgLegalName: string;
@@ -77,6 +77,10 @@ function buildQuoteHtml(q: QuotePdfData): string {
   * { box-sizing: border-box; }
   body {
     font-family: 'IBM Plex Sans Arabic', sans-serif;
+    /* ⚠️ الخلفية واللون صريحين، و color-scheme: light مقفولة: من غيرهم المستند بيورِث
+       الوضع الداكن من المتصفح/القارئ ويطلع أبيض على أسود. مستند جمركي بيتطبع كده = كارثة. */
+    background: #ffffff;
+    color-scheme: light;
     color: #171717;
     margin: 0;
     padding: 40px 48px;
@@ -220,7 +224,8 @@ function buildQuoteBundleHtml(b: QuoteBundlePdfData): string {
 <style>
   @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
   * { box-sizing: border-box; }
-  body { font-family: 'IBM Plex Sans Arabic', sans-serif; color: #171717; margin: 0; padding: 40px 48px; font-size: 13px; line-height: 1.6; }
+  /* background/color-scheme صريحين — راجع نفس التعليق في قالب عرض السعر فوق. */
+  body { font-family: 'IBM Plex Sans Arabic', sans-serif; background: #ffffff; color-scheme: light; color: #171717; margin: 0; padding: 40px 48px; font-size: 13px; line-height: 1.6; }
   .mono { font-family: 'IBM Plex Mono', monospace; }
   header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #7A0F3D; padding-bottom: 16px; margin-bottom: 24px; }
   .brand { font-size: 20px; font-weight: 700; color: #7A0F3D; }
@@ -300,58 +305,10 @@ function buildQuoteBundleHtml(b: QuoteBundlePdfData): string {
 </html>`;
 }
 
-/** Vercel serverless functions مالهاش نظام تشغيل كامل يقدر يشغّل Chromium العادي (حجم كبير جدًا
- * + مكتبات نظام ناقصة) — لازم Chromium مُبني خصيصًا للـserverless (@sparticuz/chromium) + عميل
- * "puppeteer-core" الخفيف (بلا Chromium مُدمَج) بدل حزمة "puppeteer" الكاملة. محليًا (تطوير)
- * بنستخدم "puppeteer" الكاملة زي ما هي — أبسط، وأصلًا بتنزّل Chromium بمفردها بلا إعداد إضافي.
- * الاختيار بين الاتنين وقت التشغيل بس (process.env.VERCEL بيتحطّ تلقائيًا في أي بيئة Vercel). */
-async function launchBrowser(): Promise<Browser> {
-  if (process.env.VERCEL) {
-    const [{ default: chromium }, { default: puppeteerCore }] = await Promise.all([
-      import("@sparticuz/chromium"),
-      import("puppeteer-core"),
-    ]);
-    return puppeteerCore.launch({
-      args: chromium.args,
-      executablePath: await chromium.executablePath(),
-      headless: true,
-    });
-  }
-  const { default: puppeteerFull } = await import("puppeteer");
-  const browser = await puppeteerFull.launch({ headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox"] });
-  // "puppeteer" مبني فوق "puppeteer-core" فعليًا (نفس الـBrowser class جوّاه) — الكاست هنا
-  // بس بيوصف النوع للـTypeScript، مش تغيير سلوك وقت التشغيل.
-  return browser as unknown as Browser;
-}
-
-let browserPromise: Promise<Browser> | null = null;
-function getBrowser() {
-  if (!browserPromise) {
-    browserPromise = launchBrowser();
-  }
-  return browserPromise;
-}
-
 export async function renderQuotePdf(data: QuotePdfData): Promise<Buffer> {
-  const browser = await getBrowser();
-  const page = await browser.newPage();
-  try {
-    await page.setContent(buildQuoteHtml(data), { waitUntil: "load" });
-    const pdf = await page.pdf({ format: "A4", printBackground: true, margin: { top: "0", bottom: "0", left: "0", right: "0" } });
-    return Buffer.from(pdf);
-  } finally {
-    await page.close();
-  }
+  return renderHtmlToPdf(buildQuoteHtml(data));
 }
 
 export async function renderQuoteBundlePdf(data: QuoteBundlePdfData): Promise<Buffer> {
-  const browser = await getBrowser();
-  const page = await browser.newPage();
-  try {
-    await page.setContent(buildQuoteBundleHtml(data), { waitUntil: "load" });
-    const pdf = await page.pdf({ format: "A4", printBackground: true, margin: { top: "0", bottom: "0", left: "0", right: "0" } });
-    return Buffer.from(pdf);
-  } finally {
-    await page.close();
-  }
+  return renderHtmlToPdf(buildQuoteBundleHtml(data));
 }

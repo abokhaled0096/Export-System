@@ -15,6 +15,7 @@ import { computeIncomeStatement, computeBalanceSheet } from "../src/lib/financia
 import { getDashboardData } from "../src/lib/dashboard";
 import { weekKey } from "../src/lib/treasuryLabels";
 import { formatDate, toDateInputValue } from "../src/lib/format";
+import { amountToArabicWords } from "../src/lib/numberToArabicWords";
 
 type Client = Parameters<typeof computeIncomeStatement>[0];
 
@@ -160,6 +161,22 @@ function check(label: string, actual: string, expected: string) {
     check("toDateInputValue لـ<input type=date>", toDateInputValue(sampleMonday), "2026-09-28");
     // تاريخ متأخر بتوقيت UTC بيقع في اليوم اللي بعده بتوقيت القاهرة
     check("formatDate بيحترم توقيت القاهرة", formatDate(new Date("2026-09-29T22:30:00Z")), "30/09/2026");
+
+    // ---------- التفقيط ----------
+    // الفاتورة التجارية وخطاب الاعتماد لازم فيهم الإجمالي كتابةً، والبنك بيقارنه بالأرقام.
+    // الصرف العربي فيه مثنّى وجمع قلّة — سهل جدًا يطلع غلط من غير فحص.
+    console.log("\n— التفقيط بالعربي —");
+    const w = (n: number | string, c: string) => amountToArabicWords(n, c);
+    check("صفر", w(0, "EGP"), "فقط صفر جنيه مصري لا غير");
+    check("مفرد", w(1, "EGP"), "فقط واحد جنيه مصري لا غير");
+    check("المثنّى (ألفان)", w(2000, "EGP"), "فقط ألفان جنيه مصري لا غير");
+    check("جمع القلّة (ثلاثة آلاف)", w(3000, "EGP"), "فقط ثلاثة آلاف جنيه مصري لا غير");
+    check("ما فوق العشرة مفرد", w(11000, "EGP"), "فقط أحد عشر ألف جنيه مصري لا غير");
+    check("العطف بالعشرات", w(45, "EGP"), "فقط خمسة وأربعون جنيه مصري لا غير");
+    check("المئات", w(200, "EGP"), "فقط مائتان جنيه مصري لا غير");
+    check("إجمالي فاتورة حقيقي", w("3216.15", "EUR"), "فقط ثلاثة آلاف ومائتان وستة عشر يورو وخمسة عشر سنت لا غير");
+    check("الكسور بتتقرّب", w("0.155", "EGP"), "فقط صفر جنيه مصري وستة عشر قرش لا غير");
+    check("عملة مش معروفة بترجع بالرمز", w(5, "XYZ"), "فقط خمسة XYZ لا غير");
 
     console.log("\n— لوحة القيادة —");
     const dash = await getDashboardData(client as never, org.id);

@@ -114,6 +114,18 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
         <h1 className="font-mono text-2xl font-semibold text-foreground">{invoice.invoiceNumber}</h1>
         <Badge className={invoiceStatusStyle[invoice.status]}>{invoiceStatusLabel[invoice.status]}</Badge>
         {overdue && <Badge className={invoiceStatusStyle.Overdue}>متأخرة {daysOverdue(invoice.dueDate)} يوم</Badge>}
+        {/* الفاتورة المسودة بتطلع بعلامة "مسودة — غير صالحة للتقديم" على المستند نفسه،
+            عشان محدش يبعت مسودة للجمارك أو للعميل بالغلط. */}
+        {invoice.lines.length > 0 && (
+          <a
+            href={`/accounting/invoices/${invoice.id}/pdf`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ms-auto rounded-lg border border-border px-3 py-1.5 text-sm text-foreground/80 hover:border-primary/40 hover:text-foreground"
+          >
+            ⤓ الفاتورة التجارية (PDF)
+          </a>
+        )}
       </div>
 
       <dl className="mt-6 grid gap-4 rounded-xl border border-border bg-card p-5 sm:grid-cols-3">
