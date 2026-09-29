@@ -18,6 +18,17 @@ const nextConfig: NextConfig = {
   outputFileTracingExcludes: {
     "*": ["**/node_modules/puppeteer/**"],
   },
+  // ⚠️ اتلقط فعليًا في الإنتاج بعد أول deploy: serverExternalPackages لوحده مش كفاية —
+  // Next.js Output File Tracing برضو بيشيل مجلد bin/ بتاع @sparticuz/chromium (فيه الـChromium
+  // binary نفسه مضغوط بـbrotli) لأنه require() ديناميكي بيتحل وقت التشغيل مش وقت البناء، فالتتبّع
+  // الاستاتيكي مايشوفوش. النتيجة: "The input directory .../chromium/bin does not exist" وقت
+  // فعلي تشغيل توليد الـPDF. outputFileTracingIncludes بيجبر Next.js يضيف المجلد ده صراحةً لأي
+  // route محتاج Chromium (نفس الحل الموثّق في README بتاع @sparticuz/chromium نفسه).
+  outputFileTracingIncludes: {
+    "/deals/[id]/quotes/[quoteId]/pdf": ["./node_modules/@sparticuz/chromium/bin/**/*"],
+    "/quote-bundles/[id]/pdf": ["./node_modules/@sparticuz/chromium/bin/**/*"],
+    "/deals/[id]": ["./node_modules/@sparticuz/chromium/bin/**/*"],
+  },
 };
 
 export default nextConfig;
