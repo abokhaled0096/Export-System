@@ -197,29 +197,6 @@ export default function InvoiceForm({ salesOrders, purchaseOrders, companies, su
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="inv-subtotal" className="text-xs">
-          الصافي قبل الضريبة *
-        </Label>
-        <Input
-          id="inv-subtotal"
-          name="subtotal"
-          type="number"
-          step="0.01"
-          defaultValue={selectedOrder?.total ?? selectedPO?.total ?? ""}
-          key={selectedOrder?.total ?? selectedPO?.total ?? "sub"}
-        />
-        {state.errors?.subtotal && <span className="text-xs text-destructive">{state.errors.subtotal[0]}</span>}
-      </div>
-
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="inv-tax" className="text-xs">
-          الضريبة
-        </Label>
-        <Input id="inv-tax" name="taxAmount" type="number" step="0.01" defaultValue="0" />
-        <span className="text-[11px] text-muted-foreground">الإجمالي بيتحسب تلقائيًا.</span>
-      </div>
-
-      <div className="flex flex-col gap-1.5">
         <Label htmlFor="inv-issue" className="text-xs">
           تاريخ الإصدار *
         </Label>
@@ -242,10 +219,16 @@ export default function InvoiceForm({ salesOrders, purchaseOrders, companies, su
         <Input id="inv-notes" name="notes" />
       </div>
 
-      <div className="flex items-end">
-        <Button type="submit" disabled={pending}>
-          {pending ? "جاري الإنشاء..." : "+ فاتورة"}
-        </Button>
+      <div className="flex flex-col justify-end gap-1.5 sm:col-span-2 lg:col-span-3">
+        <p className="text-[11px] text-muted-foreground">
+          الفاتورة بتتعمل كمسودة، وبتضيف بنودها (صنف، كمية، سعر وحدة، كود HS) من صفحتها. الإجمالي بيتحسب من البنود — مفيش
+          إدخال يدوي للمبالغ. لو اخترت أمر بيع، بنوده بتتنسخ تلقائيًا.
+        </p>
+        <div>
+          <Button type="submit" disabled={pending}>
+            {pending ? "جاري الإنشاء..." : "+ فاتورة"}
+          </Button>
+        </div>
       </div>
 
       {state.formError && (

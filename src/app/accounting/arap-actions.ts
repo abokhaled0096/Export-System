@@ -241,8 +241,9 @@ const InvoiceSchema = z.object({
   supplierId: z.string().uuid().optional().or(z.literal("")),
   documentId: z.string().uuid().optional().or(z.literal("")),
   currency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase(),
-  subtotal: z.coerce.number().min(0, "الصافي مطلوب"),
-  taxAmount: z.coerce.number().min(0, "لازم يكون 0 أو أكتر").optional(),
+  // ⚠️ مفيش subtotal/taxAmount هنا عمدًا: الإجماليات بقت مشتقّة من InvoiceLine بـTrigger
+  // sync_invoice_totals_from_lines (هجرة 20260929100000). أي رقم يتبعت من الفورم هيتكتب
+  // فوقه في القاعدة أول ما يتضاف بند، فقبوله في الفورم كان هيبقى وعد كاذب للمستخدم.
   issueDate: z.string().trim().min(1, "تاريخ الإصدار مطلوب"),
   dueDate: z.string().trim().min(1, "تاريخ الاستحقاق مطلوب"),
   notes: z.string().trim().optional().or(z.literal("")),
@@ -264,8 +265,6 @@ export async function createInvoice(_prevState: InvoiceFormState, formData: Form
     supplierId: formData.get("supplierId") || undefined,
     documentId: formData.get("documentId") || undefined,
     currency: formData.get("currency"),
-    subtotal: formData.get("subtotal"),
-    taxAmount: formData.get("taxAmount") || undefined,
     issueDate: formData.get("issueDate"),
     dueDate: formData.get("dueDate"),
     notes: formData.get("notes") || undefined,
@@ -274,12 +273,11 @@ export async function createInvoice(_prevState: InvoiceFormState, formData: Form
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
 
   const user = await requireCurrentUser();
-  const { salesOrderId, purchaseOrderId, companyId, supplierId, documentId, notes, subtotal, taxAmount, issueDate, dueDate, idempotencyKey, ...rest } =
+  const { salesOrderId, purchaseOrderId, companyId, supplierId, documentId, notes, issueDate, dueDate, idempotencyKey, ...rest } =
     parsed.data;
 
-  const subtotalDec = new Prisma.Decimal(subtotal);
-  const taxDec = new Prisma.Decimal(taxAmount ?? 0);
-  const totalDec = subtotalDec.add(taxDec);
+  // الفاتورة بتتولد بأصفار كمسودة، والبنود هي اللي بتحدّد الإجماليات بعد كده (Trigger).
+  const ZERO = new Prisma.Decimal(0);
 
   try {
     await requirePermission(user.roleId, "Invoice", "Create");
@@ -321,9 +319,31 @@ export async function createInvoice(_prevState: InvoiceFormState, formData: Form
       // (بلاه، تكلفة المشتريات على الصفقة تفضل غير مرئية لأي تجميع بمركز/صفقة، نفس فئة عيب
       // postFixedAssetAcquisition اللي اتصلح في وحدة 8).
       let dealId: string | undefined;
+      // بنود أمر البيع بتتنسخ كبنود فاتورة — أهم مصدر للبنود وأقل إدخال يدوي = أقل خطأ.
+      let defaultUnit = "kg";
+      let soLines: { productId: string; quantity: Prisma.Decimal; unitPrice: Prisma.Decimal; product: { nameAr: string; hsCode: string | null; originCountry: string | null } }[] = [];
       if (salesOrderId) {
-        const so = await tx.salesOrder.findUniqueOrThrow({ where: { id: salesOrderId }, select: { dealId: true } });
+        const so = await tx.salesOrder.findUniqueOrThrow({
+          where: { id: salesOrderId },
+          select: {
+            dealId: true,
+            // وحدة التسعير بتيجي من عرض السعر المقبول للصفقة (مفيش unit على Product ولا على
+            // SalesOrderLine) — والمستخدم يقدر يعدّلها على البند نفسه لو البند مش بنفس الوحدة.
+            deal: { select: { quotes: { where: { status: "Accepted" }, orderBy: { version: "desc" }, take: 1, select: { priceUnit: true } } } },
+            lines: {
+              orderBy: { createdAt: "asc" },
+              select: {
+                productId: true,
+                quantity: true,
+                unitPrice: true,
+                product: { select: { nameAr: true, hsCode: true, originCountry: true } },
+              },
+            },
+          },
+        });
         dealId = so.dealId;
+        soLines = so.lines;
+        defaultUnit = so.deal.quotes[0]?.priceUnit || "kg";
       } else if (purchaseOrderId) {
         const po = await tx.purchaseOrder.findUniqueOrThrow({
           where: { id: purchaseOrderId },
@@ -342,9 +362,9 @@ export async function createInvoice(_prevState: InvoiceFormState, formData: Form
           supplierId: supplierId || undefined,
           documentId: documentId || undefined,
           dealId,
-          subtotal: subtotalDec,
-          taxAmount: taxDec,
-          totalAmount: totalDec,
+          subtotal: ZERO,
+          taxAmount: ZERO,
+          totalAmount: ZERO,
           issueDate: new Date(issueDate),
           dueDate: new Date(dueDate),
           notes: notes || undefined,
@@ -352,13 +372,35 @@ export async function createInvoice(_prevState: InvoiceFormState, formData: Form
           ...rest,
         },
       });
+
+      // createMany مش بيشغّل الـTriggers صف-بصف بشكل مضمون في كل مسارات Prisma، وإحنا
+      // معتمدين عليهم في حساب lineTotal — فالإنشاء فردي عمدًا. عدد بنود أمر بيع واحد صغير.
+      for (const [i, line] of soLines.entries()) {
+        await tx.invoiceLine.create({
+          data: {
+            orgId: user.orgId,
+            invoiceId: invoice.id,
+            lineNumber: i + 1,
+            productId: line.productId,
+            description: line.product.nameAr,
+            hsCode: line.product.hsCode,
+            countryOfOrigin: line.product.originCountry,
+            quantity: line.quantity,
+            unit: defaultUnit,
+            unitPrice: line.unitPrice,
+            lineTotal: ZERO, // بيتحسب في القاعدة
+            lineTax: ZERO, // بيتحسب في القاعدة
+          },
+        });
+      }
+
       await logAudit(tx, {
         orgId: user.orgId,
         userId: user.id,
         action: "invoice.created",
         entityType: "Invoice",
         entityId: invoice.id,
-        afterValue: { invoiceNumber, total: totalDec.toString(), ...rest },
+        afterValue: { invoiceNumber, linesFromSalesOrder: soLines.length, ...rest },
       });
       return invoice.id;
     });
@@ -375,6 +417,131 @@ export async function createInvoice(_prevState: InvoiceFormState, formData: Form
     await logError({ orgId: user.orgId, userId: user.id, action: "createInvoice", error: e });
     const message = businessRuleMessage(e, "حصل خطأ أثناء إنشاء الفاتورة — حاول تاني.");
     return { formError: message };
+  }
+}
+
+// ==================== بنود الفاتورة (InvoiceLine) ====================
+
+const InvoiceLineSchema = z.object({
+  invoiceId: z.string().uuid(),
+  productId: z.string().uuid().optional().or(z.literal("")),
+  description: z.string().trim().min(1, "وصف الصنف مطلوب"),
+  hsCode: z.string().trim().optional().or(z.literal("")),
+  countryOfOrigin: z.string().trim().optional().or(z.literal("")),
+  quantity: z.coerce.number().positive("الكمية لازم تكون أكبر من صفر"),
+  unit: z.string().trim().min(1, "الوحدة مطلوبة"),
+  unitPrice: z.coerce.number().min(0, "سعر الوحدة لازم يكون 0 أو أكتر"),
+  taxRatePct: z.coerce.number().min(0).max(100, "نسبة الضريبة بين 0 و100").optional(),
+  netWeightKg: z.coerce.number().min(0).optional(),
+});
+
+export type InvoiceLineFormState = { errors?: Record<string, string[]>; formError?: string; ok?: boolean };
+
+/** ⚠️ lineTotal/lineTax مش بيتبعتوا من هنا — الـTrigger compute_invoice_line_amounts بيحسبهم
+ * في القاعدة، وsync_invoice_totals_from_lines بيحدّث إجماليات الفاتورة بعدها. الأصفار اللي
+ * بتتبعت تحت قيم مؤقتة عشان الأعمدة NOT NULL بس، وبتتكتب فوقها فورًا. */
+export async function addInvoiceLine(_prev: InvoiceLineFormState, formData: FormData): Promise<InvoiceLineFormState> {
+  const parsed = InvoiceLineSchema.safeParse({
+    invoiceId: formData.get("invoiceId"),
+    productId: formData.get("productId") || undefined,
+    description: formData.get("description"),
+    hsCode: formData.get("hsCode") || undefined,
+    countryOfOrigin: formData.get("countryOfOrigin") || undefined,
+    quantity: formData.get("quantity"),
+    unit: formData.get("unit"),
+    unitPrice: formData.get("unitPrice"),
+    taxRatePct: formData.get("taxRatePct") || undefined,
+    netWeightKg: formData.get("netWeightKg") || undefined,
+  });
+  if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
+
+  const user = await requireCurrentUser();
+  const { invoiceId, productId, ...line } = parsed.data;
+  const ZERO = new Prisma.Decimal(0);
+
+  try {
+    await requirePermission(user.roleId, "Invoice", "Edit");
+
+    await withScopedTransaction(async (tx) => {
+      // findUniqueOrThrow جوه transaction سكوبد = فاتورة من منظمة تانية هترفض هنا قبل أي كتابة.
+      const invoice = await tx.invoice.findUniqueOrThrow({ where: { id: invoiceId }, select: { id: true, invoiceNumber: true } });
+      if (productId) {
+        const product = await tx.product.findFirst({ where: { id: productId, deletedAt: null }, select: { id: true } });
+        if (!product) throw new Error("المنتج غير موجود.");
+      }
+
+      // ترقيم البند داخل الفاتورة — قفل على الفاتورة عشان مستخدمين متوازيين ما ياخدوش نفس الرقم.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`INVLINE-${invoiceId}`}, 0))`;
+      const max = await tx.invoiceLine.aggregate({ where: { invoiceId }, _max: { lineNumber: true } });
+
+      const created = await tx.invoiceLine.create({
+        data: {
+          orgId: user.orgId,
+          invoiceId,
+          lineNumber: (max._max.lineNumber ?? 0) + 1,
+          productId: productId || undefined,
+          hsCode: line.hsCode || undefined,
+          countryOfOrigin: line.countryOfOrigin || undefined,
+          description: line.description,
+          quantity: line.quantity,
+          unit: line.unit,
+          unitPrice: line.unitPrice,
+          taxRatePct: line.taxRatePct ?? 0,
+          netWeightKg: line.netWeightKg,
+          lineTotal: ZERO,
+          lineTax: ZERO,
+        },
+      });
+
+      await logAudit(tx, {
+        orgId: user.orgId,
+        userId: user.id,
+        action: "invoiceLine.created",
+        entityType: "InvoiceLine",
+        entityId: created.id,
+        afterValue: { invoiceNumber: invoice.invoiceNumber, description: line.description, quantity: String(line.quantity), unitPrice: String(line.unitPrice) },
+      });
+    });
+
+    revalidatePath(`/accounting/invoices/${invoiceId}`);
+    return { ok: true };
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "addInvoiceLine", error: e });
+    return { formError: businessRuleMessage(e, "حصل خطأ أثناء إضافة البند — حاول تاني.") };
+  }
+}
+
+/** حذف بند — الـTrigger enforce_invoice_lines_draft_only بيرفضه لو الفاتورة مش مسودة،
+ * وsync_invoice_totals_from_lines بيرجّع الإجماليات تلقائيًا بعد الحذف. */
+export async function deleteInvoiceLine(lineId: string) {
+  const user = await requireCurrentUser();
+  await requirePermission(user.roleId, "Invoice", "Edit");
+
+  try {
+    const invoiceId = await withScopedTransaction(async (tx) => {
+      const line = await tx.invoiceLine.findUniqueOrThrow({
+        where: { id: lineId },
+        select: { id: true, invoiceId: true, description: true, lineTotal: true },
+      });
+      await tx.invoiceLine.delete({ where: { id: lineId } });
+      await logAudit(tx, {
+        orgId: user.orgId,
+        userId: user.id,
+        action: "invoiceLine.deleted",
+        entityType: "InvoiceLine",
+        entityId: line.id,
+        beforeValue: { description: line.description, lineTotal: line.lineTotal.toString() },
+      });
+      return line.invoiceId;
+    });
+
+    revalidatePath(`/accounting/invoices/${invoiceId}`);
+    return { ok: true as const };
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "deleteInvoiceLine", error: e });
+    return { ok: false as const, error: businessRuleMessage(e, "حصل خطأ أثناء حذف البند.") };
   }
 }
 

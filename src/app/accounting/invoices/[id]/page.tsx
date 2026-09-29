@@ -5,6 +5,7 @@ import { requirePermission } from "@/lib/permissions";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
 import InvoiceActions from "./InvoiceActions";
 import LinkDocumentForm, { type DocumentOption } from "./LinkDocumentForm";
+import InvoiceLines, { type InvoiceLineRow, type ProductOption } from "./InvoiceLines";
 import {
   invoiceStatusLabel,
   invoiceStatusStyle,
@@ -46,6 +47,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
       allocations: {
         include: { payment: { select: { id: true, paymentNumber: true, status: true, paymentDate: true } } },
       },
+      lines: { orderBy: { lineNumber: "asc" } },
     },
   });
   if (!invoice) notFound();
@@ -63,6 +65,40 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
         })
       : [];
   const documentOptions: DocumentOption[] = validatedDocuments.map((d) => ({ id: d.id, label: d.documentNumber }));
+
+  // ⚠️ مش Promise.all — راجع BACKLOG.md (P2028).
+  // البنود بتتعدّل وهي مسودة بس (Trigger enforce_invoice_lines_draft_only)، فقايمة المنتجات
+  // مالهاش لازمة غير في الحالة دي.
+  const canEditLines = invoice.status === "Draft";
+  const products = canEditLines
+    ? await prisma.product.findMany({
+        where: { orgId: user.orgId, deletedAt: null },
+        orderBy: { nameAr: "asc" },
+        select: { id: true, nameAr: true, hsCode: true, originCountry: true },
+      })
+    : [];
+  const productOptions: ProductOption[] = products.map((p) => ({
+    id: p.id,
+    label: p.nameAr,
+    hsCode: p.hsCode,
+    originCountry: p.originCountry,
+  }));
+
+  // ⚠️ Decimal ما بيعديش حدود RSC للـClient Component — بيتحوّل لنص هنا قبل ما يتبعت.
+  // (نفس العيب اللي عطّل صفحة الصفقة في 19 سبتمبر — راجع STATUS.md.)
+  const lineRows: InvoiceLineRow[] = invoice.lines.map((l) => ({
+    id: l.id,
+    lineNumber: l.lineNumber,
+    description: l.description,
+    hsCode: l.hsCode,
+    countryOfOrigin: l.countryOfOrigin,
+    quantity: l.quantity.toFixed(3),
+    unit: l.unit,
+    unitPrice: l.unitPrice.toFixed(4),
+    taxRatePct: l.taxRatePct.toFixed(2),
+    lineTotal: l.lineTotal.toFixed(2),
+    lineTax: l.lineTax.toFixed(2),
+  }));
 
   const remaining = invoice.totalAmount.sub(invoice.amountPaid);
   const overdue = isInvoiceOverdue(invoice.status, invoice.dueDate);
@@ -165,6 +201,17 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
           currency={invoice.currency}
         />
       </div>
+
+      <InvoiceLines
+        invoiceId={invoice.id}
+        currency={invoice.currency}
+        editable={canEditLines}
+        lines={lineRows}
+        products={productOptions}
+        subtotal={invoice.subtotal.toFixed(2)}
+        taxAmount={invoice.taxAmount.toFixed(2)}
+        totalAmount={invoice.totalAmount.toFixed(2)}
+      />
 
       <h2 className="mt-8 text-lg font-semibold text-foreground">الدفعات المخصَّصة</h2>
       <div className="mt-2 overflow-x-auto rounded-xl border border-border bg-card">
