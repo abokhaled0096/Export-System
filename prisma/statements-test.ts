@@ -13,6 +13,8 @@ import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
 import { computeIncomeStatement, computeBalanceSheet } from "../src/lib/financialStatements";
 import { getDashboardData } from "../src/lib/dashboard";
+import { weekKey } from "../src/lib/treasuryLabels";
+import { formatDate, toDateInputValue } from "../src/lib/format";
 
 type Client = Parameters<typeof computeIncomeStatement>[0];
 
@@ -146,6 +148,19 @@ function check(label: string, actual: string, expected: string) {
     // ---------- لوحة القيادة ----------
     // التجميع الشهري بيحصل في JS فوق نتيجة findMany (مش date_trunc في SQL) — الفحص ده
     // بيتأكد إن البَكَتة بالشهر واتجاه الحساب الدائن مظبوطين على أرقام حقيقية.
+    // ---------- عقد صيغ التواريخ ----------
+    // العيب اللي حصل فعلًا (٢٩ سبتمبر): codemod حوّل `weekKey` لصيغة عرض، وناتجها بيتبعت
+    // كقيمة فورم وبيتقري بـ`new Date()` — "29/09/2026" = Invalid Date وتاريخ باظ في القاعدة.
+    // الفحوص دي بتقفل الباب على تكرار نفس الغلط: قيمة تتقري آليًا ≠ نص يتعرض للمستخدم.
+    console.log("\n— عقد صيغ التواريخ —");
+    const sampleMonday = new Date("2026-09-28T00:00:00Z");
+    check("weekKey بيفضل ISO (قيمة فورم)", weekKey(sampleMonday), "2026-09-28");
+    check("new Date(weekKey(...)) تاريخ صالح", String(!Number.isNaN(new Date(weekKey(sampleMonday)).getTime())), "true");
+    check("formatDate للعرض dd/mm/yyyy", formatDate(sampleMonday), "28/09/2026");
+    check("toDateInputValue لـ<input type=date>", toDateInputValue(sampleMonday), "2026-09-28");
+    // تاريخ متأخر بتوقيت UTC بيقع في اليوم اللي بعده بتوقيت القاهرة
+    check("formatDate بيحترم توقيت القاهرة", formatDate(new Date("2026-09-29T22:30:00Z")), "30/09/2026");
+
     console.log("\n— لوحة القيادة —");
     const dash = await getDashboardData(client as never, org.id);
     check("العملة الوظيفية", dash.currency, "EGP");
