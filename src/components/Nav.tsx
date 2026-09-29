@@ -9,7 +9,7 @@ import NavMobileMenu from "@/components/NavMobileMenu";
 import NavSectionMenu from "@/components/NavSectionMenu";
 import CommandPalette from "@/components/CommandPalette";
 import CommandPaletteTrigger from "@/components/CommandPaletteTrigger";
-import { navSections, adminLinks, allSectionLinks } from "@/lib/navigation";
+import { navSections, adminLinks, allSectionLinks, setupLink } from "@/lib/navigation";
 
 export default async function Nav() {
   const user = await getCurrentUser();
@@ -54,6 +54,7 @@ export default async function Nav() {
     { href: "/", label: "لوحة القيادة" },
     ...allSectionLinks,
     { href: "/notifications", label: "الإشعارات" },
+    setupLink,
     ...approvalLinks,
     ...(isRoleAdmin ? adminLinks : []),
   ];

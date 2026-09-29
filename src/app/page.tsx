@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
 import { getCurrentOrgId } from "@/lib/org";
 import { getDashboardData, type ActionItem } from "@/lib/dashboard";
+import { getReadiness } from "@/lib/readiness";
 import { RevenueChart, StageChart } from "@/components/DashboardCharts";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -45,12 +46,32 @@ function Kpi({ label, value, hint, href, tone }: { label: string; value: string;
 export default async function Home() {
   const orgId = await getCurrentOrgId();
   const prisma = await getScopedPrisma();
+  // ⚠️ مش Promise.all — راجع BACKLOG.md (P2028).
+  const readiness = await getReadiness(prisma, orgId);
   const d = await getDashboardData(prisma, orgId);
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-10">
       <h1 className="text-2xl font-semibold text-foreground">لوحة القيادة</h1>
       <p className="mt-1 text-sm text-muted-foreground">نظرة سريعة على نشاط الشركة الحالي.</p>
+
+      {/* التجهيز فوق كل حاجة، وبيختفي خالص لما يخلص. من غير ده المستخدم بيكتشف الناقص وهو
+          بيحاول يصدر فاتورة لعميل — أسوأ وقت ممكن. */}
+      {!readiness.isReady && (
+        <Link
+          href="/setup"
+          className="mt-5 flex flex-wrap items-center gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 transition-colors hover:border-amber-400"
+        >
+          <span className="font-mono text-2xl font-semibold text-amber-900">{readiness.blockingRemaining}</span>
+          <span className="flex-1 text-sm leading-tight text-amber-900">
+            {readiness.blockingRemaining === 1 ? "خطوة ناقصة" : "خطوات ناقصة"} قبل ما تقدر تصدر أول فاتورة
+            <span className="mt-0.5 block text-xs text-amber-800/80">
+              {readiness.items.filter((i) => i.severity === "blocking" && !i.done).map((i) => i.label).join(" · ")}
+            </span>
+          </span>
+          <span className="text-sm font-medium text-amber-900">ابدأ التجهيز ←</span>
+        </Link>
+      )}
 
       {/* 1) محتاج قرارك — أول حاجة تتشاف، وبتختفي خالص لو مفيش حاجة مستنّية. */}
       {d.actions.length > 0 ? (

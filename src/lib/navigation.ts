@@ -91,6 +91,9 @@ export const navSections: NavSection[] = [
   },
 ];
 
+/** رابط التجهيز — بيظهر في البحث السريع دايمًا، والبانر في لوحة القيادة بيوديه ليه. */
+export const setupLink: NavLink = { href: "/setup", label: "تجهيز السيستم" };
+
 /** روابط الأدمن — بتتعرض بس لو المستخدم Admin/CompanyOwner. */
 export const adminLinks: NavLink[] = [
   { href: "/admin/users", label: "الأدوار" },
