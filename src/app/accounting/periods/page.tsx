@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PAGE_SIZE, parsePage } from "@/lib/pagination";
 import Pagination from "@/components/Pagination";
+import { formatDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -79,8 +80,8 @@ export default async function AccountingPeriodsPage({
               periods.map((p) => (
                 <TableRow key={p.id}>
                   <TableCell className="font-mono text-foreground">{p.periodName}</TableCell>
-                  <TableCell className="text-foreground/80">{p.startDate.toLocaleDateString("ar-EG")}</TableCell>
-                  <TableCell className="text-foreground/80">{p.endDate.toLocaleDateString("ar-EG")}</TableCell>
+                  <TableCell className="text-foreground/80">{formatDate(p.startDate)}</TableCell>
+                  <TableCell className="text-foreground/80">{formatDate(p.endDate)}</TableCell>
                   <TableCell>
                     <Badge className={accountingPeriodStatusStyle[p.status]}>{accountingPeriodStatusLabel[p.status]}</Badge>
                   </TableCell>

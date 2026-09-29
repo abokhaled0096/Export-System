@@ -8,6 +8,7 @@ import { DisburseButton, MarkDefaultedButton, PayInstallmentButton, InstallmentF
 import { loanStatusLabel, loanStatusStyle, loanInstallmentStatusLabel, isInstallmentOverdue } from "@/lib/treasuryLabels";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { formatDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -106,11 +107,11 @@ export default async function LoanDetailPage({ params }: { params: Promise<{ id:
         </div>
         <div>
           <dt className="text-xs text-muted-foreground">البداية</dt>
-          <dd className="text-foreground">{loan.startDate.toISOString().slice(0, 10)}</dd>
+          <dd className="text-foreground">{formatDate(loan.startDate)}</dd>
         </div>
         <div>
           <dt className="text-xs text-muted-foreground">الاستحقاق النهائي</dt>
-          <dd className="text-foreground">{loan.maturityDate.toISOString().slice(0, 10)}</dd>
+          <dd className="text-foreground">{formatDate(loan.maturityDate)}</dd>
         </div>
         <div>
           <dt className="text-xs text-muted-foreground">قيد الصرف</dt>
@@ -179,7 +180,7 @@ export default async function LoanDetailPage({ params }: { params: Promise<{ id:
                 const overdue = isInstallmentOverdue(i.status, i.dueDate);
                 return (
                   <TableRow key={i.id}>
-                    <TableCell className="text-foreground/80">{i.dueDate.toISOString().slice(0, 10)}</TableCell>
+                    <TableCell className="text-foreground/80">{formatDate(i.dueDate)}</TableCell>
                     <TableCell className="font-mono text-foreground">{i.principalPortion.toFixed(2)}</TableCell>
                     <TableCell className="font-mono text-foreground/80">{i.interestPortion.toFixed(2)}</TableCell>
                     <TableCell className="font-mono font-medium text-foreground">

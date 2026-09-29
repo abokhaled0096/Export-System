@@ -6,6 +6,7 @@ import RunFxRevaluationButton from "./RunFxRevaluationButton";
 import ExchangeRateForm from "./ExchangeRateForm";
 import { exchangeRateTypeLabel } from "@/lib/treasuryLabels";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { formatDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -157,7 +158,7 @@ export default async function FxRevaluationPage({ searchParams }: { searchParams
                 <TableRow key={r.id}>
                   <TableCell className="font-mono text-foreground">{r.baseCurrency}</TableCell>
                   <TableCell className="font-mono text-foreground">{r.rate.toString()}</TableCell>
-                  <TableCell className="text-foreground/80">{r.rateDate.toISOString().slice(0, 10)}</TableCell>
+                  <TableCell className="text-foreground/80">{formatDate(r.rateDate)}</TableCell>
                   <TableCell className="text-foreground/80">{exchangeRateTypeLabel[r.rateType]}</TableCell>
                 </TableRow>
               ))

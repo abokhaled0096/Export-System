@@ -10,6 +10,7 @@ import DeleteAllocationButton from "./DeleteAllocationButton";
 import { paymentDirectionLabel, paymentMethodLabel, paymentStatusLabel, paymentStatusStyle } from "@/lib/arapLabels";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { formatDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -114,7 +115,7 @@ export default async function PaymentDetailPage({ params }: { params: Promise<{ 
         </div>
         <div>
           <dt className="text-xs text-muted-foreground">التاريخ</dt>
-          <dd className="text-foreground">{payment.paymentDate.toISOString().slice(0, 10)}</dd>
+          <dd className="text-foreground">{formatDate(payment.paymentDate)}</dd>
         </div>
         <div>
           <dt className="text-xs text-muted-foreground">المرجع</dt>

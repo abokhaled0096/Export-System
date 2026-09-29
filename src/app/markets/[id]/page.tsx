@@ -7,6 +7,7 @@ import MarketEditForm from "./MarketEditForm";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { formatDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -98,7 +99,7 @@ export default async function MarketDetailPage({ params }: { params: Promise<{ i
         </div>
         <div>
           <dt className="text-xs text-muted-foreground">آخر مراجعة</dt>
-          <dd className="text-foreground">{market.lastReviewedAt ? market.lastReviewedAt.toLocaleDateString("ar-EG") : "لسه ماتراجعتش"}</dd>
+          <dd className="text-foreground">{market.lastReviewedAt ? formatDate(market.lastReviewedAt) : "لسه ماتراجعتش"}</dd>
         </div>
         <div className="sm:col-span-3">
           <dt className="text-xs text-muted-foreground">منافسين مسجّلين في السوق ده</dt>

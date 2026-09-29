@@ -10,6 +10,7 @@ import { productSpecificationStatusLabel, productSpecificationStatusStyle } from
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { formatDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -147,7 +148,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
                     <TableCell className="font-mono text-foreground">{s.version}</TableCell>
                     <TableCell className="text-foreground/80">{s.storageConditions ?? "—"}</TableCell>
                     <TableCell className="font-mono text-foreground/80">{s.shelfLifeDays ?? "—"}</TableCell>
-                    <TableCell className="text-foreground/80">{s.reviewDate ? s.reviewDate.toLocaleDateString("ar-EG") : "—"}</TableCell>
+                    <TableCell className="text-foreground/80">{s.reviewDate ? formatDate(s.reviewDate) : "—"}</TableCell>
                     <TableCell>
                       <Badge className={productSpecificationStatusStyle[s.status]}>{productSpecificationStatusLabel[s.status]}</Badge>
                     </TableCell>

@@ -11,6 +11,7 @@ import BankAccountEditForm from "./BankAccountEditForm";
 import { bankTransactionTypeLabel, signedAmount, isInflow } from "@/lib/treasuryLabels";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { formatDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -162,7 +163,7 @@ export default async function BankAccountDetailPage({ params }: { params: Promis
             ) : (
               rows.map(({ transaction: t, balance }) => (
                 <TableRow key={t.id}>
-                  <TableCell className="text-foreground/80">{t.transactionDate.toISOString().slice(0, 10)}</TableCell>
+                  <TableCell className="text-foreground/80">{formatDate(t.transactionDate)}</TableCell>
                   <TableCell className="text-foreground/80">{bankTransactionTypeLabel[t.transactionType]}</TableCell>
                   <TableCell className="text-foreground/80">{t.description ?? t.reference ?? "—"}</TableCell>
                   <TableCell className="font-mono text-emerald-700">{isInflow(t.transactionType) ? t.amount.toFixed(2) : "—"}</TableCell>

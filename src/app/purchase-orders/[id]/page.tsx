@@ -24,6 +24,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { formatDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -130,7 +131,7 @@ export default async function PurchaseOrderDetailPage({ params }: { params: Prom
                     <TableCell className="text-foreground">{p.facility.name}</TableCell>
                     <TableCell className="text-foreground/80">{productionProcessLabel[p.process]}</TableCell>
                     <TableCell className="font-mono text-foreground/80">{p.rawQuantity?.toString() ?? "—"}</TableCell>
-                    <TableCell className="text-foreground/80">{p.cargoReadyDate ? p.cargoReadyDate.toLocaleDateString("ar-EG") : "—"}</TableCell>
+                    <TableCell className="text-foreground/80">{p.cargoReadyDate ? formatDate(p.cargoReadyDate) : "—"}</TableCell>
                     <TableCell>
                       <Badge className={productionPlanStatusStyle[p.status]}>{productionPlanStatusLabel[p.status]}</Badge>
                     </TableCell>
@@ -224,7 +225,7 @@ export default async function PurchaseOrderDetailPage({ params }: { params: Prom
                       {c.shipment.deal.customer.legalName} — {c.shipment.originPort} → {c.shipment.destinationPort}
                     </TableCell>
                     <TableCell className="font-mono text-foreground/80">{c.readinessScore?.toString() ?? "—"}</TableCell>
-                    <TableCell className="text-foreground/80">{c.readyDate ? c.readyDate.toLocaleDateString("ar-EG") : "—"}</TableCell>
+                    <TableCell className="text-foreground/80">{c.readyDate ? formatDate(c.readyDate) : "—"}</TableCell>
                     <TableCell>
                       <Badge className={cargoReadinessStatusStyle[c.status]}>{cargoReadinessStatusLabel[c.status]}</Badge>
                     </TableCell>

@@ -7,6 +7,7 @@ import ReconciliationWorkspace, { type WorkspaceTransaction, type WorkspacePayme
 import StatementBalanceCard from "./StatementBalanceCard";
 import { reconciliationStatusLabel, reconciliationStatusStyle } from "@/lib/treasuryLabels";
 import { Badge } from "@/components/ui/badge";
+import { formatDate, toDateInputValue } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -69,7 +70,7 @@ export default async function ReconciliationDetailPage({ params }: { params: Pro
 
   const workspaceTransactions: WorkspaceTransaction[] = transactions.map((t) => ({
     id: t.id,
-    date: t.transactionDate.toISOString().slice(0, 10),
+    date: formatDate(t.transactionDate),
     type: t.transactionType,
     amount: t.amount.toFixed(2),
     description: t.description ?? t.reference ?? "—",
@@ -81,7 +82,7 @@ export default async function ReconciliationDetailPage({ params }: { params: Pro
 
   const workspacePayments: WorkspacePayment[] = unmatchedPayments.map((p) => ({
     id: p.id,
-    label: `${p.paymentNumber} — ${p.amount.toFixed(2)} (${p.paymentDate.toISOString().slice(0, 10)})`,
+    label: `${p.paymentNumber} — ${p.amount.toFixed(2)} (${formatDate(p.paymentDate)})`,
     amount: p.amount.toFixed(2),
   }));
 
@@ -100,7 +101,7 @@ export default async function ReconciliationDetailPage({ params }: { params: Pro
         </Badge>
       </div>
       <p className="mt-1 text-sm text-muted-foreground">
-        كشف بتاريخ {reconciliation.statementDate.toISOString().slice(0, 10)} ·{" "}
+        كشف بتاريخ {formatDate(reconciliation.statementDate)} ·{" "}
         <Link href={`/accounting/bank-accounts/${reconciliation.bankAccount.id}`} className="text-primary hover:underline">
           كشف الحساب الكامل
         </Link>
@@ -110,7 +111,7 @@ export default async function ReconciliationDetailPage({ params }: { params: Pro
         <StatementBalanceCard
           reconciliationId={reconciliation.id}
           statementBalance={reconciliation.statementBalance.toFixed(2)}
-          statementDate={reconciliation.statementDate.toISOString().slice(0, 10)}
+          statementDate={toDateInputValue(reconciliation.statementDate)}
           notes={reconciliation.notes}
           isClosed={isClosed}
         />
@@ -129,7 +130,7 @@ export default async function ReconciliationDetailPage({ params }: { params: Pro
       {isClosed && (
         <p className="mt-4 rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
           مقفولة بمعرفة {reconciliation.reconciledByUser?.fullName ?? "—"} في{" "}
-          {reconciliation.reconciledAt?.toISOString().slice(0, 10)} — سجل نهائي مايتعدّلش (أي تصحيح بمطابقة جديدة).
+          {formatDate(reconciliation.reconciledAt)} — سجل نهائي مايتعدّلش (أي تصحيح بمطابقة جديدة).
         </p>
       )}
 

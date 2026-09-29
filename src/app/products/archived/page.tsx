@@ -14,6 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { formatDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -88,7 +89,7 @@ export default async function ArchivedProductsPage({
                   <TableCell className="font-mono text-foreground/80">{p.hsCode}</TableCell>
                   <TableCell className="text-foreground/80">{p.category}</TableCell>
                   <TableCell className="text-foreground/80">
-                    {p.deletedAt?.toLocaleDateString("ar-EG")}
+                    {formatDate(p.deletedAt)}
                   </TableCell>
                   <TableCell className="text-end">
                     <form action={restoreProduct.bind(null, p.id)}>

@@ -7,6 +7,7 @@ import { requirePermission, getPermissionScope } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { formatDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -156,7 +157,7 @@ export default async function AnalysisDetailPage({ params }: { params: Promise<{
 
       {previousAnalysis && (
         <p className="mt-2 text-xs text-muted-foreground">
-          آخر تحليل سابق لنفس المنتج×السوق×السنة كان بتاريخ {previousAnalysis.createdAt.toISOString().slice(0, 10)}:{" "}
+          آخر تحليل سابق لنفس المنتج×السوق×السنة كان بتاريخ {formatDate(previousAnalysis.createdAt)}:{" "}
           <span className={analysis.opportunityScore === previousAnalysis.opportunityScore ? "" : analysis.opportunityScore > previousAnalysis.opportunityScore ? "text-emerald-700" : "text-rose-700"}>
             الفرصة {analysis.opportunityScore > previousAnalysis.opportunityScore ? "+" : ""}
             {analysis.opportunityScore - previousAnalysis.opportunityScore}

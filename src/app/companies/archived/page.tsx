@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/table";
 import { PAGE_SIZE, parsePage } from "@/lib/pagination";
 import Pagination from "@/components/Pagination";
+import { formatDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -75,7 +76,7 @@ export default async function ArchivedCompaniesPage({
                   </TableCell>
                   <TableCell className="text-foreground/80">{c.country}</TableCell>
                   <TableCell className="text-foreground/80">
-                    {c.deletedAt?.toLocaleDateString("ar-EG")}
+                    {formatDate(c.deletedAt)}
                   </TableCell>
                   <TableCell className="text-end">
                     <form action={restoreCompany.bind(null, c.id)}>

@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PAGE_SIZE, parsePage } from "@/lib/pagination";
 import Pagination from "@/components/Pagination";
+import { formatDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -100,7 +101,7 @@ export default async function LoansPage({
                     {l.principal.toFixed(2)} {l.currency}
                   </TableCell>
                   <TableCell className="font-mono font-semibold text-foreground">{l.outstandingPrincipal.toFixed(2)}</TableCell>
-                  <TableCell className="text-foreground/80">{l.maturityDate.toISOString().slice(0, 10)}</TableCell>
+                  <TableCell className="text-foreground/80">{formatDate(l.maturityDate)}</TableCell>
                   <TableCell className="text-foreground/80">{l._count.installments}</TableCell>
                   <TableCell className="flex gap-1.5">
                     <Badge className={loanStatusStyle[l.status]}>{loanStatusLabel[l.status]}</Badge>

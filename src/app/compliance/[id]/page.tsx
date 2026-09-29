@@ -44,6 +44,7 @@ import { shipmentStatusLabel, shipmentStatusStyle, transportModeLabel, aciStatus
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { formatDate, toDateInputValue } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -405,7 +406,7 @@ export default async function ComplianceCaseDetailPage({ params }: { params: Pro
                     )}
                   </TableCell>
                   <TableCell className="text-foreground/80">
-                    {best?.expiryDate ? best.expiryDate.toLocaleDateString("ar-EG") : "—"}
+                    {best?.expiryDate ? formatDate(best.expiryDate) : "—"}
                   </TableCell>
                   <TableCell className="text-foreground/80">{best ? (coversMarket ? "نعم" : "لا") : "—"}</TableCell>
                 </TableRow>
@@ -451,7 +452,7 @@ export default async function ComplianceCaseDetailPage({ params }: { params: Pro
                     <TableCell className="font-mono text-foreground">{c.certificateNumber}</TableCell>
                     <TableCell className="text-foreground/80">{c.issuingAuthority}</TableCell>
                     <TableCell className="text-foreground/80">
-                      {c.expiryDate ? c.expiryDate.toLocaleDateString("ar-EG") : "—"}
+                      {c.expiryDate ? formatDate(c.expiryDate) : "—"}
                     </TableCell>
                     <TableCell>
                       <Badge className={certificateStatusStyle[c.status]}>{certificateStatusLabel[c.status]}</Badge>
@@ -495,7 +496,7 @@ export default async function ComplianceCaseDetailPage({ params }: { params: Pro
                     <TableCell className="text-foreground/80">{r.country}</TableCell>
                     <TableCell className="text-foreground/80">{r.authority}</TableCell>
                     <TableCell className="font-mono text-foreground">{r.registrationNumber ?? "—"}</TableCell>
-                    <TableCell className="text-foreground/80">{r.expiryDate ? r.expiryDate.toLocaleDateString("ar-EG") : "—"}</TableCell>
+                    <TableCell className="text-foreground/80">{r.expiryDate ? formatDate(r.expiryDate) : "—"}</TableCell>
                     <TableCell>
                       <Badge className={registrationStatusStyle[r.status]}>{registrationStatusLabel[r.status]}</Badge>
                     </TableCell>
@@ -567,7 +568,7 @@ export default async function ComplianceCaseDetailPage({ params }: { params: Pro
                           revisedRulesWordingVerified: p.revisedRulesWordingVerified,
                           cumulationType: p.cumulationType,
                           certificateNumber: p.certificateNumber,
-                          issuedDate: p.issuedDate ? p.issuedDate.toISOString().slice(0, 10) : null,
+                          issuedDate: p.issuedDate ? toDateInputValue(p.issuedDate) : null, // بيروح لـ<input type="date">
                           issuingAuthority: p.issuingAuthority,
                           status: p.status,
                         }}
@@ -667,12 +668,12 @@ export default async function ComplianceCaseDetailPage({ params }: { params: Pro
                     <TableCell className="font-mono text-foreground/80">
                       {lc.amount.toString()} {lc.currency}
                     </TableCell>
-                    <TableCell className="text-foreground/80">{lc.expiryDate.toLocaleDateString("ar-EG")}</TableCell>
+                    <TableCell className="text-foreground/80">{formatDate(lc.expiryDate)}</TableCell>
                     <TableCell className="text-foreground/80">
                       {lc.partialShipmentAllowed ? "نعم" : "لا"} / {lc.transshipmentAllowed ? "نعم" : "لا"}
                     </TableCell>
                     <TableCell className="text-foreground/80">
-                      {lc.latestShipmentDate ? lc.latestShipmentDate.toLocaleDateString("ar-EG") : "—"}
+                      {lc.latestShipmentDate ? formatDate(lc.latestShipmentDate) : "—"}
                       {lc.presentationPeriodDays ? ` / ${lc.presentationPeriodDays} يوم` : ""}
                     </TableCell>
                     <TableCell className="max-w-[16rem] whitespace-pre-wrap text-foreground/80">

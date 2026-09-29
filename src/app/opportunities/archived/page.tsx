@@ -14,6 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { formatDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -75,7 +76,7 @@ export default async function ArchivedOpportunitiesPage({
                   <TableCell className="text-foreground/80">{o.product.nameAr}</TableCell>
                   <TableCell className="text-foreground/80">{o.market.countryNameAr}</TableCell>
                   <TableCell className="text-foreground/80">
-                    {o.deletedAt?.toLocaleDateString("ar-EG")}
+                    {formatDate(o.deletedAt)}
                   </TableCell>
                   <TableCell className="text-end">
                     <form action={restoreOpportunity.bind(null, o.id)}>

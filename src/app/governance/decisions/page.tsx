@@ -6,6 +6,7 @@ import DecisionEditControl from "./DecisionEditControl";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PAGE_SIZE, parsePage } from "@/lib/pagination";
 import Pagination from "@/components/Pagination";
+import { formatDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -79,7 +80,7 @@ export default async function DecisionsPage({
             ) : (
               decisions.map((d) => (
                 <TableRow key={d.id}>
-                  <TableCell className="text-foreground/80">{d.decisionDate.toISOString().slice(0, 10)}</TableCell>
+                  <TableCell className="text-foreground/80">{formatDate(d.decisionDate)}</TableCell>
                   <TableCell className="text-foreground">{d.title}</TableCell>
                   <TableCell className="text-foreground/80">{d.decidedByUser.fullName}</TableCell>
                   <TableCell className="text-foreground/80">{d.context ?? "—"}</TableCell>

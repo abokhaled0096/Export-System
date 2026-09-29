@@ -8,6 +8,7 @@ import RemoveQuoteButton from "./RemoveQuoteButton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { formatDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -71,7 +72,7 @@ export default async function QuoteBundleDetailPage({ params }: { params: Promis
         <div>
           <h1 className="text-2xl font-semibold text-foreground">حزمة عروض — {bundle.customer.legalName}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            اتعملت بمعرفة {bundle.createdByUser.fullName} · {bundle.createdAt.toISOString().slice(0, 10)}
+            اتعملت بمعرفة {bundle.createdByUser.fullName} · {formatDate(bundle.createdAt)}
           </p>
         </div>
         <Button nativeButton={false} variant="outline" render={<a href={`/quote-bundles/${bundle.id}/pdf`}>تحميل PDF مجمَّع</a>} />

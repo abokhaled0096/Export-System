@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { formatDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -59,7 +60,7 @@ export default async function JournalEntryDetailPage({ params }: { params: Promi
         <div>
           <h1 className="text-2xl font-semibold text-foreground">{entry.entryNumber}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {entry.entryDate.toLocaleDateString("ar-EG")} · الفترة {entry.period.periodName} · {journalEntrySourceTypeLabel[entry.sourceType]}
+            {formatDate(entry.entryDate)} · الفترة {entry.period.periodName} · {journalEntrySourceTypeLabel[entry.sourceType]}
           </p>
           {entry.description && <p className="mt-1 text-sm text-muted-foreground">{entry.description}</p>}
         </div>

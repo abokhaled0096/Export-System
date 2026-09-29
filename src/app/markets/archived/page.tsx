@@ -14,6 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { formatDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -86,7 +87,7 @@ export default async function ArchivedMarketsPage({
                   </TableCell>
                   <TableCell className="text-foreground/80">{m.continent}</TableCell>
                   <TableCell className="text-foreground/80">
-                    {m.deletedAt?.toLocaleDateString("ar-EG")}
+                    {formatDate(m.deletedAt)}
                   </TableCell>
                   <TableCell className="text-end">
                     <form action={restoreMarket.bind(null, m.id)}>

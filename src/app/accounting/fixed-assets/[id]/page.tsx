@@ -9,6 +9,7 @@ import FixedAssetEditForm from "./FixedAssetEditForm";
 import { fixedAssetCategoryLabel, fixedAssetStatusLabel, fixedAssetStatusStyle, depreciationMethodLabel } from "@/lib/treasuryLabels";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { formatDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -96,7 +97,7 @@ export default async function FixedAssetDetailPage({ params }: { params: Promise
         </div>
         <div>
           <dt className="text-xs text-muted-foreground">تاريخ الشراء</dt>
-          <dd className="text-foreground">{asset.purchaseDate.toISOString().slice(0, 10)}</dd>
+          <dd className="text-foreground">{formatDate(asset.purchaseDate)}</dd>
         </div>
         <div>
           <dt className="text-xs text-muted-foreground">مجمّع الإهلاك</dt>
@@ -110,7 +111,7 @@ export default async function FixedAssetDetailPage({ params }: { params: Promise
           <>
             <div>
               <dt className="text-xs text-muted-foreground">تاريخ التخلص</dt>
-              <dd className="text-foreground">{asset.disposalDate?.toISOString().slice(0, 10)}</dd>
+              <dd className="text-foreground">{formatDate(asset.disposalDate)}</dd>
             </div>
             <div>
               <dt className="text-xs text-muted-foreground">حصيلة البيع</dt>

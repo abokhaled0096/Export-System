@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { formatDate } from "@/lib/format";
 
 const initialState: RFQAnalysisFormState = {};
 const levels = Object.keys(rfqSeriousnessLevelLabel);
@@ -34,14 +35,14 @@ export default function RFQAnalysisForm({
               <SelectValue placeholder="—">
                 {(value: string) => {
                   const c = communications.find((c) => c.id === value);
-                  return c ? c.subject ?? c.occurredAt.toLocaleDateString("ar-EG") : value;
+                  return c ? c.subject ?? formatDate(c.occurredAt) : value;
                 }}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {communications.map((c) => (
                 <SelectItem key={c.id} value={c.id}>
-                  {c.subject ?? c.occurredAt.toLocaleDateString("ar-EG")}
+                  {c.subject ?? formatDate(c.occurredAt)}
                 </SelectItem>
               ))}
             </SelectContent>

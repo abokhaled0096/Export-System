@@ -176,6 +176,7 @@ export async function reverseJournalEntry(tx: ScopedTx, { journalEntryId, prepar
 
 export { GL_ACCOUNTS } from "./glAccounts";
 import { GL_ACCOUNTS } from "./glAccounts";
+import { formatDate } from "@/lib/format";
 
 type GlAccountKey = keyof typeof GL_ACCOUNTS;
 
@@ -268,7 +269,7 @@ export async function findOpenPeriodFor(tx: ScopedTx, orgId: string, date: Date)
     select: { id: true, periodName: true },
   });
   if (!period) {
-    throw new Error(`مفيش فترة محاسبية مفتوحة بتغطي تاريخ ${date.toISOString().slice(0, 10)} — افتح فترة الأول من صفحة الفترات المحاسبية.`);
+    throw new Error(`مفيش فترة محاسبية مفتوحة بتغطي تاريخ ${formatDate(date)} — افتح فترة الأول من صفحة الفترات المحاسبية.`);
   }
   return period.id;
 }

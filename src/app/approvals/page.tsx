@@ -5,6 +5,7 @@ import { getCurrentOrgId } from "@/lib/org";
 import DecisionForm from "./DecisionForm";
 import { PAGE_SIZE, parsePage } from "@/lib/pagination";
 import Pagination from "@/components/Pagination";
+import { formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -101,7 +102,7 @@ export default async function ApprovalsPage({
                       {isPoOverride && " — تجاوز الحد الأقصى لسعر الشراء"}
                     </span>
                     <span className="text-xs text-neutral-500">
-                      {a.createdAt.toLocaleString("ar-EG")}
+                      {formatDateTime(a.createdAt)}
                     </span>
                   </div>
                   {isGateWaiver ? (

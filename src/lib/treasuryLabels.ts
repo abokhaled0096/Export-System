@@ -1,4 +1,5 @@
 import { Prisma } from "@/generated/prisma/client";
+import { formatDate } from "@/lib/format";
 
 export const exchangeRateTypeLabel: Record<string, string> = {
   Spot: "فوري",
@@ -112,7 +113,7 @@ export function thirteenWeeksFrom(start: Date): Date[] {
 }
 
 export function weekKey(date: Date): string {
-  return date.toISOString().slice(0, 10);
+  return formatDate(date);
 }
 
 /** القسط متأخر = مستحق + تاريخ استحقاقه عدّى. حالة زمنية بتتحسب وقت العرض مش مخزَّنة

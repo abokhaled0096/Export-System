@@ -19,6 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { formatDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -117,7 +118,7 @@ export default async function SourcingRequestDetailPage({ params }: { params: Pr
                   <TableRow key={r.id}>
                     <TableCell className="font-medium text-foreground">{r.supplier.legalName}</TableCell>
                     <TableCell className="text-foreground/80">{r.rfqNumber ?? "—"}</TableCell>
-                    <TableCell className="text-foreground/80">{r.responseDeadline ? r.responseDeadline.toLocaleDateString("ar-EG") : "—"}</TableCell>
+                    <TableCell className="text-foreground/80">{r.responseDeadline ? formatDate(r.responseDeadline) : "—"}</TableCell>
                     <TableCell>
                       <Badge className={supplierRFQStatusStyle[r.status]}>{supplierRFQStatusLabel[r.status]}</Badge>
                     </TableCell>

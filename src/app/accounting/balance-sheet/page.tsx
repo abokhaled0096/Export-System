@@ -6,6 +6,7 @@ import { computeBalanceSheet, type StatementLine } from "@/lib/financialStatemen
 import { Prisma } from "@/generated/prisma/client";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
+import { formatDate, toDateInputValue } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -85,7 +86,9 @@ export default async function BalanceSheetPage({ searchParams }: { searchParams:
   // تاريخ غير صالح في الـURL بيرجّع لليوم بدل ما يرمي Invalid Date على طول الصفحة.
   const parsed = asOf ? new Date(`${asOf}T23:59:59.999Z`) : null;
   const asOfDate = parsed && !Number.isNaN(parsed.getTime()) ? parsed : new Date();
-  const asOfValue = asOfDate.toISOString().slice(0, 10);
+  // الاتنين مختلفين عن قصد: `<input type="date">` بيفهم yyyy-mm-dd بس، والعنوان بيتقري dd/mm/yyyy.
+  const asOfInputValue = toDateInputValue(asOfDate);
+  const asOfLabel = formatDate(asOfDate);
 
   // ⚠️ مش Promise.all — راجع BACKLOG.md (P2028).
   const org = await prisma.organization.findUniqueOrThrow({ where: { id: user.orgId }, select: { functionalCurrency: true } });
@@ -99,7 +102,7 @@ export default async function BalanceSheetPage({ searchParams }: { searchParams:
         <div>
           <h1 className="text-2xl font-semibold text-foreground">الميزانية العمومية</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            كما في {asOfValue} · بالعملة الوظيفية ({currency}) · القيود المرحّلة بس
+            كما في {asOfLabel} · بالعملة الوظيفية ({currency}) · القيود المرحّلة بس
           </p>
         </div>
         {sheet.isBalanced ? (
@@ -118,7 +121,7 @@ export default async function BalanceSheetPage({ searchParams }: { searchParams:
             id="asOf"
             name="asOf"
             type="date"
-            defaultValue={asOfValue}
+            defaultValue={asOfInputValue}
             className="h-9 rounded-lg border border-border bg-background px-3 text-sm text-foreground focus:border-primary focus:outline-none"
           />
         </div>

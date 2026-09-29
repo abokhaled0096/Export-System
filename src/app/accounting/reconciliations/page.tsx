@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PAGE_SIZE, parsePage } from "@/lib/pagination";
 import Pagination from "@/components/Pagination";
+import { formatDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -96,7 +97,7 @@ export default async function ReconciliationsPage({
                         {r.bankAccount.accountName}
                       </Link>
                     </TableCell>
-                    <TableCell className="text-foreground/80">{r.statementDate.toISOString().slice(0, 10)}</TableCell>
+                    <TableCell className="text-foreground/80">{formatDate(r.statementDate)}</TableCell>
                     <TableCell className="font-mono text-foreground/80">{r.statementBalance.toFixed(2)}</TableCell>
                     <TableCell className="font-mono text-foreground/80">{r.bookBalance.toFixed(2)}</TableCell>
                     <TableCell className={`font-mono font-semibold ${difference.isZero() ? "text-emerald-700" : "text-rose-700"}`}>

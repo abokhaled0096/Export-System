@@ -50,6 +50,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { formatDate, formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -283,7 +284,7 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
                       {b.vessel ?? "—"} {b.voyage ? `/ ${b.voyage}` : ""}
                     </TableCell>
                     <TableCell className="text-foreground/80">
-                      {b.etd ? b.etd.toLocaleDateString("ar-EG") : "—"} / {b.eta ? b.eta.toLocaleDateString("ar-EG") : "—"}
+                      {b.etd ? formatDate(b.etd) : "—"} / {b.eta ? formatDate(b.eta) : "—"}
                     </TableCell>
                     <TableCell className="text-foreground/80">{b.provider?.name ?? "—"}</TableCell>
                     <TableCell>
@@ -369,8 +370,8 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
                 <TableRow key={m.id}>
                   <TableCell className="font-mono text-foreground/80">{m.sequence}</TableCell>
                   <TableCell className="font-medium text-foreground">{m.milestoneName}</TableCell>
-                  <TableCell className="text-foreground/80">{m.plannedDate ? m.plannedDate.toLocaleDateString("ar-EG") : "—"}</TableCell>
-                  <TableCell className="text-foreground/80">{m.actualDate ? m.actualDate.toLocaleDateString("ar-EG") : "—"}</TableCell>
+                  <TableCell className="text-foreground/80">{m.plannedDate ? formatDate(m.plannedDate) : "—"}</TableCell>
+                  <TableCell className="text-foreground/80">{m.actualDate ? formatDate(m.actualDate) : "—"}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <Badge className={milestoneStatusStyle[m.status]}>{milestoneStatusLabel[m.status]}</Badge>
@@ -416,7 +417,7 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
                 shipment.events.map((e) => (
                   <TableRow key={e.id}>
                     <TableCell className="font-medium text-foreground">{e.eventType}</TableCell>
-                    <TableCell className="text-foreground/80">{e.occurredAt.toLocaleString("ar-EG")}</TableCell>
+                    <TableCell className="text-foreground/80">{formatDateTime(e.occurredAt)}</TableCell>
                     <TableCell className="text-foreground/80">{e.location ?? "—"}</TableCell>
                     <TableCell className="text-foreground/80">{shipmentEventSourceLabel[e.source]}</TableCell>
                   </TableRow>
@@ -629,7 +630,7 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
               ) : (
                 shipment.temperatureLogs.map((t) => (
                   <TableRow key={t.id}>
-                    <TableCell className="text-foreground/80">{t.recordedAt.toLocaleString("ar-EG")}</TableCell>
+                    <TableCell className="text-foreground/80">{formatDateTime(t.recordedAt)}</TableCell>
                     <TableCell className={`font-mono ${t.isExcursion ? "text-rose-700" : "text-foreground"}`}>
                       {t.temperatureC.toString()}°م
                     </TableCell>
@@ -729,8 +730,8 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
                     <TableCell className="font-mono text-foreground/80">
                       {c.claimedAmount ? `${c.claimedAmount.toString()} ${c.currency ?? ""}` : "—"}
                     </TableCell>
-                    <TableCell className="text-foreground/80">{c.notificationDate ? c.notificationDate.toLocaleDateString("ar-EG") : "—"}</TableCell>
-                    <TableCell className="text-foreground/80">{c.claimDeadline ? c.claimDeadline.toLocaleDateString("ar-EG") : "—"}</TableCell>
+                    <TableCell className="text-foreground/80">{c.notificationDate ? formatDate(c.notificationDate) : "—"}</TableCell>
+                    <TableCell className="text-foreground/80">{c.claimDeadline ? formatDate(c.claimDeadline) : "—"}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Badge className={claimStatusStyle[c.status]}>{claimStatusLabel[c.status]}</Badge>

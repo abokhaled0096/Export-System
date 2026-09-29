@@ -46,6 +46,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { formatDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -285,7 +286,7 @@ export default async function SupplierDetailPage({ params }: { params: Promise<{
                     supplier.audits.map((a) => (
                       <TableRow key={a.id}>
                         <TableCell className="text-foreground">{a.facility?.name ?? "—"}</TableCell>
-                        <TableCell className="text-foreground/80">{a.auditDate ? a.auditDate.toLocaleDateString("ar-EG") : "—"}</TableCell>
+                        <TableCell className="text-foreground/80">{a.auditDate ? formatDate(a.auditDate) : "—"}</TableCell>
                         <TableCell className="font-mono text-foreground/80">{a.totalScore?.toString() ?? "—"}</TableCell>
                         <TableCell className="font-mono text-foreground/80">
                           {a.criticalFindings ?? "—"} / {a.majorFindings ?? "—"} / {a.minorFindings ?? "—"}
@@ -381,8 +382,8 @@ export default async function SupplierDetailPage({ params }: { params: Promise<{
                     supplier.contracts.map((c) => (
                       <TableRow key={c.id}>
                         <TableCell className="text-foreground">{supplyContractTypeLabel[c.contractType]}</TableCell>
-                        <TableCell className="text-foreground/80">{c.startDate ? c.startDate.toLocaleDateString("ar-EG") : "—"}</TableCell>
-                        <TableCell className="text-foreground/80">{c.endDate ? c.endDate.toLocaleDateString("ar-EG") : "—"}</TableCell>
+                        <TableCell className="text-foreground/80">{c.startDate ? formatDate(c.startDate) : "—"}</TableCell>
+                        <TableCell className="text-foreground/80">{c.endDate ? formatDate(c.endDate) : "—"}</TableCell>
                         <TableCell>
                           <Badge className={supplyContractStatusStyle[c.status]}>{supplyContractStatusLabel[c.status]}</Badge>
                         </TableCell>
@@ -463,7 +464,7 @@ export default async function SupplierDetailPage({ params }: { params: Promise<{
                     supplier.performances.map((p) => (
                       <TableRow key={p.id}>
                         <TableCell className="text-foreground/80">
-                          {p.periodStart.toLocaleDateString("ar-EG")} — {p.periodEnd.toLocaleDateString("ar-EG")}
+                          {formatDate(p.periodStart)} — {formatDate(p.periodEnd)}
                         </TableCell>
                         <TableCell className="font-mono text-foreground/80">{p.overallScore?.toString() ?? "—"}</TableCell>
                         <TableCell className="font-mono text-foreground/80">{p.onTimeDeliveryRate?.toString() ?? "—"}</TableCell>

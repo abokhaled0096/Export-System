@@ -16,6 +16,7 @@ import {
 } from "@/lib/arapLabels";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { formatDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -152,7 +153,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
         </div>
         <div>
           <dt className="text-xs text-muted-foreground">الاستحقاق</dt>
-          <dd className="text-foreground">{invoice.dueDate.toISOString().slice(0, 10)}</dd>
+          <dd className="text-foreground">{formatDate(invoice.dueDate)}</dd>
         </div>
         <div>
           <dt className="text-xs text-muted-foreground">المستند الإلكتروني</dt>
@@ -239,7 +240,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
                       {a.payment.paymentNumber}
                     </Link>
                   </TableCell>
-                  <TableCell className="text-foreground/80">{a.payment.paymentDate.toISOString().slice(0, 10)}</TableCell>
+                  <TableCell className="text-foreground/80">{formatDate(a.payment.paymentDate)}</TableCell>
                   <TableCell className="font-mono text-foreground">{a.allocatedAmount.toFixed(2)}</TableCell>
                   <TableCell className="text-foreground/80">{paymentStatusLabel[a.payment.status]}</TableCell>
                 </TableRow>

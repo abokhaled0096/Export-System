@@ -6,6 +6,7 @@ import { PAGE_SIZE, parsePage } from "@/lib/pagination";
 import Pagination from "@/components/Pagination";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { formatDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -80,7 +81,7 @@ export default async function QuoteBundlesPage({
                   <TableCell className="text-foreground">{b.customer.legalName}</TableCell>
                   <TableCell className="font-mono text-foreground/80">{b._count.quotes}</TableCell>
                   <TableCell className="text-foreground/80">{b.createdByUser.fullName}</TableCell>
-                  <TableCell className="text-foreground/80">{b.createdAt.toISOString().slice(0, 10)}</TableCell>
+                  <TableCell className="text-foreground/80">{formatDate(b.createdAt)}</TableCell>
                   <TableCell>
                     <Link href={`/quote-bundles/${b.id}`} className="text-sm text-primary hover:underline">
                       تفاصيل

@@ -6,6 +6,7 @@ import { getScopedPrisma } from "@/lib/scoped-prisma";
 import StatusTransitionButtons from "./StatusTransitionButtons";
 import { capaRootCauseMethodLabel, capaStatusLabel, capaStatusStyle, isCAPAOverdue } from "@/lib/capaLabels";
 import { Badge } from "@/components/ui/badge";
+import { formatDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -81,7 +82,7 @@ export default async function CAPADetailPage({ params }: { params: Promise<{ id:
         </div>
         <div>
           <dt className="text-xs text-muted-foreground">تاريخ الاستحقاق</dt>
-          <dd className="text-foreground">{capa.dueDate?.toISOString().slice(0, 10) ?? "—"}</dd>
+          <dd className="text-foreground">{formatDate(capa.dueDate) ?? "—"}</dd>
         </div>
         <div>
           <dt className="text-xs text-muted-foreground">تحقق منه</dt>

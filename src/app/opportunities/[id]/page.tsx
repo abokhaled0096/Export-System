@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -116,7 +117,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
                       <TableCell className="text-foreground/80">{communicationDirectionLabel[c.direction]}</TableCell>
                       <TableCell className="text-foreground/80">{c.subject ?? "—"}</TableCell>
                       <TableCell className="max-w-[16rem] whitespace-pre-wrap text-foreground/80">{c.summary ?? "—"}</TableCell>
-                      <TableCell className="text-foreground/80">{c.occurredAt.toLocaleString("ar-EG")}</TableCell>
+                      <TableCell className="text-foreground/80">{formatDateTime(c.occurredAt)}</TableCell>
                       <TableCell className="font-mono text-foreground/80">{c.responseTimeHours?.toString() ?? "—"}</TableCell>
                     </TableRow>
                   ))}

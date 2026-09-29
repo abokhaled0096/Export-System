@@ -33,6 +33,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { formatDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -201,7 +202,7 @@ export default async function BatchDetailPage({ params }: { params: Promise<{ id
                     <TableCell>
                       <Badge className={inspectionResultStyle[i.result]}>{inspectionResultLabel[i.result]}</Badge>
                     </TableCell>
-                    <TableCell className="text-muted-foreground">{i.inspectionDate.toLocaleDateString("ar-EG")}</TableCell>
+                    <TableCell className="text-muted-foreground">{formatDate(i.inspectionDate)}</TableCell>
                   </TableRow>
                 ))
               )}
@@ -285,7 +286,7 @@ export default async function BatchDetailPage({ params }: { params: Promise<{ id
                     </TableCell>
                     <TableCell className="font-mono text-foreground/80">{qr.releasedQuantity?.toString() ?? "—"}</TableCell>
                     <TableCell className="font-mono text-foreground/80">{qr.rejectedQuantity?.toString() ?? "—"}</TableCell>
-                    <TableCell className="text-muted-foreground">{qr.releaseDate.toLocaleDateString("ar-EG")}</TableCell>
+                    <TableCell className="text-muted-foreground">{formatDate(qr.releaseDate)}</TableCell>
                   </TableRow>
                 ))
               )}
@@ -368,7 +369,7 @@ export default async function BatchDetailPage({ params }: { params: Promise<{ id
                       <Badge className={batchMarketEligibilityStatusStyle[e.status]}>{batchMarketEligibilityStatusLabel[e.status]}</Badge>
                     </TableCell>
                     <TableCell className="text-foreground/80">{e.reason ?? "—"}</TableCell>
-                    <TableCell className="text-muted-foreground">{e.assessedAt.toLocaleDateString("ar-EG")}</TableCell>
+                    <TableCell className="text-muted-foreground">{formatDate(e.assessedAt)}</TableCell>
                   </TableRow>
                 ))
               )}

@@ -8,6 +8,7 @@ import JournalEntryForm from "./JournalEntryForm";
 import { journalEntrySourceTypeLabel, journalEntryStatusLabel, journalEntryStatusStyle } from "@/lib/accountingLabels";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { formatDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -97,7 +98,7 @@ export default async function JournalEntriesPage({ searchParams }: { searchParam
                       {e.entryNumber}
                     </Link>
                   </TableCell>
-                  <TableCell className="text-foreground/80">{e.entryDate.toLocaleDateString("ar-EG")}</TableCell>
+                  <TableCell className="text-foreground/80">{formatDate(e.entryDate)}</TableCell>
                   <TableCell className="text-foreground/80">{e.period.periodName}</TableCell>
                   <TableCell className="text-foreground/80">{journalEntrySourceTypeLabel[e.sourceType]}</TableCell>
                   <TableCell>

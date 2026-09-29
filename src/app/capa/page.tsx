@@ -8,6 +8,7 @@ import CAPAForm from "./CAPAForm";
 import { capaRootCauseMethodLabel, capaStatusLabel, capaStatusStyle, isCAPAOverdue } from "@/lib/capaLabels";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { formatDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -80,7 +81,7 @@ export default async function CAPAPage({ searchParams }: { searchParams: Promise
                     </TableCell>
                     <TableCell className="text-foreground/80">{c.rootCauseMethod ? capaRootCauseMethodLabel[c.rootCauseMethod] : "—"}</TableCell>
                     <TableCell className="text-foreground/80">{c.correctiveAction ?? "—"}</TableCell>
-                    <TableCell className="text-foreground/80">{c.dueDate ? c.dueDate.toLocaleDateString("ar-EG") : "—"}</TableCell>
+                    <TableCell className="text-foreground/80">{c.dueDate ? formatDate(c.dueDate) : "—"}</TableCell>
                     <TableCell className="flex gap-1.5">
                       <Badge className={capaStatusStyle[c.status]}>{capaStatusLabel[c.status]}</Badge>
                       {overdue && <Badge className={capaStatusStyle.Overdue}>متأخر</Badge>}

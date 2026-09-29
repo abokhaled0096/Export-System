@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { formatDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 // sendQuoteEmail (deals/actions.ts) بيولّد PDF بـChromium (quote-pdf.ts) قبل الإرسال — نفس سبب
@@ -309,7 +310,7 @@ export default async function DealDetailPage({ params }: { params: Promise<{ id:
                   </p>
                   {so.poNumber ? (
                     <p className="mt-1 text-xs text-muted-foreground">
-                      PO: {so.poNumber} — {so.poDate?.toLocaleDateString("ar-EG")}
+                      PO: {so.poNumber} — {formatDate(so.poDate)}
                     </p>
                   ) : (
                     <ConfirmSalesOrderForm salesOrderId={so.id} />
