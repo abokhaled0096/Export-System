@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import CurrencySelect from "@/components/CurrencySelect";
+import { useFormDialogClose } from "@/components/FormDialog";
 
 const initialState: PaymentFormState = {};
 const directions = Object.keys(paymentDirectionLabel);
@@ -20,6 +21,8 @@ type Props = { bankAccounts: PaymentOption[]; companies: PaymentOption[]; suppli
 
 export default function PaymentForm({ bankAccounts, companies, suppliers }: Props) {
   const [state, formAction, pending] = useActionState(createPayment, initialState);
+  // بترجّع null لو الفورم مش جوه نافذة — فالاستخدام في صفحة عادية بيفضل زي ما هو.
+  const closeDialog = useFormDialogClose();
   const router = useRouter();
   const [direction, setDirection] = useState(directions[0]);
   const [bankAccountId, setBankAccountId] = useState(bankAccounts[0]?.id ?? "");
@@ -27,8 +30,10 @@ export default function PaymentForm({ bankAccounts, companies, suppliers }: Prop
   const [idempotencyKey] = useState(() => crypto.randomUUID());
 
   useEffect(() => {
-    if (state.paymentId) router.push(`/accounting/payments/${state.paymentId}`);
-  }, [state.paymentId, router]);
+    if (!state.paymentId) return;
+    closeDialog?.();
+    router.push(`/accounting/payments/${state.paymentId}`);
+  }, [state.paymentId, router, closeDialog]);
 
   const selectedBank = bankAccounts.find((b) => b.id === bankAccountId);
   const isInbound = direction === "Inbound";
@@ -42,7 +47,7 @@ export default function PaymentForm({ bankAccounts, companies, suppliers }: Prop
   }
 
   return (
-    <form action={formAction} className="grid gap-3 rounded-xl border border-border bg-card p-4 sm:grid-cols-2 lg:grid-cols-3">
+    <form action={formAction} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="pay-dir" className="text-xs">

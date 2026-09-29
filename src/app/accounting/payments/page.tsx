@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { PAGE_SIZE, parsePage } from "@/lib/pagination";
 import Pagination from "@/components/Pagination";
 import { formatDate } from "@/lib/format";
+import FormDialog from "@/components/FormDialog";
 
 export const dynamic = "force-dynamic";
 
@@ -71,12 +72,15 @@ export default async function PaymentsPage({
         <p className="mt-1 text-sm text-muted-foreground">{totalPayments} دفعة</p>
       </div>
 
-      <div className="mt-6">
-        <PaymentForm
+      <div className="mt-6 flex justify-start">
+        <FormDialog triggerLabel="+ دفعة" title="دفعة جديدة"
+            description="التحصيل أو السداد بيتسجّل هنا، والتخصيص على الفواتير من صفحة الدفعة.">
+          <PaymentForm
           bankAccounts={bankOptions}
           companies={companies.map((c) => ({ id: c.id, label: c.legalName }))}
           suppliers={suppliers.map((s) => ({ id: s.id, label: s.legalName }))}
         />
+        </FormDialog>
       </div>
 
       <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card">

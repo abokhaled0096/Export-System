@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
 import { createSalesTarget, type SalesTargetFormState } from "./actions";
 import { salesTargetTypeLabel } from "@/lib/salesTargetLabels";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import CurrencySelect from "@/components/CurrencySelect";
+import { useFormDialogClose } from "@/components/FormDialog";
 
 const initialState: SalesTargetFormState = {};
 const targetTypes = Object.keys(salesTargetTypeLabel);
@@ -20,9 +21,17 @@ export default function SalesTargetForm({
   teams: { id: string; name: string }[];
 }) {
   const [state, formAction, pending] = useActionState(createSalesTarget, initialState);
+  // بترجّع null لو الفورم مش جوه نافذة — فالاستخدام في صفحة عادية بيفضل زي ما هو.
+  const closeDialog = useFormDialogClose();
+
+  // `state.ok` بيتضبط من الـaction عند النجاح بس — القايمة ورا النافذة بتكون اتحدّثت
+  // بالفعل بـrevalidatePath، فالإغلاق هنا هو آخر خطوة.
+  useEffect(() => {
+    if (state.ok) closeDialog?.();
+  }, [state.ok, closeDialog]);
 
   return (
-    <form action={formAction} className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-4">
+    <form action={formAction} className="flex flex-wrap items-end gap-3">
       {users.length > 0 && (
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="st-userId" className="text-xs">

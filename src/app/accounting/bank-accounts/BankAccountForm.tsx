@@ -13,7 +13,7 @@ export default function BankAccountForm() {
   const [state, formAction, pending] = useActionState(createBankAccount, initialState);
 
   return (
-    <form action={formAction} className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-4">
+    <form action={formAction} className="flex flex-wrap items-end gap-3">
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="accountName" className="text-xs">
           اسم الحساب *

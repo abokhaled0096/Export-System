@@ -3,6 +3,7 @@ import { requireCurrentUser } from "@/lib/session";
 import { requirePermission } from "@/lib/permissions";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
 import InvoiceForm, { type InvoiceFormOption } from "./InvoiceForm";
+import FormDialog from "@/components/FormDialog";
 import { invoiceStatusLabel, invoiceStatusStyle, invoiceTypeLabel, isInvoiceOverdue } from "@/lib/arapLabels";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -92,13 +93,18 @@ export default async function InvoicesPage({
           <h1 className="text-2xl font-semibold text-foreground">الفواتير</h1>
           <p className="mt-1 text-sm text-muted-foreground">{totalInvoices} فاتورة</p>
         </div>
-        <Link href="/accounting/receivables" className="text-sm text-primary hover:underline">
-          تقرير أعمار الديون ←
-        </Link>
-      </div>
-
-      <div className="mt-6">
-        <InvoiceForm salesOrders={soOptions} purchaseOrders={poOptions} companies={companyOptions} suppliers={supplierOptions} documents={docOptions} />
+        <div className="flex items-center gap-4">
+          <Link href="/accounting/receivables" className="text-sm text-primary hover:underline">
+            تقرير أعمار الديون ←
+          </Link>
+          <FormDialog
+            triggerLabel="+ فاتورة"
+            title="فاتورة جديدة"
+            description="الفاتورة بتتعمل كمسودة، وبتضيف بنودها من صفحتها بعد كده."
+          >
+            <InvoiceForm salesOrders={soOptions} purchaseOrders={poOptions} companies={companyOptions} suppliers={supplierOptions} documents={docOptions} />
+          </FormDialog>
+        </div>
       </div>
 
       <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card">

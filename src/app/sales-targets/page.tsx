@@ -7,6 +7,7 @@ import SalesTargetForm from "./SalesTargetForm";
 import RecomputeActualButton from "./RecomputeActualButton";
 import { salesTargetTypeLabel } from "@/lib/salesTargetLabels";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import FormDialog from "@/components/FormDialog";
 
 export const dynamic = "force-dynamic";
 
@@ -50,8 +51,10 @@ export default async function SalesTargetsPage({ searchParams }: { searchParams:
         <p className="mt-1 text-sm text-muted-foreground">{total} هدف مسجّل</p>
       </div>
 
-      <div className="mt-6">
-        <SalesTargetForm users={users} teams={teams} />
+      <div className="mt-6 flex justify-start">
+        <FormDialog triggerLabel="+ هدف مبيعات" title="هدف مبيعات جديد">
+          <SalesTargetForm users={users} teams={teams} />
+        </FormDialog>
       </div>
 
       <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card">

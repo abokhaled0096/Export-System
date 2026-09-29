@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PAGE_SIZE, parsePage } from "@/lib/pagination";
 import Pagination from "@/components/Pagination";
+import FormDialog from "@/components/FormDialog";
 
 export const dynamic = "force-dynamic";
 
@@ -53,8 +54,11 @@ export default async function BankAccountsPage({
         </Link>
       </div>
 
-      <div className="mt-6">
-        <BankAccountForm />
+      <div className="mt-6 flex justify-start">
+        <FormDialog triggerLabel="+ حساب بنكي" title="حساب بنكي جديد"
+            description="بيانات الحساب البنكية بتتخزّن مشفّرة ومش بتتعرض كاملة.">
+          <BankAccountForm />
+        </FormDialog>
       </div>
 
       <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card">

@@ -322,7 +322,9 @@ const RiskSchema = z.object({
   mitigation: z.string().trim().optional().or(z.literal("")),
 });
 
-export type RiskFormState = { errors?: Record<string, string[]>; formError?: string };
+/** `ok` بيتضبط عند النجاح عشان الواجهة تقدر تفرّق النجاح عن الحالة الابتدائية
+ *  (الاتنين كانوا `{}`) — محتاجها النافذة عشان تقفل نفسها. */
+export type RiskFormState = { errors?: Record<string, string[]>; formError?: string; ok?: boolean };
 
 /** ownerId مش بالضرورة المستخدم الحالي — مسؤول الخطر ممكن يكون محلل تاني مش اللي بيسجّل الخطر
  * (اتكشف بمراجعة كود، 8 سبتمبر — نفس ملحوظة DecisionLogEntry.decidedBy). */
@@ -364,7 +366,7 @@ export async function createRiskRegisterItem(_prevState: RiskFormState, formData
   }
 
   revalidatePath("/governance/risks");
-  return {};
+  return { ok: true };
 }
 
 export async function updateRiskStatusAction(riskId: string, status: "Open" | "Mitigated" | "Closed") {

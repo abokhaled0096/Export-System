@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { createInvoice, type InvoiceFormState } from "../arap-actions";
+import { useFormDialogClose } from "@/components/FormDialog";
 import { invoiceTypeLabel } from "@/lib/arapLabels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,6 +36,8 @@ const types = Object.keys(invoiceTypeLabel);
 export default function InvoiceForm({ salesOrders, purchaseOrders, companies, suppliers, documents }: Props) {
   const [state, formAction, pending] = useActionState(createInvoice, initialState);
   const router = useRouter();
+  // بترجّع null لو الفورم مش جوه نافذة — فالسلوك القديم (صفحة عادية) بيفضل شغّال زي ما هو.
+  const closeDialog = useFormDialogClose();
   const [invoiceType, setInvoiceType] = useState(types[0]);
   const [salesOrderId, setSalesOrderId] = useState("");
   const [purchaseOrderId, setPurchaseOrderId] = useState("");
@@ -47,13 +50,15 @@ export default function InvoiceForm({ salesOrders, purchaseOrders, companies, su
   const selectedPO = purchaseOrders.find((o) => o.id === purchaseOrderId);
 
   useEffect(() => {
-    if (state.invoiceId) router.push(`/accounting/invoices/${state.invoiceId}`);
-  }, [state.invoiceId, router]);
+    if (!state.invoiceId) return;
+    closeDialog?.();
+    router.push(`/accounting/invoices/${state.invoiceId}`);
+  }, [state.invoiceId, router, closeDialog]);
 
   const isSales = invoiceType === "SalesInvoice" || invoiceType === "CreditNote" || invoiceType === "ProformaInvoice";
 
   return (
-    <form action={formAction} className="grid gap-3 rounded-xl border border-border bg-card p-4 sm:grid-cols-2 lg:grid-cols-3">
+    <form action={formAction} className="grid gap-3 sm:grid-cols-2">
       <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="inv-type" className="text-xs">
@@ -215,20 +220,19 @@ export default function InvoiceForm({ salesOrders, purchaseOrders, companies, su
         <Input id="inv-notes" name="notes" />
       </div>
 
-      <div className="flex flex-col justify-end gap-1.5 sm:col-span-2 lg:col-span-3">
+      <div className="flex flex-col justify-end gap-1.5 sm:col-span-2">
         <p className="text-[11px] text-muted-foreground">
-          الفاتورة بتتعمل كمسودة، وبتضيف بنودها (صنف، كمية، سعر وحدة، كود HS) من صفحتها. الإجمالي بيتحسب من البنود — مفيش
-          إدخال يدوي للمبالغ. لو اخترت أمر بيع، بنوده بتتنسخ تلقائيًا.
+          الإجمالي بيتحسب من البنود — مفيش إدخال يدوي للمبالغ. لو اخترت أمر بيع، بنوده بتتنسخ تلقائيًا.
         </p>
         <div>
           <Button type="submit" disabled={pending}>
-            {pending ? "جاري الإنشاء..." : "+ فاتورة"}
+            {pending ? "جاري الإنشاء..." : "إنشاء الفاتورة"}
           </Button>
         </div>
       </div>
 
       {state.formError && (
-        <p role="alert" className="sm:col-span-2 lg:col-span-3 text-sm text-destructive">
+        <p role="alert" className="sm:col-span-2 text-sm text-destructive">
           {state.formError}
         </p>
       )}

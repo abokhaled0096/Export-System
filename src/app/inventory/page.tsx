@@ -9,6 +9,7 @@ import { inventoryTypeLabel, inventoryStatusLabel, inventoryStatusStyle } from "
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { Prisma } from "@/generated/prisma/client";
+import FormDialog from "@/components/FormDialog";
 
 export const dynamic = "force-dynamic";
 
@@ -72,8 +73,10 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
         <p className="mt-1 text-sm text-muted-foreground">{total} سجل مخزون</p>
       </div>
 
-      <div className="mt-6">
-        <InventoryForm products={products} batches={batches} lots={lots} />
+      <div className="mt-6 flex justify-start">
+        <FormDialog triggerLabel="+ سجل مخزون" title="سجل مخزون جديد">
+          <InventoryForm products={products} batches={batches} lots={lots} />
+        </FormDialog>
       </div>
 
       <div className="mt-6">

@@ -26,7 +26,9 @@ const SalesTargetSchema = z.object({
   currency: optionalCurrencySchema,
 });
 
-export type SalesTargetFormState = { errors?: Record<string, string[]>; formError?: string };
+/** `ok` بيتضبط عند النجاح عشان الواجهة تقدر تفرّق النجاح عن الحالة الابتدائية
+ *  (الاتنين كانوا `{}`) — محتاجها النافذة عشان تقفل نفسها. */
+export type SalesTargetFormState = { errors?: Record<string, string[]>; formError?: string; ok?: boolean };
 
 export async function createSalesTarget(_prevState: SalesTargetFormState, formData: FormData): Promise<SalesTargetFormState> {
   const parsed = SalesTargetSchema.safeParse({
@@ -76,7 +78,7 @@ export async function createSalesTarget(_prevState: SalesTargetFormState, formDa
   }
 
   revalidatePath("/sales-targets");
-  return {};
+  return { ok: true };
 }
 
 /** بيعيد حساب القيمة الفعلية من أوامر البيع الحقيقية — بلا أي أثر محاسبي (مجرد تحديث عمود

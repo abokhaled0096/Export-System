@@ -1,12 +1,13 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
 import { createRiskRegisterItem, type RiskFormState } from "../actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import CurrencySelect from "@/components/CurrencySelect";
+import { useFormDialogClose } from "@/components/FormDialog";
 
 const initialState: RiskFormState = {};
 
@@ -24,9 +25,17 @@ export default function RiskForm({
   defaultCategory?: string;
 }) {
   const [state, formAction, pending] = useActionState(createRiskRegisterItem, initialState);
+  // بترجّع null لو الفورم مش جوه نافذة — فالاستخدام في صفحة عادية بيفضل زي ما هو.
+  const closeDialog = useFormDialogClose();
+
+  // `state.ok` بيتضبط من الـaction عند النجاح بس — القايمة ورا النافذة بتكون اتحدّثت
+  // بالفعل بـrevalidatePath، فالإغلاق هنا هو آخر خطوة.
+  useEffect(() => {
+    if (state.ok) closeDialog?.();
+  }, [state.ok, closeDialog]);
 
   return (
-    <form action={formAction} className="grid gap-3 rounded-xl border border-border bg-card p-4 sm:grid-cols-2 lg:grid-cols-3">
+    <form action={formAction} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="risk-title" className="text-xs">
           العنوان *

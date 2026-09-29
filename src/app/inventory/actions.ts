@@ -28,7 +28,9 @@ const InventorySchema = z.object({
   currency: optionalCurrencySchema,
 });
 
-export type InventoryFormState = { errors?: Record<string, string[]>; formError?: string };
+/** `ok` بيتضبط عند النجاح عشان الواجهة تقدر تفرّق النجاح عن الحالة الابتدائية
+ *  (الاتنين كانوا `{}`) — محتاجها النافذة عشان تقفل نفسها. */
+export type InventoryFormState = { errors?: Record<string, string[]>; formError?: string; ok?: boolean };
 
 export async function createInventory(_prevState: InventoryFormState, formData: FormData): Promise<InventoryFormState> {
   const parsed = InventorySchema.safeParse({
@@ -94,5 +96,5 @@ export async function createInventory(_prevState: InventoryFormState, formData: 
   }
 
   revalidatePath("/inventory");
-  return {};
+  return { ok: true };
 }
