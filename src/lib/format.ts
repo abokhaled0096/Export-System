@@ -79,3 +79,19 @@ export function formatMoney(value: { toString(): string } | number | null | unde
   if (amount === "—") return amount;
   return currency ? `${amount} ${currency}` : amount;
 }
+
+/** سنة التاريخ **بتوقيت القاهرة** — لتوليد أرقام المستندات (INV-2026-…, PAY-2026-…). */
+const yearFmt = new Intl.DateTimeFormat("en-US", { timeZone: TZ, year: "numeric" });
+
+/**
+ * ⚠️ استخدم دي بدل `getFullYear()` في أي ترقيم مشتقّ من تاريخ.
+ *
+ * `getFullYear()` بتقرا التوقيت المحلي **للسيرفر**، يعني نفس الكود بيدّي رقم مختلف على
+ * جهاز التطوير (القاهرة) وعلى Vercel (UTC) — والاتنين ممكن يبقوا غلط من منظور الشركة.
+ * فاتورة اتعملت الساعة 1 صباحًا يوم 1 يناير بتوقيت القاهرة هي فاتورة **السنة الجديدة**
+ * حتى لو UTC لسه في 31 ديسمبر. الترقيم لازم يتبع تقويم الشركة، مش تقويم السيرفر.
+ */
+export function businessYear(value: Date | string): number {
+  const date = typeof value === "string" ? new Date(value) : value;
+  return Number(yearFmt.format(date));
+}

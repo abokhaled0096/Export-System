@@ -12,6 +12,7 @@ import { revalueForeignCurrencyReceivablesPayables } from "@/lib/fxRevaluation";
 import { logError, isNextControlFlowError, businessRuleMessage } from "@/lib/errorLog";
 import { isGlBackedTax } from "@/lib/treasuryLabels";
 import { currencySchema } from "@/lib/currencySchema";
+import { businessYear } from "@/lib/format";
 
 // ==================== Budget ====================
 
@@ -231,7 +232,7 @@ export async function createFixedAsset(_prevState: FixedAssetFormState, formData
       if (!costCenter) return { formError: "مركز التكلفة غير موجود." };
     }
     const assetId = await withScopedTransaction(async (tx) => {
-      const year = new Date(purchaseDate).getFullYear();
+      const year = businessYear(purchaseDate);
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`FA-${user.orgId}-${year}`}, 0))`;
       const countThisYear = await tx.fixedAsset.count({ where: { orgId: user.orgId, assetCode: { startsWith: `FA-${year}-` } } });
       const assetCode = `FA-${year}-${String(countThisYear + 1).padStart(4, "0")}`;
@@ -735,7 +736,7 @@ export async function payTaxRecordAction(taxRecordId: string, _prevState: TaxPay
       if (record.filingStatus === "NotFiled") throw new Error("لازم يتقدم الإقرار الأول قبل السداد.");
 
       const paidAt = new Date(paymentDate);
-      const year = paidAt.getFullYear();
+      const year = businessYear(paidAt);
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`PAY-${user.orgId}-${year}`}, 0))`;
       const countThisYear = await tx.payment.count({ where: { orgId: user.orgId, paymentNumber: { startsWith: `PAY-${year}-` } } });
       const paymentNumber = `PAY-${year}-${String(countThisYear + 1).padStart(5, "0")}`;

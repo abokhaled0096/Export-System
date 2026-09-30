@@ -16,7 +16,7 @@ import { postInvoiceIssued, postPaymentCleared, postPaymentAllocated } from "../
 import { Prisma } from "../src/generated/prisma/client";
 import { getDashboardData } from "../src/lib/dashboard";
 import { weekKey } from "../src/lib/treasuryLabels";
-import { formatDate, toDateInputValue } from "../src/lib/format";
+import { formatDate, toDateInputValue, businessYear } from "../src/lib/format";
 import { amountToArabicWords } from "../src/lib/numberToArabicWords";
 import { currencySchema, optionalCurrencySchema } from "../src/lib/currencySchema";
 
@@ -314,6 +314,17 @@ async function runCollectionCycle(
     await runCollectionCycle(org.id, period.id, preparer.id, { direction: "Inbound", allocateRatio: 0.4, label: "تحصيل جزئي" });
     // الاتجاه المعاكس (مشتريات/سداد) — نفس الدالة، والفرع التاني منها
     await runCollectionCycle(org.id, period.id, preparer.id, { direction: "Outbound", allocateRatio: 1, label: "سداد مورّد" });
+
+    // ---------- سنة العمل والترقيم ----------
+    // ⚠️ عيب حقيقي اتكشف بتجربة دورة الإهلاك (30 سبتمبر): قيد الإهلاك بيترحّل على
+    // `period.endDate` = 23:59:59 بتوقيت UTC، و`getFullYear()` بتوقيت القاهرة (+3) بتقرا
+    // دي على إنها 2027-01-01 — فالقيد طلع JE-2027-00001 وهو في دفاتر 2026، ومضمون يتكرر
+    // كل سنة. سنة القيد دلوقتي بتيجي من الفترة المحاسبية نفسها، وباقي الترقيم من businessYear.
+    console.log("\n— سنة العمل والترقيم —");
+    check("آخر ثانية في 2026 بتوقيت UTC = 2027 بتوقيت القاهرة", String(businessYear(new Date("2026-12-31T23:59:59Z"))), "2027");
+    check("منتصف ليل 1 يناير بتوقيت القاهرة = السنة الجديدة", String(businessYear(new Date("2026-12-31T22:00:00Z"))), "2027");
+    check("الظهر في 31 ديسمبر = 2026", String(businessYear(new Date("2026-12-31T12:00:00Z"))), "2026");
+    check("تاريخ نصي جاي من فورم بيتقرا صح", String(businessYear("2026-06-15")), "2026");
 
     console.log("\n— التحقق من العملة —");
     const okCur = (v: string) => String(currencySchema.safeParse(v).success);

@@ -16,6 +16,7 @@ import { uploadDocumentFile } from "@/lib/storage";
 import { logError, isNextControlFlowError, businessRuleMessage } from "@/lib/errorLog";
 import { postCommissionPayment, resolveFxRateId } from "@/lib/accounting";
 import { currencySchema, optionalCurrencySchema } from "@/lib/currencySchema";
+import { businessYear } from "@/lib/format";
 
 const DealSchema = z.object({
   opportunityId: z.string().uuid("اختر فرصة"),
@@ -830,7 +831,7 @@ export async function acceptQuote(quoteId: string) {
       throw new Error("العرض ده اتقفل بالفعل (مقبول أو مرفوض).");
     }
 
-    const year = new Date().getFullYear();
+    const year = businessYear(new Date());
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`so-number-${user.orgId}-${year}`}))`;
 
     const countThisYear = await tx.salesOrder.count({

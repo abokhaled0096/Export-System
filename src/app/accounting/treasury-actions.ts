@@ -14,6 +14,7 @@ import { parseCsv, deterministicUuid } from "@/lib/csv";
 import { bankTransactionTypeLabel, isInflow } from "@/lib/treasuryLabels";
 import { generateAmortizationSchedule } from "@/lib/loanAmortization";
 import { currencySchema } from "@/lib/currencySchema";
+import { businessYear } from "@/lib/format";
 
 // ==================== BankTransaction ====================
 
@@ -1130,7 +1131,7 @@ export async function payLoanInstallmentAction(installmentId: string, fxRate?: s
       const total = installment.principalPortion.add(installment.interestPortion);
 
       // ترقيم الدفعة بنفس نمط createPayment (advisory lock ضد التزامن).
-      const year = paidAt.getFullYear();
+      const year = businessYear(paidAt);
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`PAY-${user.orgId}-${year}`}, 0))`;
       const countThisYear = await tx.payment.count({ where: { orgId: user.orgId, paymentNumber: { startsWith: `PAY-${year}-` } } });
       const paymentNumber = `PAY-${year}-${String(countThisYear + 1).padStart(5, "0")}`;

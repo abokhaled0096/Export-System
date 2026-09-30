@@ -16,6 +16,7 @@ import { encryptSecret, updateSecret } from "@/lib/vault";
 import { requestEntityCreation } from "@/lib/masterDataChangeRequest";
 import { BankAccountSchema } from "@/lib/bankAccountSchema";
 import { currencySchema } from "@/lib/currencySchema";
+import { businessYear } from "@/lib/format";
 
 // ==================== BankAccount ====================
 
@@ -311,7 +312,7 @@ export async function createInvoice(_prevState: InvoiceFormState, formData: Form
     }
 
     const invoiceId = await withScopedTransaction(async (tx) => {
-      const year = new Date(issueDate).getFullYear();
+      const year = businessYear(issueDate);
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`INV-${user.orgId}-${year}`}, 0))`;
       const countThisYear = await tx.invoice.count({ where: { orgId: user.orgId, invoiceNumber: { startsWith: `INV-${year}-` } } });
       const invoiceNumber = `INV-${year}-${String(countThisYear + 1).padStart(5, "0")}`;
@@ -703,7 +704,7 @@ export async function createPayment(_prevState: PaymentFormState, formData: Form
     }
 
     const paymentId = await withScopedTransaction(async (tx) => {
-      const year = new Date(paymentDate).getFullYear();
+      const year = businessYear(paymentDate);
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`PAY-${user.orgId}-${year}`}, 0))`;
       const countThisYear = await tx.payment.count({ where: { orgId: user.orgId, paymentNumber: { startsWith: `PAY-${year}-` } } });
       const paymentNumber = `PAY-${year}-${String(countThisYear + 1).padStart(5, "0")}`;

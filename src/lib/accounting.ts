@@ -71,7 +71,20 @@ async function nextEntryNumber(tx: ScopedTx, orgId: string, year: number): Promi
 export async function createJournalEntryDraft(tx: ScopedTx, input: CreateJournalEntryInput): Promise<string> {
   assertBalanced(input.lines);
 
-  const year = input.entryDate.getFullYear();
+  // ⚠️ سنة الترقيم بتيجي من **الفترة المحاسبية** اللي القيد بيترحّل فيها، مش من توقيت
+  // `entryDate`. قيد في فترة 2026 لازم يبقى JE-2026-xxxxx مهما كان وقته باليوم — ده
+  // المعنى المحاسبي الصح، وكمان بيشيل اعتماد الترقيم على المنطقة الزمنية للسيرفر.
+  //
+  // العيب اللي كان موجود: `entryDate.getFullYear()` بيستخدم التوقيت المحلي. قيد الإهلاك
+  // بيترحّل على `period.endDate` اللي هي 23:59:59 بتوقيت UTC — وبتوقيت القاهرة (+3) دي
+  // بقت 2027-01-01، فالقيد طلع **JE-2027-00001** وهو في دفاتر 2026. ومضمون يتكرر كل
+  // سنة في الإهلاك لأنه دايمًا بيترحّل على آخر لحظة في الفترة. (اتكشف بتجربة دورة
+  // الإهلاك الكاملة، 30 سبتمبر.)
+  const period = await tx.accountingPeriod.findUniqueOrThrow({
+    where: { id: input.periodId },
+    select: { startDate: true },
+  });
+  const year = period.startDate.getUTCFullYear();
   const entryNumber = await nextEntryNumber(tx, input.orgId, year);
 
   const entry = await tx.journalEntry.create({
