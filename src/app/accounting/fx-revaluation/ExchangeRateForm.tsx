@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import CurrencySelect from "@/components/CurrencySelect";
 
 const initialState: ExchangeRateFormState = {};
 
@@ -21,14 +22,14 @@ export default function ExchangeRateForm() {
         <Label htmlFor="baseCurrency" className="text-xs">
           العملة الأجنبية *
         </Label>
-        <Input id="baseCurrency" name="baseCurrency" placeholder="USD" maxLength={3} className="w-24 uppercase" />
+        <CurrencySelect id="baseCurrency" name="baseCurrency" defaultValue="USD" className="w-40" />
         {state.errors?.baseCurrency && <span className="text-xs text-destructive">{state.errors.baseCurrency[0]}</span>}
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="quoteCurrency" className="text-xs">
           العملة الوظيفية *
         </Label>
-        <Input id="quoteCurrency" name="quoteCurrency" placeholder="EGP" maxLength={3} className="w-24 uppercase" />
+        <CurrencySelect id="quoteCurrency" name="quoteCurrency" defaultValue="EGP" className="w-40" />
         {state.errors?.quoteCurrency && <span className="text-xs text-destructive">{state.errors.quoteCurrency[0]}</span>}
       </div>
       <div className="flex flex-col gap-1.5">

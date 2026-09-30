@@ -471,8 +471,8 @@ export async function runFxRevaluationAction(periodId: string) {
 const EXCHANGE_RATE_TYPES = ["Spot", "Budget", "Contracted", "Actual"] as const;
 
 const ExchangeRateSchema = z.object({
-  baseCurrency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase(),
-  quoteCurrency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase(),
+  baseCurrency: currencySchema,
+  quoteCurrency: currencySchema,
   rate: z.coerce.number().positive("السعر مطلوب"),
   rateDate: z.coerce.date({ error: "تاريخ السعر مطلوب" }),
   rateType: z.enum(EXCHANGE_RATE_TYPES, "اختار نوع سعر صحيح"),

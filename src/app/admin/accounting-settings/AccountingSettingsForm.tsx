@@ -3,8 +3,8 @@
 import { useActionState, useState } from "react";
 import { updateAccountingSettingsAction, type AccountingSettingsFormState } from "./actions";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import CurrencySelect from "@/components/CurrencySelect";
 
 const initialState: AccountingSettingsFormState = {};
 
@@ -34,7 +34,7 @@ export default function AccountingSettingsForm({ currentFunctionalCurrency }: { 
         <form action={formAction} className="flex flex-wrap items-end gap-3 border-t border-border pt-3">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="functionalCurrency">العملة الوظيفية (فاضية = إلغاء التفعيل)</Label>
-            <Input id="functionalCurrency" name="functionalCurrency" className="w-28 uppercase" defaultValue={currentFunctionalCurrency ?? ""} placeholder="EGP" />
+            <CurrencySelect id="functionalCurrency" name="functionalCurrency" defaultValue={currentFunctionalCurrency ?? "EGP"} className="w-44" />
             {state.errors?.functionalCurrency && <span className="text-xs text-destructive">{state.errors.functionalCurrency[0]}</span>}
           </div>
           <Button type="submit" disabled={pending}>

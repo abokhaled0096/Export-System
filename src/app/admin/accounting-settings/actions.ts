@@ -8,9 +8,10 @@ import { requirePermission } from "@/lib/permissions";
 import { requireAal2 } from "@/lib/mfa";
 import { logAudit } from "@/lib/audit";
 import { logError, isNextControlFlowError, businessRuleMessage } from "@/lib/errorLog";
+import { optionalCurrencySchema } from "@/lib/currencySchema";
 
 const AccountingSettingsSchema = z.object({
-  functionalCurrency: z.string().trim().length(3, "لازم 3 حروف (ISO 4217)").toUpperCase().optional().or(z.literal("")),
+  functionalCurrency: optionalCurrencySchema,
 });
 
 export type AccountingSettingsFormState = { errors?: Record<string, string[]>; formError?: string; mfaRequired?: boolean; success?: boolean };
