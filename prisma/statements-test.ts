@@ -39,7 +39,14 @@ function check(label: string, actual: string, expected: string) {
  * تخصيصها على الفاتورة. الشرط النهائي: **الذمم المدينة وحساب الدفعات المعلَّقة الاتنين
  * يرجعوا صفر**، لأن العميل دفع كل حاجة.
  */
-async function runCollectionCycle(orgId: string, periodId: string, preparedBy: string, _cashId: string) {
+async function runCollectionCycle(
+  orgId: string,
+  periodId: string,
+  preparedBy: string,
+  opts: { direction: "Inbound" | "Outbound"; allocateRatio: number; label: string }
+) {
+  const { direction, allocateRatio, label } = opts;
+  const isIn = direction === "Inbound";
   // الحسابات القياسية اللي محرك الترحيل بيدوّر عليها بالكود
   // ⚠️ 1010 (النقدية) موجود بالفعل من سيناريو القوائم المالية فوق — بنعيد استخدامه
   // بـupsert وما بنحذفوش في التنظيف، وإلا هنمسح قيود السيناريو التاني معاه.
@@ -49,8 +56,11 @@ async function runCollectionCycle(orgId: string, periodId: string, preparedBy: s
     ["1010", "النقدية وما يعادلها", "Asset", "Debit"],
     ["1020", "حسابات مدينة — عملاء", "Asset", "Debit"],
     ["1035", "دفعات معلَّقة غير مخصَّصة", "Asset", "Debit"],
+    ["2010", "حسابات دائنة — موردين", "Liability", "Credit"],
     ["2030", "ض.ق.م — مبيعات", "Liability", "Credit"],
+    ["1040", "ض.ق.م — مشتريات", "Asset", "Debit"],
     ["4010", "إيرادات المبيعات", "Revenue", "Credit"],
+    ["5010", "تكلفة المبيعات", "COGS", "Debit"],
     ["7020", "فروق العملة", "Revenue", "Credit"],
   ] as const) {
     const a = await prisma.chartOfAccount.upsert({
@@ -67,7 +77,7 @@ async function runCollectionCycle(orgId: string, periodId: string, preparedBy: s
 
   const invoice = await prisma.invoice.create({
     data: {
-      orgId, invoiceNumber: "CYCLE-INV-1", invoiceType: "PurchaseInvoice", currency: "EGP",
+      orgId, invoiceNumber: `CYCLE-INV-${label}`, invoiceType: "PurchaseInvoice", currency: "EGP",
       subtotal: D("0"), taxAmount: D("0"), totalAmount: D("0"),
       issueDate, dueDate: new Date("2026-09-20T00:00:00Z"),
     },
@@ -82,7 +92,8 @@ async function runCollectionCycle(orgId: string, periodId: string, preparedBy: s
 
   const je = await prisma.$transaction(async (tx) =>
     postInvoiceIssued(tx as never, {
-      id: inv.id, orgId, invoiceNumber: inv.invoiceNumber, invoiceType: "SalesInvoice", currency: inv.currency,
+      id: inv.id, orgId, invoiceNumber: inv.invoiceNumber,
+      invoiceType: isIn ? "SalesInvoice" : "PurchaseInvoice", currency: inv.currency,
       subtotal: inv.subtotal, taxAmount: inv.taxAmount, totalAmount: inv.totalAmount,
       issueDate: inv.issueDate, dealId: null, supplierId: null,
     }, preparedBy)
@@ -94,26 +105,27 @@ async function runCollectionCycle(orgId: string, periodId: string, preparedBy: s
   });
   const payment = await prisma.payment.create({
     data: {
-      orgId, paymentNumber: "CYCLE-PAY-1", direction: "Inbound", amount: inv.totalAmount,
+      orgId, paymentNumber: `CYCLE-PAY-${label}`, direction, amount: inv.totalAmount,
       currency: "EGP", paymentDate: issueDate, createdBy: preparedBy, bankAccountId: bankAccount.id,
     },
   });
   const payJe = await prisma.$transaction(async (tx) =>
     postPaymentCleared(tx as never, {
-      id: payment.id, orgId, paymentNumber: payment.paymentNumber, direction: "Inbound",
+      id: payment.id, orgId, paymentNumber: payment.paymentNumber, direction,
       amount: payment.amount, currency: payment.currency, paymentDate: payment.paymentDate, supplierId: null,
     }, preparedBy)
   );
   await prisma.payment.update({ where: { id: payment.id }, data: { status: "Cleared", journalEntryId: payJe } });
 
+  const allocAmount = inv.totalAmount.mul(allocateRatio).toDecimalPlaces(2);
   const allocJe = await prisma.$transaction(async (tx) =>
     postPaymentAllocated(tx as never, {
       orgId, paymentId: payment.id, invoiceId: inv.id,
-      allocatedAmount: inv.totalAmount, allocationDate: issueDate,
+      allocatedAmount: allocAmount, allocationDate: issueDate,
     }, preparedBy)
   );
 
-  check("قيد التخصيص اترحّل (مش null)", String(allocJe !== null), "true");
+  check(`[${label}] قيد التخصيص اترحّل`, String(allocJe !== null), "true");
 
   // الأرصدة النهائية من دفتر الأستاذ نفسه
   const bal = async (accountId: string) => {
@@ -123,8 +135,19 @@ async function runCollectionCycle(orgId: string, periodId: string, preparedBy: s
     });
     return new Prisma.Decimal(g._sum.functionalDebit ?? 0).sub(g._sum.functionalCredit ?? 0);
   };
-  check("الذمم المدينة اتصفّت بعد التحصيل الكامل", (await bal(std["1020"])).toFixed(2), "0.00");
-  check("حساب الدفعات المعلَّقة اتصفّى", (await bal(std["1035"])).toFixed(2), "0.00");
+  // المتبقّي المتوقَّع على الذمة = الإجمالي − المخصَّص. الذمم المدينة رصيدها مدين،
+  // والدائنة دائن — فبناخد القيمة المطلقة للمقارنة.
+  const arApCode = isIn ? "1020" : "2010";
+  const expectedRemaining = inv.totalAmount.sub(allocAmount).toFixed(2);
+  check(`[${label}] رصيد ${isIn ? "الذمم المدينة" : "الذمم الدائنة"}`, (await bal(std[arApCode])).abs().toFixed(2), expectedRemaining);
+  // الخاصية الحقيقية لحساب الدفعات المعلَّقة: رصيده = **الجزء غير المخصَّص من الدفعة**.
+  // بيتصفّى لما تتخصّص الدفعة بالكامل، وبيفضل بالباقي لو التخصيص جزئي — وده الصح، مش عيب.
+  const expectedClearing = payment.amount.sub(allocAmount);
+  check(
+    `[${label}] الدفعات المعلَّقة = الجزء غير المخصَّص`,
+    (await bal(std["1035"])).toFixed(2),
+    (isIn ? expectedClearing.neg() : expectedClearing).toFixed(2)
+  );
 
   // تنظيف حسابات الدورة عشان ما تلخبطش فحوصات الميزانية اللي بعدها
   await prisma.$executeRawUnsafe(`ALTER TABLE "JournalLine" DISABLE TRIGGER USER`);
@@ -285,7 +308,12 @@ async function runCollectionCycle(orgId: string, periodId: string, preparedBy: s
     // الذمة مكانش بيترحّل خالص. النتيجة: الفاتورة "مدفوعة" في شاشة الفواتير بينما دفتر
     // الأستاذ شايف الذمة قايمة وحساب الدفعات المعلَّقة بالسالب — للأبد.
     console.log("\n— دورة تحصيل كاملة (نفس العملة الوظيفية) —");
-    await runCollectionCycle(org.id, period.id, preparer.id, cash.id);
+    // تحصيل كامل (الحالة اللي كشفت العيب)
+    await runCollectionCycle(org.id, period.id, preparer.id, { direction: "Inbound", allocateRatio: 1, label: "تحصيل كامل" });
+    // تحصيل جزئي — الذمة لازم تفضل بالباقي بالظبط مش صفر
+    await runCollectionCycle(org.id, period.id, preparer.id, { direction: "Inbound", allocateRatio: 0.4, label: "تحصيل جزئي" });
+    // الاتجاه المعاكس (مشتريات/سداد) — نفس الدالة، والفرع التاني منها
+    await runCollectionCycle(org.id, period.id, preparer.id, { direction: "Outbound", allocateRatio: 1, label: "سداد مورّد" });
 
     console.log("\n— التحقق من العملة —");
     const okCur = (v: string) => String(currencySchema.safeParse(v).success);
