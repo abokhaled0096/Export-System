@@ -45,7 +45,7 @@ function Row({ item, index }: { item: ReadinessItem; index: number }) {
 export default async function SetupPage() {
   const user = await requireCurrentUser();
   const prisma = await getScopedPrisma();
-  const readiness = await getReadiness(prisma, user.orgId);
+  const readiness = await getReadiness(prisma, user.orgId, user);
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-10">

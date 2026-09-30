@@ -1,5 +1,7 @@
 import type { getScopedPrisma } from "@/lib/scoped-prisma";
 import { GL_ACCOUNTS } from "@/lib/glAccounts";
+import { createClient } from "@/lib/supabase/server";
+import { getPermissionScope } from "@/lib/permissions";
 
 type ScopedPrismaClient = Awaited<ReturnType<typeof getScopedPrisma>>;
 
@@ -33,7 +35,12 @@ export type Readiness = {
   isReady: boolean;
 };
 
-export async function getReadiness(prisma: ScopedPrismaClient, orgId: string): Promise<Readiness> {
+export async function getReadiness(
+  prisma: ScopedPrismaClient,
+  orgId: string,
+  /** المستخدم الحالي — محتاجينه لفحص المصادقة الثنائية بتاعته هو تحديدًا. */
+  user?: { id: string; roleId: string }
+): Promise<Readiness> {
   const now = new Date();
 
   // ⚠️ مش Promise.all — راجع BACKLOG.md (P2028).
@@ -51,6 +58,28 @@ export async function getReadiness(prisma: ScopedPrismaClient, orgId: string): P
   const products = await prisma.product.count({ where: { orgId, deletedAt: null } });
   const customers = await prisma.company.count({ where: { orgId, deletedAt: null } });
   const users = await prisma.user.count({ where: { orgId, isActive: true } });
+
+  /**
+   * ⚠️ المصادقة الثنائية مش رفاهية أمنية هنا — هي **شرط تشغيلي**. تريجرز في القاعدة
+   * (enforce_approval_decision_requires_aal2, enforce_origin_proof_revised_rules_requires_aal2)
+   * بترفض أي اعتماد من جلسة مستواها aal1. يعني من غير MFA مفعّلة، الاعتماد **مستحيل** —
+   * ومن غير البند ده المستخدم كان هيكتشف كده أول مرة يحاول يعتمد سعر لعميل.
+   */
+  let mfaDone = true;
+  let mfaRelevant = false;
+  if (user) {
+    const canApprove = Boolean(await getPermissionScope(user.roleId, "Approval", "Approve"));
+    if (canApprove) {
+      mfaRelevant = true;
+      try {
+        const supabase = await createClient();
+        const { data } = await supabase.auth.mfa.listFactors();
+        mfaDone = (data?.totp ?? []).some((f) => f.status === "verified");
+      } catch {
+        mfaDone = true; // فشل الاستعلام مايخوّفش المستخدم ببند غلط
+      }
+    }
+  }
 
   const items: ReadinessItem[] = [
     {
@@ -98,6 +127,19 @@ export async function getReadiness(prisma: ScopedPrismaClient, orgId: string): P
       actionLabel: "ضيف عميل",
       severity: "blocking",
     },
+    ...(mfaRelevant
+      ? [
+          {
+            id: "mfa",
+            label: "المصادقة الثنائية لحسابك",
+            blocks: "من غيرها اعتماد أي سعر أو قرار هيترفض — قيد مفروض على مستوى القاعدة",
+            done: mfaDone,
+            href: "/account/mfa",
+            actionLabel: "فعّل المصادقة الثنائية",
+            severity: "blocking" as const,
+          },
+        ]
+      : []),
     {
       id: "users",
       label: "مستخدمو الشركة وصلاحياتهم",

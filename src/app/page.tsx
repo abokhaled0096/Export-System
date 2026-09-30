@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
-import { getCurrentOrgId } from "@/lib/org";
+import { requireCurrentUser } from "@/lib/session";
 import { getDashboardData, type ActionItem } from "@/lib/dashboard";
 import { getReadiness } from "@/lib/readiness";
 import { RevenueChart, StageChart } from "@/components/DashboardCharts";
@@ -44,11 +44,11 @@ function Kpi({ label, value, hint, href, tone }: { label: string; value: string;
 }
 
 export default async function Home() {
-  const orgId = await getCurrentOrgId();
+  const user = await requireCurrentUser();
   const prisma = await getScopedPrisma();
   // ⚠️ مش Promise.all — راجع BACKLOG.md (P2028).
-  const readiness = await getReadiness(prisma, orgId);
-  const d = await getDashboardData(prisma, orgId);
+  const readiness = await getReadiness(prisma, user.orgId, user);
+  const d = await getDashboardData(prisma, user.orgId);
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-10">
