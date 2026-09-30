@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { createLabTest, type LabTestFormState } from "../actions";
 import { labTestTypeLabel, labTestPassFailLabel } from "@/lib/procurementLabels";
+import { labTestConflict, labTestConflictHint } from "@/lib/labTestVerdict";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,6 +25,10 @@ export default function LabTestForm({
 }) {
   const action = createLabTest.bind(null, batchId);
   const [state, formAction, pending] = useActionState(action, initialState);
+  // الحدود/النتيجة/الحُكم متحكَّم فيهم علشان التناقض يظهر **وقت الإدخال** مش بعد الحفظ —
+  // ساعتها المستخدم لسه بيبص على القيم وقادر يصحّح. راجع src/lib/labTestVerdict.ts.
+  const [limits, setLimits] = useState({ minLimit: "", maxLimit: "", actualResult: "", passFail: passFails[0] });
+  const conflict = labTestConflict(limits);
 
   return (
     <form action={formAction} className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-4">
@@ -98,19 +103,44 @@ export default function LabTestForm({
         <Label htmlFor="minLimit" className="text-xs">
           الحد الأدنى
         </Label>
-        <Input id="minLimit" name="minLimit" type="number" step="0.0001" className="w-24" />
+        <Input
+          id="minLimit"
+          name="minLimit"
+          type="number"
+          step="0.0001"
+          className="w-24"
+          value={limits.minLimit}
+          onChange={(e) => setLimits((p) => ({ ...p, minLimit: e.target.value }))}
+        />
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="maxLimit" className="text-xs">
           الحد الأقصى
         </Label>
-        <Input id="maxLimit" name="maxLimit" type="number" step="0.0001" className="w-24" />
+        <Input
+          id="maxLimit"
+          name="maxLimit"
+          type="number"
+          step="0.0001"
+          className="w-24"
+          value={limits.maxLimit}
+          onChange={(e) => setLimits((p) => ({ ...p, maxLimit: e.target.value }))}
+        />
+        {state.errors?.maxLimit && <p className="text-xs text-destructive">{state.errors.maxLimit[0]}</p>}
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="actualResult" className="text-xs">
           النتيجة الفعلية
         </Label>
-        <Input id="actualResult" name="actualResult" type="number" step="0.0001" className="w-24" />
+        <Input
+          id="actualResult"
+          name="actualResult"
+          type="number"
+          step="0.0001"
+          className="w-24"
+          value={limits.actualResult}
+          onChange={(e) => setLimits((p) => ({ ...p, actualResult: e.target.value }))}
+        />
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="laboratory" className="text-xs">
@@ -128,7 +158,7 @@ export default function LabTestForm({
         <Label htmlFor="passFail" className="text-xs">
           النتيجة *
         </Label>
-        <Select name="passFail" defaultValue={passFails[0]}>
+        <Select name="passFail" value={limits.passFail} onValueChange={(v) => setLimits((p) => ({ ...p, passFail: String(v) }))}>
           <SelectTrigger id="passFail" className="w-28">
             <SelectValue>{(value: string) => labTestPassFailLabel[value] ?? value}</SelectValue>
           </SelectTrigger>
@@ -144,6 +174,11 @@ export default function LabTestForm({
       <Button type="submit" variant="outline" disabled={pending}>
         {pending ? "جاري التسجيل..." : "+ فحص معملي"}
       </Button>
+      {conflict && (
+        <p role="alert" className="w-full rounded-lg border border-rose-300 bg-rose-50 p-2.5 text-sm text-rose-800">
+          {labTestConflictHint[conflict]}
+        </p>
+      )}
       {state.formError && <p role="alert" className="w-full text-sm text-destructive">{state.formError}</p>}
     </form>
   );

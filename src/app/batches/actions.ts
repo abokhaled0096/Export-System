@@ -122,6 +122,15 @@ export async function createQualityRelease(batchId: string, _prevState: QualityR
   } catch (e) {
     if (isNextControlFlowError(e)) throw e;
     await logError({ orgId: user.orgId, userId: user.id, action: "createQualityRelease", error: e });
+    // ⚠️ متعمّد ما بنرجعش e.message — نفس نمط createLot (Prisma بيغلّف رسالة الـTrigger
+    // جوه نص مطوّل فيه مسار الملف والاستعلام الخام).
+    if (e instanceof Error && e.message.includes("إفراج كامل")) {
+      return {
+        formError: e.message.includes("بره الحدود")
+          ? "مينفعش إفراج كامل عن دفعة فيها فحص معملي نتيجته بره الحدود المسجَّلة — صحّح الحدود أو الحُكم في الفحص، أو اختار «إفراج مشروط»."
+          : "مينفعش إفراج كامل عن دفعة فيها فحص معملي فاشل — اختار «إفراج مشروط» أو «محتجزة» أو «مرفوضة».",
+      };
+    }
     return { formError: "حصل خطأ أثناء تسجيل الإفراج عن الجودة — حاول تاني." };
   }
 
@@ -208,7 +217,14 @@ const LabTestSchema = z.object({
   laboratory: z.string().trim().optional().or(z.literal("")),
   isAccredited: z.coerce.boolean().optional(),
   passFail: z.enum(LAB_TEST_PASS_FAIL, "اختار نتيجة صحيحة"),
-});
+})
+  // نطاق مقلوب = غلط إدخال مش اجتهاد فني — بيخلّي أي فحص متقاطع بعد كده بلا معنى
+  // (كل نتيجة تبقى "بره الحدود"). التناقض بين النتيجة والحُكم مسموح يتسجّل بتحذير،
+  // راجع src/lib/labTestVerdict.ts — لكن ده لأ.
+  .refine((d) => d.minLimit === undefined || d.maxLimit === undefined || d.minLimit <= d.maxLimit, {
+    path: ["maxLimit"],
+    message: "الحد الأقصى لازم يكون أكبر من أو يساوي الحد الأدنى",
+  });
 
 export type LabTestFormState = { errors?: Record<string, string[]>; formError?: string };
 

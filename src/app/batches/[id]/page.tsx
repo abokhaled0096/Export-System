@@ -34,6 +34,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDate } from "@/lib/format";
+import {
+  labTestConflict,
+  labTestConflictLabel,
+  labTestConflictStyle,
+  labTestConflictHint,
+  labTestsBlockingFullRelease,
+} from "@/lib/labTestVerdict";
 
 export const dynamic = "force-dynamic";
 
@@ -71,6 +78,8 @@ export default async function BatchDetailPage({ params }: { params: Promise<{ id
     },
   });
   if (!batch) notFound();
+
+  const blockingLabTests = labTestsBlockingFullRelease(batch.labTests);
 
   // ⚠️ مش Promise.all — راجع BACKLOG.md (P2028).
   const farms = await prisma.farm.findMany({
@@ -239,17 +248,34 @@ export default async function BatchDetailPage({ params }: { params: Promise<{ id
                   </TableCell>
                 </TableRow>
               ) : (
-                batch.labTests.map((lt) => (
-                  <TableRow key={lt.id}>
-                    <TableCell className="text-foreground">{labTestTypeLabel[lt.testType]}</TableCell>
-                    <TableCell className="text-foreground/80">{lt.parameter ?? "—"}</TableCell>
-                    <TableCell className="font-mono text-foreground/80">{lt.actualResult?.toString() ?? "—"}</TableCell>
-                    <TableCell className="text-foreground/80">{lt.laboratory ?? "—"}</TableCell>
-                    <TableCell>
-                      <Badge className={labTestPassFailStyle[lt.passFail]}>{labTestPassFailLabel[lt.passFail]}</Badge>
-                    </TableCell>
-                  </TableRow>
-                ))
+                batch.labTests.map((lt) => {
+                  const conflict = labTestConflict(lt);
+                  return (
+                    <TableRow key={lt.id}>
+                      <TableCell className="text-foreground">{labTestTypeLabel[lt.testType]}</TableCell>
+                      <TableCell className="text-foreground/80">{lt.parameter ?? "—"}</TableCell>
+                      <TableCell className="font-mono text-foreground/80">
+                        {lt.actualResult?.toString() ?? "—"}
+                        {(lt.minLimit || lt.maxLimit) && (
+                          <span className="ms-1 text-xs text-muted-foreground">
+                            (الحد: {lt.minLimit?.toString() ?? "—"}–{lt.maxLimit?.toString() ?? "—"})
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-foreground/80">{lt.laboratory ?? "—"}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <Badge className={labTestPassFailStyle[lt.passFail]}>{labTestPassFailLabel[lt.passFail]}</Badge>
+                          {conflict && (
+                            <Badge className={labTestConflictStyle[conflict]} title={labTestConflictHint[conflict]}>
+                              {labTestConflictLabel[conflict]}
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>
@@ -258,6 +284,15 @@ export default async function BatchDetailPage({ params }: { params: Promise<{ id
 
       <section className="mt-8">
         <h2 className="text-lg font-medium text-foreground">الإفراج عن الجودة</h2>
+        {/* التحذير هنا قبل الفورم عن قصد: الـTrigger في القاعدة هو اللي بيمنع فعلًا، لكن
+            المستخدم لازم يعرف السبب **قبل** ما يحاول ويتصدّم برسالة خطأ. */}
+        {blockingLabTests.length > 0 && (
+          <p role="alert" className="mt-3 rounded-xl border border-rose-300 bg-rose-50 p-3 text-sm text-rose-800">
+            فيه {blockingLabTests.length} فحص معملي بيمنع الإفراج الكامل عن الدفعة دي:{" "}
+            {blockingLabTests.map((lt) => lt.parameter ?? labTestTypeLabel[lt.testType]).join("، ")} — إمّا تصحّح الفحص، أو
+            تسجّل «إفراج مشروط» بسبب موثَّق.
+          </p>
+        )}
         <div className="mt-3">
           <QualityReleaseForm batchId={batch.id} />
         </div>

@@ -16,6 +16,7 @@ import { postInvoiceIssued, postPaymentCleared, postPaymentAllocated } from "../
 import { Prisma } from "../src/generated/prisma/client";
 import { getDashboardData } from "../src/lib/dashboard";
 import { countShipmentsNeedingAttention } from "../src/lib/logisticsAttention";
+import { labTestConflict, labTestsBlockingFullRelease } from "../src/lib/labTestVerdict";
 import { weekKey } from "../src/lib/treasuryLabels";
 import { formatDate, toDateInputValue, businessYear } from "../src/lib/format";
 import { amountToArabicWords } from "../src/lib/numberToArabicWords";
@@ -373,6 +374,32 @@ async function runCollectionCycle(
     const attention = await countShipmentsNeedingAttention(client as never, org.id);
     const dashAttention = dash.actions.find((a) => a.href === "/logistics")?.count ?? 0;
     check("اللوحة والشارة بيستخدموا نفس العدّاد", String(dashAttention), String(attention));
+
+    // ── تناقض الفحص المعملي ──────────────────────────────────────────────────
+    // نتيجة 0.12 والحد الأقصى 0.05 ومتسجّلة «ناجح» — ده اللي السيستم كان بيقبله في صمت
+    // (اتكشف بتجربة فعلية، 30 سبتمبر). تجاوز حد متبقيات متسجّل «ناجح» هو السبب الأول
+    // لرفض الشحنات الغذائية على الحدود الأوروبية. نفس المنطق في الـTrigger
+    // enforce_quality_release_lab_tests — لو الاتنين اختلفوا، الواجهة بتحذّر من حاجة
+    // القاعدة مش بتمنعها (أو العكس، وده أسوأ).
+    const mrlBreach = { minLimit: 0, maxLimit: 0.05, actualResult: 0.12, passFail: "Pass" };
+    check("تجاوز حد متسجّل «ناجح» = تناقض", String(labTestConflict(mrlBreach)), "OutOfLimitButPass");
+    check("نفس التجاوز متسجّل «فاشل» = مفيش تناقض", String(labTestConflict({ ...mrlBreach, passFail: "Fail" })), "null");
+    check("نتيجة جوه الحدود و«ناجح» = مفيش تناقض", String(labTestConflict({ ...mrlBreach, actualResult: 0.02 })), "null");
+    check("نتيجة جوه الحدود و«فاشل» = تناقض", String(labTestConflict({ ...mrlBreach, actualResult: 0.02, passFail: "Fail" })), "WithinLimitButFail");
+    check("نتيجة تحت الحد الأدنى (نقاء) = تناقض", String(labTestConflict({ minLimit: 98, actualResult: 95, passFail: "Pass" })), "OutOfLimitButPass");
+    // حدود غير مسجَّلة = مفيش أساس للمقارنة، مينفعش نحذّر من حاجة إحنا اللي مش عارفينها.
+    check("مفيش حدود = مفيش تناقض", String(labTestConflict({ actualResult: 0.12, passFail: "Pass" })), "null");
+    check("مفيش نتيجة رقمية = مفيش تناقض", String(labTestConflict({ maxLimit: 0.05, passFail: "Pass" })), "null");
+    check("الحد نفسه مقبول (>= مش >)", String(labTestConflict({ maxLimit: 0.05, actualResult: 0.05, passFail: "Pass" })), "null");
+    // المنع مبنى على "بره الحدود" مش على الحُكم لوحده — علشان تغيير قيمة الـdropdown
+    // ميبقاش طريقة للتحايل على القيد.
+    const blocking = labTestsBlockingFullRelease([
+      { parameter: "داخل الحدود وناجح", minLimit: 0, maxLimit: 0.05, actualResult: 0.01, passFail: "Pass" },
+      { parameter: "بره الحدود ومتسجّل ناجح", minLimit: 0, maxLimit: 0.05, actualResult: 0.12, passFail: "Pass" },
+      { parameter: "فاشل بلا حدود", passFail: "Fail" },
+    ]);
+    check("الفحوصات المانعة للإفراج الكامل", String(blocking.length), "2");
+    check("الفحص السليم مش مانع", String(blocking.some((t) => t.parameter === "داخل الحدود وناجح")), "false");
 
     console.log(`\n${fail === 0 ? "✅" : "❌"} ${pass}/${pass + fail} فحوصات ناجحة`);
   } finally {
