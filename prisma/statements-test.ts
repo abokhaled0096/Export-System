@@ -15,6 +15,7 @@ import { computeIncomeStatement, computeBalanceSheet } from "../src/lib/financia
 import { postInvoiceIssued, postPaymentCleared, postPaymentAllocated } from "../src/lib/accounting";
 import { Prisma } from "../src/generated/prisma/client";
 import { getDashboardData } from "../src/lib/dashboard";
+import { countShipmentsNeedingAttention } from "../src/lib/logisticsAttention";
 import { weekKey } from "../src/lib/treasuryLabels";
 import { formatDate, toDateInputValue, businessYear } from "../src/lib/format";
 import { amountToArabicWords } from "../src/lib/numberToArabicWords";
@@ -364,6 +365,14 @@ async function runCollectionCycle(
       "true"
     );
     check("مفيش مستحق على العملاء (مفيش فواتير مبيعات)", dash.outstandingReceivables.toFixed(2), "0.00");
+
+    // ⚠️ اللوحة وشارة التنقّل لازم يستخدموا **نفس** الدالة. قبل كده كان كل واحد بيحسب
+    // "الشحنات المحتاجة انتباه" بطريقته: الشارة بتجمع الاستثناءات + التجاوزات الحرارية،
+    // واللوحة بتعدّ الاستثناءات بس. النتيجة: شارة حمراء فيها 1 واللوحة بتقول "مفيش حاجة
+    // مستنّية" في نفس اللحظة (اتكشف بتسجيل تجاوز حراري، 30 سبتمبر).
+    const attention = await countShipmentsNeedingAttention(client as never, org.id);
+    const dashAttention = dash.actions.find((a) => a.href === "/logistics")?.count ?? 0;
+    check("اللوحة والشارة بيستخدموا نفس العدّاد", String(dashAttention), String(attention));
 
     console.log(`\n${fail === 0 ? "✅" : "❌"} ${pass}/${pass + fail} فحوصات ناجحة`);
   } finally {

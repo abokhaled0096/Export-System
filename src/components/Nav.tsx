@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/session";
 import { getPermissionScope } from "@/lib/permissions";
 import { getScopedPrisma } from "@/lib/scoped-prisma";
+import { countShipmentsNeedingAttention } from "@/lib/logisticsAttention";
 import { logout } from "@/app/login/actions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,21 +25,9 @@ export default async function Nav() {
   const canViewLogistics = user ? Boolean(await getPermissionScope(user.roleId, "Shipment", "View")) : false;
   // عدد الشحنات "محتاجة انتباه" — استثناء لوجستي مفتوح بخطورة عالية/حرجة، أو تجاوز حراري مسجَّل.
   // نفس منطق pendingApprovalsCount فوق: بيتحسب بس لو المستخدم أصلًا يقدر يشوف اللوجستيات.
-  let logisticsAttentionCount = 0;
-  if (canViewLogistics) {
-    const scopedPrisma = await getScopedPrisma();
-    const criticalExceptions = await scopedPrisma.logisticsException.findMany({
-      where: { orgId: user!.orgId, status: { in: ["Open", "InProgress"] }, severity: { in: ["High", "Critical"] } },
-      select: { shipmentId: true },
-      distinct: ["shipmentId"],
-    });
-    const excursions = await scopedPrisma.temperatureLog.findMany({
-      where: { orgId: user!.orgId, isExcursion: true },
-      select: { shipmentId: true },
-      distinct: ["shipmentId"],
-    });
-    logisticsAttentionCount = new Set([...criticalExceptions.map((e) => e.shipmentId), ...excursions.map((e) => e.shipmentId)]).size;
-  }
+  const logisticsAttentionCount = canViewLogistics
+    ? await countShipmentsNeedingAttention(await getScopedPrisma(), user!.orgId)
+    : 0;
 
   // عدّادات التنبيه بتتمرّر بالـhref عشان القسم يجمّعها ويعرضها على الزرار، والرابط نفسه
   // يعرض بتاعه — بدل ما كل رابط يتعالج بشرط خاص في الـJSX زي الأول.

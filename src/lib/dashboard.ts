@@ -1,6 +1,7 @@
 import { Prisma } from "@/generated/prisma/client";
 import type { getScopedPrisma } from "@/lib/scoped-prisma";
 import { computeIncomeStatement } from "@/lib/financialStatements";
+import { countShipmentsNeedingAttention } from "@/lib/logisticsAttention";
 
 type ScopedPrismaClient = Awaited<ReturnType<typeof getScopedPrisma>>;
 
@@ -59,16 +60,15 @@ export async function getDashboardData(prisma: ScopedPrismaClient, orgId: string
     where: { orgId, invoiceType: "SalesInvoice", ...unpaidStatuses, dueDate: { lt: now } },
   });
 
-  const openExceptions = await prisma.logisticsException.count({
-    where: { orgId, status: { in: ["Open", "InProgress"] }, severity: { in: ["High", "Critical"] } },
-  });
+  // نفس تعريف شارة التنقّل بالظبط — عشان الاتنين ما يتناقضوش.
+  const shipmentsNeedingAttention = await countShipmentsNeedingAttention(prisma, orgId);
 
   const draftInvoices = await prisma.invoice.count({ where: { orgId, status: "Draft" } });
 
   const actions: ActionItem[] = ([
     { label: "موافقة مستنّية قرارك", count: pendingApprovals, href: "/approvals", tone: "danger" },
     { label: "فاتورة فات موعد تحصيلها", count: overdueInvoices, href: "/accounting/receivables", tone: "danger" },
-    { label: "استثناء لوجستي مفتوح", count: openExceptions, href: "/logistics", tone: "warning" },
+    { label: "شحنة محتاجة انتباه", count: shipmentsNeedingAttention, href: "/logistics", tone: "warning" },
     { label: "فاتورة مسودة لسه متصدرتش", count: draftInvoices, href: "/accounting/invoices", tone: "neutral" },
   ] satisfies ActionItem[]).filter((a) => a.count > 0);
 
