@@ -12,6 +12,8 @@
 import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
 import { computeIncomeStatement, computeBalanceSheet } from "../src/lib/financialStatements";
+import { postInvoiceIssued, postPaymentCleared, postPaymentAllocated } from "../src/lib/accounting";
+import { Prisma } from "../src/generated/prisma/client";
 import { getDashboardData } from "../src/lib/dashboard";
 import { weekKey } from "../src/lib/treasuryLabels";
 import { formatDate, toDateInputValue } from "../src/lib/format";
@@ -30,6 +32,116 @@ function check(label: string, actual: string, expected: string) {
     fail++;
     console.log(`❌ ${label} = ${actual} (المتوقع ${expected})`);
   }
+}
+
+/**
+ * دورة تحصيل كاملة بالحسابات القياسية (GL_ACCOUNTS): إصدار فاتورة → تحصيل دفعة →
+ * تخصيصها على الفاتورة. الشرط النهائي: **الذمم المدينة وحساب الدفعات المعلَّقة الاتنين
+ * يرجعوا صفر**، لأن العميل دفع كل حاجة.
+ */
+async function runCollectionCycle(orgId: string, periodId: string, preparedBy: string, _cashId: string) {
+  // الحسابات القياسية اللي محرك الترحيل بيدوّر عليها بالكود
+  // ⚠️ 1010 (النقدية) موجود بالفعل من سيناريو القوائم المالية فوق — بنعيد استخدامه
+  // بـupsert وما بنحذفوش في التنظيف، وإلا هنمسح قيود السيناريو التاني معاه.
+  const std: Record<string, string> = {};
+  const created: string[] = [];
+  for (const [code, nameAr, type, nb] of [
+    ["1010", "النقدية وما يعادلها", "Asset", "Debit"],
+    ["1020", "حسابات مدينة — عملاء", "Asset", "Debit"],
+    ["1035", "دفعات معلَّقة غير مخصَّصة", "Asset", "Debit"],
+    ["2030", "ض.ق.م — مبيعات", "Liability", "Credit"],
+    ["4010", "إيرادات المبيعات", "Revenue", "Credit"],
+    ["7020", "فروق العملة", "Revenue", "Credit"],
+  ] as const) {
+    const a = await prisma.chartOfAccount.upsert({
+      where: { orgId_accountCode: { orgId, accountCode: code } },
+      create: { orgId, accountCode: code, nameAr, nameEn: nameAr, accountType: type as never, normalBalance: nb as never },
+      update: {},
+    });
+    std[code] = a.id;
+    if (code !== "1010") created.push(a.id);
+  }
+
+  const issueDate = new Date("2026-08-20T00:00:00Z");
+  const D = (n: string) => new Prisma.Decimal(n);
+
+  const invoice = await prisma.invoice.create({
+    data: {
+      orgId, invoiceNumber: "CYCLE-INV-1", invoiceType: "PurchaseInvoice", currency: "EGP",
+      subtotal: D("0"), taxAmount: D("0"), totalAmount: D("0"),
+      issueDate, dueDate: new Date("2026-09-20T00:00:00Z"),
+    },
+  });
+  await prisma.invoiceLine.create({
+    data: {
+      orgId, invoiceId: invoice.id, lineNumber: 1, description: "بضاعة", quantity: D("100"),
+      unit: "kg", unitPrice: D("150"), taxRatePct: D("14"), lineTotal: D("0"), lineTax: D("0"),
+    },
+  });
+  const inv = await prisma.invoice.findUniqueOrThrow({ where: { id: invoice.id } });
+
+  const je = await prisma.$transaction(async (tx) =>
+    postInvoiceIssued(tx as never, {
+      id: inv.id, orgId, invoiceNumber: inv.invoiceNumber, invoiceType: "SalesInvoice", currency: inv.currency,
+      subtotal: inv.subtotal, taxAmount: inv.taxAmount, totalAmount: inv.totalAmount,
+      issueDate: inv.issueDate, dealId: null, supplierId: null,
+    }, preparedBy)
+  );
+  await prisma.invoice.update({ where: { id: inv.id }, data: { status: "Issued", journalEntryId: je } });
+
+  const bankAccount = await prisma.bankAccount.create({
+    data: { orgId, accountName: "حساب الدورة", bankName: "بنك الاختبار", currency: "EGP" },
+  });
+  const payment = await prisma.payment.create({
+    data: {
+      orgId, paymentNumber: "CYCLE-PAY-1", direction: "Inbound", amount: inv.totalAmount,
+      currency: "EGP", paymentDate: issueDate, createdBy: preparedBy, bankAccountId: bankAccount.id,
+    },
+  });
+  const payJe = await prisma.$transaction(async (tx) =>
+    postPaymentCleared(tx as never, {
+      id: payment.id, orgId, paymentNumber: payment.paymentNumber, direction: "Inbound",
+      amount: payment.amount, currency: payment.currency, paymentDate: payment.paymentDate, supplierId: null,
+    }, preparedBy)
+  );
+  await prisma.payment.update({ where: { id: payment.id }, data: { status: "Cleared", journalEntryId: payJe } });
+
+  const allocJe = await prisma.$transaction(async (tx) =>
+    postPaymentAllocated(tx as never, {
+      orgId, paymentId: payment.id, invoiceId: inv.id,
+      allocatedAmount: inv.totalAmount, allocationDate: issueDate,
+    }, preparedBy)
+  );
+
+  check("قيد التخصيص اترحّل (مش null)", String(allocJe !== null), "true");
+
+  // الأرصدة النهائية من دفتر الأستاذ نفسه
+  const bal = async (accountId: string) => {
+    const g = await prisma.journalLine.aggregate({
+      where: { accountId, journalEntry: { status: { in: ["Posted", "Reversed"] } } },
+      _sum: { functionalDebit: true, functionalCredit: true },
+    });
+    return new Prisma.Decimal(g._sum.functionalDebit ?? 0).sub(g._sum.functionalCredit ?? 0);
+  };
+  check("الذمم المدينة اتصفّت بعد التحصيل الكامل", (await bal(std["1020"])).toFixed(2), "0.00");
+  check("حساب الدفعات المعلَّقة اتصفّى", (await bal(std["1035"])).toFixed(2), "0.00");
+
+  // تنظيف حسابات الدورة عشان ما تلخبطش فحوصات الميزانية اللي بعدها
+  await prisma.$executeRawUnsafe(`ALTER TABLE "JournalLine" DISABLE TRIGGER USER`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "JournalEntry" DISABLE TRIGGER USER`);
+  try {
+    await prisma.paymentAllocation.deleteMany({ where: { orgId } });
+    await prisma.payment.deleteMany({ where: { orgId } });
+    await prisma.invoice.deleteMany({ where: { orgId } });
+    await prisma.bankAccount.deleteMany({ where: { orgId } });
+    // بنحذف بنود القيود بتاعت الدورة دي بس (بالقيود نفسها) عشان ما نلمسش 1010
+    await prisma.journalLine.deleteMany({ where: { orgId, journalEntryId: { in: [je, payJe, allocJe].filter(Boolean) as string[] } } });
+    await prisma.journalEntry.deleteMany({ where: { orgId, id: { in: [je, payJe, allocJe].filter(Boolean) as string[] } } });
+  } finally {
+    await prisma.$executeRawUnsafe(`ALTER TABLE "JournalLine" ENABLE TRIGGER USER`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE "JournalEntry" ENABLE TRIGGER USER`);
+  }
+  await prisma.chartOfAccount.deleteMany({ where: { id: { in: created } } });
 }
 
 (async () => {
@@ -167,6 +279,14 @@ function check(label: string, actual: string, expected: string) {
     // `length(3)` القديمة كانت بتقبل أي ٣ حروف. العملة بتتقارن حرفيًا في تخصيص الدفعات
     // على الفواتير وفي اختيار حساب النقدية — قيمة غلط بتعدّي وبعدين الفاتورة مابتتخصّصش
     // عليها دفعة ومحدش يعرف السبب.
+    // ---------- دورة تحصيل كاملة بنفس العملة الوظيفية ----------
+    // ⚠️ اختبار تراجُع لعيب حقيقي اتكشف بدورة بيع فعلية (30 سبتمبر): postPaymentAllocated
+    // كانت بتخرج بـ`return null` لما عملة الفاتورة = العملة الوظيفية، فالقيد اللي بيصفّي
+    // الذمة مكانش بيترحّل خالص. النتيجة: الفاتورة "مدفوعة" في شاشة الفواتير بينما دفتر
+    // الأستاذ شايف الذمة قايمة وحساب الدفعات المعلَّقة بالسالب — للأبد.
+    console.log("\n— دورة تحصيل كاملة (نفس العملة الوظيفية) —");
+    await runCollectionCycle(org.id, period.id, preparer.id, cash.id);
+
     console.log("\n— التحقق من العملة —");
     const okCur = (v: string) => String(currencySchema.safeParse(v).success);
     check("XXX اترفضت", okCur("XXX"), "false");

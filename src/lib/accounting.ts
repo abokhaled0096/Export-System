@@ -435,7 +435,21 @@ export async function postPaymentAllocated(tx: ScopedTx, alloc: AllocationForPos
     tx.invoice.findUniqueOrThrow({ where: { id: alloc.invoiceId } }),
   ]);
   if (!payment.journalEntryId || !invoice.journalEntryId) return null;
-  if (invoice.currency === org.functionalCurrency) return null;
+
+  // ⚠️ كان هنا `if (invoice.currency === org.functionalCurrency) return null;` — وده كان
+  // بيخلط بين "مفيش فرق عملة" و"مفيش قيد أصلًا". القيد ده مش بتاع فروق العملة، ده القيد
+  // اللي **بيصفّي الذمة** (مدين دفعات معلَّقة / دائن ذمم مدينة). بند فرق العملة تحت
+  // اختياري أصلًا (بيتضاف بس لو fxDiff ≠ 0).
+  //
+  // الأثر لما كان موجود: postPaymentCleared بيوجّه **كل** دفعة لحساب الدفعات المعلَّقة
+  // طول ما العملة الوظيفية متظبطة (مهما كانت عملة الفاتورة). فأي فاتورة بنفس العملة
+  // الوظيفية (يعني كل بيع محلي بالجنيه) كانت بتتقفل كـ"مدفوعة" في شاشة الفواتير بينما
+  // دفتر الأستاذ يفضل شايف الذمة قايمة وحساب الدفعات المعلَّقة بالسالب — الأبد.
+  // اتكشف بدورة بيع كاملة فعلية (30 سبتمبر): فاتورة 17,100 جنيه اتحصّلت بالكامل
+  // وفضلت "1020 ذمم مدينة = 17,100" و"1035 دفعات معلَّقة = -17,100".
+  //
+  // لما العملتين متساويتين: clearingRatio = invoiceRatio = 1، fxDiff = 0، fxLine = null،
+  // والناتج قيد نظيف من بندين. مفيش أي حالة محتاجة تتخطّى القيد ده.
 
   const isInbound = payment.direction === "Inbound";
   const acc = await resolveAccountIds(tx, alloc.orgId, isInbound ? ["PAYMENT_CLEARING", "AR", "FX_GAIN_LOSS"] : ["PAYMENT_CLEARING", "AP", "FX_GAIN_LOSS"]);
