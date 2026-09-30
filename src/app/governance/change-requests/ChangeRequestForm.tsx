@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { entityTypeLabel } from "@/lib/changeRequestLabels";
+import { Form } from "@/components/ui/form";
 
 const initialState: ChangeRequestFormState = {};
 const entityTypes = Object.keys(entityTypeLabel);
@@ -15,7 +16,7 @@ export default function ChangeRequestForm() {
   const [state, formAction, pending] = useActionState(createMasterDataChangeRequest, initialState);
 
   return (
-    <form action={formAction} className="grid gap-3 rounded-xl border border-border bg-card p-4 sm:grid-cols-2">
+    <Form action={formAction} state={state} className="grid gap-3 rounded-xl border border-border bg-card p-4 sm:grid-cols-2">
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="cr-type" className="text-xs">
           نوع الكيان *
@@ -68,6 +69,6 @@ export default function ChangeRequestForm() {
           {state.formError}
         </p>
       )}
-    </form>
+    </Form>
   );
 }

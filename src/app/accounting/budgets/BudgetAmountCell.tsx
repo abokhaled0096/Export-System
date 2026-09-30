@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { updateBudgetAction, type BudgetEditFormState } from "../finance-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Form } from "@/components/ui/form";
 
 const initialState: BudgetEditFormState = {};
 
@@ -26,7 +27,7 @@ export default function BudgetAmountCell({ budgetId, amount, currency }: { budge
   }
 
   return (
-    <form action={formAction} className="flex items-center gap-1.5">
+    <Form action={formAction} state={state} className="flex items-center gap-1.5">
       <Input name="amount" type="number" step="0.01" defaultValue={amount} className="w-28" autoFocus />
       <Button type="submit" size="sm" disabled={pending}>
         {pending ? "..." : "حفظ"}
@@ -36,6 +37,6 @@ export default function BudgetAmountCell({ budgetId, amount, currency }: { budge
       </Button>
       {state.errors?.amount && <span className="text-xs text-destructive">{state.errors.amount[0]}</span>}
       {state.formError && <span className="text-xs text-destructive">{state.formError}</span>}
-    </form>
+    </Form>
   );
 }

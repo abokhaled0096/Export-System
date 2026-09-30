@@ -5,6 +5,7 @@ import { updateLogisticsExceptionStatus, type UpdateLogisticsExceptionStatusStat
 import { logisticsExceptionStatusLabel } from "@/lib/logisticsLabels";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Form } from "@/components/ui/form";
 
 const initialState: UpdateLogisticsExceptionStatusState = {};
 
@@ -24,7 +25,7 @@ export default function LogisticsExceptionStatusForm({
   const selectableStatuses = [currentStatus, ...allowedNextStatuses.filter((s) => s !== currentStatus)];
 
   return (
-    <form action={formAction} className="flex items-center gap-2">
+    <Form action={formAction} state={state} className="flex items-center gap-2">
       <Select name="status" defaultValue={currentStatus}>
         <SelectTrigger className="w-36">
           <SelectValue>{(value: string) => logisticsExceptionStatusLabel[value] ?? value}</SelectValue>
@@ -41,6 +42,6 @@ export default function LogisticsExceptionStatusForm({
         {pending ? "..." : "حفظ"}
       </Button>
       {state.formError && <span role="alert" className="text-xs text-destructive">{state.formError}</span>}
-    </form>
+    </Form>
   );
 }

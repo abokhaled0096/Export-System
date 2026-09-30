@@ -5,6 +5,7 @@ import { updateDecisionLogEntryAction, type DecisionEditFormState } from "../act
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Form } from "@/components/ui/form";
 
 const initialState: DecisionEditFormState = {};
 
@@ -37,7 +38,7 @@ export default function DecisionEditControl({
   }
 
   return (
-    <form action={formAction} className="flex flex-col gap-1.5 rounded-lg border border-border bg-secondary/40 p-2">
+    <Form action={formAction} state={state} className="flex flex-col gap-1.5 rounded-lg border border-border bg-secondary/40 p-2">
       <Input name="title" defaultValue={title} className="w-56" placeholder="العنوان" />
       {state.errors?.title && <span className="text-xs text-destructive">{state.errors.title[0]}</span>}
       <Textarea name="context" defaultValue={context ?? ""} className="w-56" placeholder="السياق" />
@@ -51,6 +52,6 @@ export default function DecisionEditControl({
         </Button>
       </div>
       {state.formError && <span className="text-xs text-destructive">{state.formError}</span>}
-    </form>
+    </Form>
   );
 }

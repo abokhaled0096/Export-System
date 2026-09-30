@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import CurrencySelect from "@/components/CurrencySelect";
+import { Form } from "@/components/ui/form";
 
 const initialState: SourcingRequestFormState = {};
 
@@ -24,7 +25,7 @@ export default function OpenSourcingRequestForm({
   const [state, formAction, pending] = useActionState(action, initialState);
 
   return (
-    <form action={formAction} className="flex flex-wrap items-end gap-3">
+    <Form action={formAction} state={state} className="flex flex-wrap items-end gap-3">
       {specifications.length > 0 && (
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="sr-specificationId" className="text-xs">
@@ -73,6 +74,6 @@ export default function OpenSourcingRequestForm({
         {pending ? "جاري الفتح..." : "فتح طلب توريد"}
       </Button>
       {state.formError && <span role="alert" className="text-xs text-destructive">{state.formError}</span>}
-    </form>
+    </Form>
   );
 }

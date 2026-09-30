@@ -5,6 +5,7 @@ import { createQuote, type QuoteFormState } from "../../../actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Form } from "@/components/ui/form";
 
 const initialState: QuoteFormState = {};
 
@@ -23,7 +24,7 @@ export default function QuoteForm({
   const [state, formAction, pending] = useActionState(action, initialState);
 
   return (
-    <form action={formAction} className="flex max-w-lg flex-col gap-5">
+    <Form action={formAction} state={state} className="flex max-w-lg flex-col gap-5">
       {walkAwayPrice !== null && (
         <p className="text-sm text-muted-foreground">
           الحد الأدنى المسموح لهذا السيناريو:{" "}
@@ -58,6 +59,6 @@ export default function QuoteForm({
       <Button type="submit" disabled={pending} className="w-fit">
         {pending ? "جاري الحفظ..." : "إنشاء عرض السعر"}
       </Button>
-    </form>
+    </Form>
   );
 }

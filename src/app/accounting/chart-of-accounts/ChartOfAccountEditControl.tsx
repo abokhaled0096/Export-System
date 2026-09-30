@@ -5,6 +5,7 @@ import { updateChartOfAccountAction, toggleChartOfAccountActiveAction, type Char
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Form } from "@/components/ui/form";
 
 const initialState: ChartOfAccountEditFormState = {};
 
@@ -64,7 +65,7 @@ export default function ChartOfAccountEditControl({
   }
 
   return (
-    <form action={formAction} className="inline-flex items-center gap-1.5">
+    <Form action={formAction} state={state} className="inline-flex items-center gap-1.5">
       <Input name="nameAr" defaultValue={nameAr} className="w-32" placeholder="الاسم بالعربي" />
       <Input name="nameEn" defaultValue={nameEn} className="w-32" placeholder="الاسم بالإنجليزي" />
       <Button type="submit" size="sm" disabled={pending}>
@@ -76,6 +77,6 @@ export default function ChartOfAccountEditControl({
       {(state.errors?.nameAr || state.errors?.nameEn || state.formError) && (
         <span className="text-xs text-destructive">{state.errors?.nameAr?.[0] ?? state.errors?.nameEn?.[0] ?? state.formError}</span>
       )}
-    </form>
+    </Form>
   );
 }

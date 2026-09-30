@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import CurrencySelect from "@/components/CurrencySelect";
+import { Form } from "@/components/ui/form";
 
 const initialState: TaxRecordFormState = {};
 const MANUAL_TYPES = ["WithholdingTax", "PayrollTax"] as const;
@@ -20,7 +21,7 @@ export default function ManualTaxRecordForm({ periods }: { periods: PeriodOption
   if (periods.length === 0) return null;
 
   return (
-    <form action={formAction} className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-4">
+    <Form action={formAction} state={state} className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-4">
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="tx-type" className="text-xs">
           النوع *
@@ -85,6 +86,6 @@ export default function ManualTaxRecordForm({ periods }: { periods: PeriodOption
           {state.formError}
         </p>
       )}
-    </form>
+    </Form>
   );
 }

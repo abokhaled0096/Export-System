@@ -5,6 +5,7 @@ import { updateMarket, type UpdateMarketFormState } from "../actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Form } from "@/components/ui/form";
 
 const initialState: UpdateMarketFormState = {};
 
@@ -23,7 +24,7 @@ export default function MarketEditForm({
   const [state, formAction, pending] = useActionState(updateMarketWithId, initialState);
 
   return (
-    <form action={formAction} className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5">
+    <Form action={formAction} state={state} className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5">
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="tradeAgreement">اتفاقية تجارية</Label>
         <Input id="tradeAgreement" name="tradeAgreement" defaultValue={tradeAgreement ?? ""} />
@@ -51,6 +52,6 @@ export default function MarketEditForm({
       <Button type="submit" disabled={pending} className="w-fit">
         {pending ? "جاري الحفظ..." : "حفظ التقييم"}
       </Button>
-    </form>
+    </Form>
   );
 }

@@ -5,6 +5,7 @@ import { confirmSalesOrder, type ConfirmSalesOrderFormState } from "../actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Form } from "@/components/ui/form";
 
 const initialState: ConfirmSalesOrderFormState = {};
 
@@ -13,7 +14,7 @@ export default function ConfirmSalesOrderForm({ salesOrderId }: { salesOrderId: 
   const [state, formAction, pending] = useActionState(action, initialState);
 
   return (
-    <form action={formAction} className="mt-3 flex flex-wrap items-end gap-3">
+    <Form action={formAction} state={state} className="mt-3 flex flex-wrap items-end gap-3">
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="poNumber" className="text-xs">
           رقم أمر الشراء (PO) *
@@ -32,6 +33,6 @@ export default function ConfirmSalesOrderForm({ salesOrderId }: { salesOrderId: 
         {pending ? "جاري التأكيد..." : "أكّد أمر البيع"}
       </Button>
       {state.formError && <p role="alert" className="w-full text-sm text-destructive">{state.formError}</p>}
-    </form>
+    </Form>
   );
 }

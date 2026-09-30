@@ -5,6 +5,7 @@ import { markDealLost, type MarkDealLostFormState } from "../actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Form } from "@/components/ui/form";
 
 const initialState: MarkDealLostFormState = {};
 
@@ -22,7 +23,7 @@ export default function MarkDealLostForm({ dealId }: { dealId: string }) {
   }
 
   return (
-    <form action={formAction} className="flex flex-wrap items-end gap-3">
+    <Form action={formAction} state={state} className="flex flex-wrap items-end gap-3">
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="lostReason" className="text-xs">
           سبب الخسارة *
@@ -36,6 +37,6 @@ export default function MarkDealLostForm({ dealId }: { dealId: string }) {
         {pending ? "جاري الحفظ..." : "تأكيد الخسارة"}
       </Button>
       {state.formError && <p role="alert" className="w-full text-sm text-destructive">{state.formError}</p>}
-    </form>
+    </Form>
   );
 }

@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { updateTaxRecordAction, type TaxRecordEditFormState } from "../finance-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Form } from "@/components/ui/form";
 
 const initialState: TaxRecordEditFormState = {};
 
@@ -38,7 +39,7 @@ export default function TaxRecordEditCell({
   }
 
   return (
-    <form action={formAction} className="flex flex-col gap-1.5 rounded-lg border border-border bg-secondary/40 p-2">
+    <Form action={formAction} state={state} className="flex flex-col gap-1.5 rounded-lg border border-border bg-secondary/40 p-2">
       {amountEditable && (
         <div className="flex items-center gap-1.5">
           <Input name="amount" type="number" step="0.01" defaultValue={amount} className="w-24" />
@@ -56,6 +57,6 @@ export default function TaxRecordEditCell({
       </div>
       {state.errors?.amount && <span className="text-xs text-destructive">{state.errors.amount[0]}</span>}
       {state.formError && <span className="text-xs text-destructive">{state.formError}</span>}
-    </form>
+    </Form>
   );
 }

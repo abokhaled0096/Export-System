@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import Link from "next/link";
 import { resetUserPasswordAction, type ResetPasswordFormState } from "./actions";
+import { Form } from "@/components/ui/form";
 
 const initialState: ResetPasswordFormState = {};
 
@@ -10,7 +11,7 @@ export default function ResetPasswordForm({ userId }: { userId: string }) {
   const [state, formAction, pending] = useActionState(resetUserPasswordAction, initialState);
 
   return (
-    <form action={formAction} className="flex items-center gap-1.5">
+    <Form action={formAction} state={state} className="flex items-center gap-1.5">
       <input type="hidden" name="userId" value={userId} />
       <input
         name="password"
@@ -40,6 +41,6 @@ export default function ResetPasswordForm({ userId }: { userId: string }) {
           )}
         </span>
       )}
-    </form>
+    </Form>
   );
 }

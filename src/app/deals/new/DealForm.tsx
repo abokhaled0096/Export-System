@@ -5,6 +5,7 @@ import { createDeal, type DealFormState } from "../actions";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Form } from "@/components/ui/form";
 
 const initialState: DealFormState = {};
 
@@ -27,7 +28,7 @@ export default function DealForm({
   const [state, formAction, pending] = useActionState(createDeal, initialState);
 
   return (
-    <form action={formAction} className="flex max-w-xl flex-col gap-5">
+    <Form action={formAction} state={state} className="flex max-w-xl flex-col gap-5">
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="opportunityId">الفرصة *</Label>
         <Select name="opportunityId" defaultValue={defaultOpportunityId}>
@@ -80,6 +81,6 @@ export default function DealForm({
       <Button type="submit" disabled={pending} className="w-fit">
         {pending ? "جاري الإنشاء..." : "إنشاء الصفقة"}
       </Button>
-    </form>
+    </Form>
   );
 }

@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Form } from "@/components/ui/form";
 
 const initialState: OriginProofFormState = {};
 const proofTypes = Object.keys(originProofTypeLabel);
@@ -27,7 +28,7 @@ export default function OriginProofForm({
   const [state, formAction, pending] = useActionState(action, initialState);
 
   return (
-    <form action={formAction} className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
+    <Form action={formAction} state={state} className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="proofType" className="text-xs">
@@ -137,6 +138,6 @@ export default function OriginProofForm({
           )}
         </p>
       )}
-    </form>
+    </Form>
   );
 }

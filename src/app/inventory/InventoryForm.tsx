@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import CurrencySelect from "@/components/CurrencySelect";
 import { useFormDialogClose } from "@/components/FormDialog";
+import { Form } from "@/components/ui/form";
 
 const initialState: InventoryFormState = {};
 const inventoryTypes = Object.keys(inventoryTypeLabel);
@@ -34,7 +35,7 @@ export default function InventoryForm({
   }, [state.ok, closeDialog]);
 
   return (
-    <form action={formAction} className="flex flex-wrap items-end gap-3">
+    <Form action={formAction} state={state} className="flex flex-wrap items-end gap-3">
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="productId" className="text-xs">
           المنتج *
@@ -166,6 +167,6 @@ export default function InventoryForm({
         {pending ? "جاري الإضافة..." : "+ سجل مخزون"}
       </Button>
       {state.formError && <p role="alert" className="w-full text-sm text-destructive">{state.formError}</p>}
-    </form>
+    </Form>
   );
 }

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Form } from "@/components/ui/form";
 
 const initialState: CommissionPlanFormState = {};
 const bases = Object.keys(commissionBasisLabel);
@@ -18,7 +19,7 @@ export default function CommissionPlanForm() {
   const isTiered = basis === "Tiered";
 
   return (
-    <form action={formAction} className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
+    <Form action={formAction} state={state} className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="name" className="text-xs">
@@ -111,6 +112,6 @@ export default function CommissionPlanForm() {
       )}
 
       {state.formError && <p role="alert" className="w-full text-sm text-destructive">{state.formError}</p>}
-    </form>
+    </Form>
   );
 }

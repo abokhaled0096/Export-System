@@ -5,6 +5,7 @@ import { updateReconciliationStatementBalanceAction, type UpdateStatementBalance
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Form } from "@/components/ui/form";
 
 const initialState: UpdateStatementBalanceFormState = {};
 
@@ -55,7 +56,7 @@ export default function StatementBalanceCard({
   return (
     <div className="rounded-xl border border-border bg-card p-5">
       <p className="text-xs text-muted-foreground">رصيد الكشف (من البنك)</p>
-      <form action={formAction} className="mt-2 flex flex-col gap-2">
+      <Form action={formAction} state={state} className="mt-2 flex flex-col gap-2">
         <Input name="statementBalance" type="number" step="0.01" defaultValue={statementBalance} className="font-mono" />
         {state.errors?.statementBalance && <span className="text-xs text-destructive">{state.errors.statementBalance[0]}</span>}
         <Input name="statementDate" type="date" defaultValue={statementDate} />
@@ -75,7 +76,7 @@ export default function StatementBalanceCard({
           </Button>
         </div>
         {state.formError && <p className="text-xs text-destructive">{state.formError}</p>}
-      </form>
+      </Form>
     </div>
   );
 }

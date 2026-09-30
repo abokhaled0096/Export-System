@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Form } from "@/components/ui/form";
 
 const initialState: ShipmentEventFormState = {};
 const sources = Object.keys(shipmentEventSourceLabel);
@@ -16,7 +17,7 @@ export default function ShipmentEventForm({ shipmentId }: { shipmentId: string }
   const [state, formAction, pending] = useActionState(action, initialState);
 
   return (
-    <form action={formAction} className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-4">
+    <Form action={formAction} state={state} className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-4">
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="eventType" className="text-xs">
           نوع الحدث *
@@ -64,6 +65,6 @@ export default function ShipmentEventForm({ shipmentId }: { shipmentId: string }
         {pending ? "جاري التسجيل..." : "+ حدث"}
       </Button>
       {state.formError && <p role="alert" className="w-full text-sm text-destructive">{state.formError}</p>}
-    </form>
+    </Form>
   );
 }

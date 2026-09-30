@@ -5,6 +5,7 @@ import { setFinalPrice, type FinalPriceFormState } from "../../../actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Form } from "@/components/ui/form";
 
 const initialState: FinalPriceFormState = {};
 
@@ -23,7 +24,7 @@ export default function FinalPriceForm({
   const [state, formAction, pending] = useActionState(action, initialState);
 
   return (
-    <form action={formAction} className="flex items-end gap-3">
+    <Form action={formAction} state={state} className="flex items-end gap-3">
       <input type="hidden" name="expectedLockVersion" value={lockVersion} />
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="finalPrice" className="text-xs">
@@ -43,6 +44,6 @@ export default function FinalPriceForm({
       </Button>
       {state.errors?.finalPrice && <span className="text-xs text-destructive">{state.errors.finalPrice[0]}</span>}
       {state.formError && <span role="alert" className="text-xs text-destructive">{state.formError}</span>}
-    </form>
+    </Form>
   );
 }

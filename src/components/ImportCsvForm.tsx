@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Form } from "@/components/ui/form";
 
 type ImportState = {
   formError?: string;
@@ -19,7 +20,7 @@ export default function ImportCsvForm({
   const [state, formAction, pending] = useActionState(action, {});
 
   return (
-    <form action={formAction} className="flex max-w-xl flex-col gap-4">
+    <Form action={formAction} state={state} className="flex max-w-xl flex-col gap-4">
       <div className="rounded-lg bg-muted/30 p-3 text-xs text-muted-foreground">
         الأعمدة المتوقّعة في سطر العناوين (بنفس الترتيب والتسمية دي، زي ملف «تصدير CSV» بالظبط):
         <br />
@@ -53,6 +54,6 @@ export default function ImportCsvForm({
           )}
         </div>
       )}
-    </form>
+    </Form>
   );
 }

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Form } from "@/components/ui/form";
 
 const initialState: UpdateProductFormState = {};
 const monthLabel = ["", "يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
@@ -31,7 +32,7 @@ export default function ProductEditForm({
   const selectableStatuses = [status, ...allowedNextStatuses.filter((s) => s !== status)];
 
   return (
-    <form action={formAction} className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5">
+    <Form action={formAction} state={state} className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="status">حالة التوثيق</Label>
@@ -79,6 +80,6 @@ export default function ProductEditForm({
       <Button type="submit" disabled={pending} className="w-fit">
         {pending ? "جاري الحفظ..." : "حفظ التعديلات"}
       </Button>
-    </form>
+    </Form>
   );
 }

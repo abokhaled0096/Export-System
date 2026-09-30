@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Form } from "@/components/ui/form";
 
 const initialState: CAPAFormState = {};
 const rootCauseMethods = Object.keys(capaRootCauseMethodLabel);
@@ -15,7 +16,7 @@ export default function CAPAForm() {
   const [state, formAction, pending] = useActionState(createCAPA, initialState);
 
   return (
-    <form action={formAction} className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-4">
+    <Form action={formAction} state={state} className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-4">
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="rootCause" className="text-xs">
           السبب الجذري
@@ -61,6 +62,6 @@ export default function CAPAForm() {
         {pending ? "جاري الإضافة..." : "+ إجراء تصحيحي"}
       </Button>
       {state.formError && <p role="alert" className="w-full text-sm text-destructive">{state.formError}</p>}
-    </form>
+    </Form>
   );
 }

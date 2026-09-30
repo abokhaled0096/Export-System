@@ -5,6 +5,7 @@ import Link from "next/link";
 import { updateTransportTripDriverPhoneAction, type TransportTripDriverPhoneFormState } from "../actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Form } from "@/components/ui/form";
 
 const initialState: TransportTripDriverPhoneFormState = {};
 
@@ -40,7 +41,7 @@ export default function TransportTripPhoneCell({
   }
 
   return (
-    <form action={formAction} className="flex flex-col gap-1">
+    <Form action={formAction} state={state} className="flex flex-col gap-1">
       <div className="flex items-center gap-1">
         <Input
           name="driverPhone"
@@ -69,6 +70,6 @@ export default function TransportTripPhoneCell({
           )}
         </span>
       )}
-    </form>
+    </Form>
   );
 }

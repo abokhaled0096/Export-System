@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Form } from "@/components/ui/form";
 
 const initialState: OriginProofUpdateFormState = {};
 const cumulationTypes = Object.keys(originProofCumulationTypeLabel);
@@ -48,7 +49,7 @@ export default function EditOriginProofForm({
   }
 
   return (
-    <form action={formAction} className="flex flex-col gap-3 rounded-xl border border-primary/30 bg-primary/5 p-3">
+    <Form action={formAction} state={state} className="flex flex-col gap-3 rounded-xl border border-primary/30 bg-primary/5 p-3">
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor={`ecn-${proof.id}`} className="text-xs">
@@ -134,6 +135,6 @@ export default function EditOriginProofForm({
           )}
         </p>
       )}
-    </form>
+    </Form>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { assignUserRole, type AssignRoleFormState } from "./actions";
+import { Form } from "@/components/ui/form";
 
 const initialState: AssignRoleFormState = {};
 
@@ -19,7 +20,7 @@ export default function RoleSelectForm({
   const [state, formAction, pending] = useActionState(assignUserRole, initialState);
 
   return (
-    <form action={formAction} className="flex items-center gap-2">
+    <Form action={formAction} state={state} className="flex items-center gap-2">
       <input type="hidden" name="userId" value={userId} />
       <select
         name="roleId"
@@ -42,6 +43,6 @@ export default function RoleSelectForm({
       </button>
       {isSelf && <span className="text-xs text-amber-600">ده حسابك — احذر لو غيّرت دورك</span>}
       {state.formError && <span role="alert" className="text-xs text-rose-600">{state.formError}</span>}
-    </form>
+    </Form>
   );
 }

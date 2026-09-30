@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Form } from "@/components/ui/form";
 
 const initialState: InstallmentFormState = {};
 
@@ -190,7 +191,7 @@ export function InstallmentForm({ loanId, currency }: { loanId: string; currency
   const [state, formAction, pending] = useActionState(action, initialState);
 
   return (
-    <form action={formAction} className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-4">
+    <Form action={formAction} state={state} className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-4">
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="inst-due" className="text-xs">
           تاريخ الاستحقاق *
@@ -222,6 +223,6 @@ export function InstallmentForm({ loanId, currency }: { loanId: string; currency
           {state.formError}
         </p>
       )}
-    </form>
+    </Form>
   );
 }

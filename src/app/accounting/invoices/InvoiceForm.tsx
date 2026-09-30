@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import CurrencySelect from "@/components/CurrencySelect";
+import { Form } from "@/components/ui/form";
 
 const initialState: InvoiceFormState = {};
 
@@ -58,7 +59,7 @@ export default function InvoiceForm({ salesOrders, purchaseOrders, companies, su
   const isSales = invoiceType === "SalesInvoice" || invoiceType === "CreditNote" || invoiceType === "ProformaInvoice";
 
   return (
-    <form action={formAction} className="grid gap-3 sm:grid-cols-2">
+    <Form action={formAction} state={state} className="grid gap-3 sm:grid-cols-2">
       <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="inv-type" className="text-xs">
@@ -236,6 +237,6 @@ export default function InvoiceForm({ salesOrders, purchaseOrders, companies, su
           {state.formError}
         </p>
       )}
-    </form>
+    </Form>
   );
 }

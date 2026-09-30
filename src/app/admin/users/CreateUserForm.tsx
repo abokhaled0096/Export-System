@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import Link from "next/link";
 import { createUserAction, type CreateUserFormState } from "./actions";
+import { Form } from "@/components/ui/form";
 
 const initialState: CreateUserFormState = {};
 
@@ -10,7 +11,7 @@ export default function CreateUserForm({ roles }: { roles: { id: string; name: s
   const [state, formAction, pending] = useActionState(createUserAction, initialState);
 
   return (
-    <form action={formAction} className="flex flex-wrap items-end gap-3 rounded-xl border border-neutral-200 bg-white p-4">
+    <Form action={formAction} state={state} className="flex flex-wrap items-end gap-3 rounded-xl border border-neutral-200 bg-white p-4">
       <div className="flex flex-col gap-1.5">
         <label htmlFor="new-user-email" className="text-xs text-neutral-500">
           الإيميل
@@ -82,6 +83,6 @@ export default function CreateUserForm({ roles }: { roles: { id: string; name: s
           )}
         </span>
       )}
-    </form>
+    </Form>
   );
 }

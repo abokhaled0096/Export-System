@@ -6,6 +6,7 @@ import { updateSupplierBankInfoAction, type SupplierBankInfoFormState } from "..
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Form } from "@/components/ui/form";
 
 const initialState: SupplierBankInfoFormState = {};
 
@@ -47,7 +48,7 @@ export default function SupplierBankInfoForm({
   }
 
   return (
-    <form action={formAction} className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-4">
+    <Form action={formAction} state={state} className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-4">
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="sup-bank-name" className="text-xs">
           اسم صاحب الحساب
@@ -81,6 +82,6 @@ export default function SupplierBankInfoForm({
           )}
         </p>
       )}
-    </form>
+    </Form>
   );
 }

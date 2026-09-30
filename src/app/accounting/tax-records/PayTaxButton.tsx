@@ -5,6 +5,7 @@ import { payTaxRecordAction, type TaxPaymentFormState } from "../finance-actions
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Form } from "@/components/ui/form";
 
 const initialState: TaxPaymentFormState = {};
 
@@ -31,7 +32,7 @@ export default function PayTaxButton({
   }
 
   return (
-    <form action={formAction} className="flex items-center gap-2">
+    <Form action={formAction} state={state} className="flex items-center gap-2">
       <Select name="bankAccountId" defaultValue={bankAccounts[0]?.id}>
         <SelectTrigger className="w-40">
           <SelectValue>{(value: string) => bankAccounts.find((a) => a.id === value)?.label ?? "—"}</SelectValue>
@@ -52,6 +53,6 @@ export default function PayTaxButton({
         {pending ? "..." : "تسجيل السداد"}
       </Button>
       {state.formError && <span className="text-xs text-destructive">{state.formError}</span>}
-    </form>
+    </Form>
   );
 }

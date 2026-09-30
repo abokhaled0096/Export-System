@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { toggleUserActiveAction, type ToggleActiveFormState } from "./actions";
+import { Form } from "@/components/ui/form";
 
 const initialState: ToggleActiveFormState = {};
 
@@ -9,7 +10,7 @@ export default function ToggleActiveForm({ userId, isActive }: { userId: string;
   const [state, formAction, pending] = useActionState(toggleUserActiveAction, initialState);
 
   return (
-    <form action={formAction} className="flex items-center gap-1.5">
+    <Form action={formAction} state={state} className="flex items-center gap-1.5">
       <input type="hidden" name="userId" value={userId} />
       <input type="hidden" name="isActive" value={String(!isActive)} />
       <button
@@ -28,6 +29,6 @@ export default function ToggleActiveForm({ userId, isActive }: { userId: string;
           {state.formError}
         </span>
       )}
-    </form>
+    </Form>
   );
 }

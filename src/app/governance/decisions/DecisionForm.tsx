@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Form } from "@/components/ui/form";
 
 const initialState: DecisionFormState = {};
 
@@ -15,7 +16,7 @@ export default function DecisionForm({ users, currentUserId }: { users: UserOpti
   const [state, formAction, pending] = useActionState(createDecisionLogEntry, initialState);
 
   return (
-    <form action={formAction} className="grid gap-3 rounded-xl border border-border bg-card p-4 sm:grid-cols-2">
+    <Form action={formAction} state={state} className="grid gap-3 rounded-xl border border-border bg-card p-4 sm:grid-cols-2">
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="dec-title" className="text-xs">
           العنوان *
@@ -69,6 +70,6 @@ export default function DecisionForm({ users, currentUserId }: { users: UserOpti
           {state.formError}
         </p>
       )}
-    </form>
+    </Form>
   );
 }

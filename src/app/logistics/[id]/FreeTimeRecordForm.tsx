@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import CurrencySelect from "@/components/CurrencySelect";
+import { Form } from "@/components/ui/form";
 
 const initialState: FreeTimeRecordFormState = {};
 const chargeTypes = Object.keys(freeTimeChargeTypeLabel);
@@ -24,7 +25,7 @@ export default function FreeTimeRecordForm({
   const [state, formAction, pending] = useActionState(action, initialState);
 
   return (
-    <form action={formAction} className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-4">
+    <Form action={formAction} state={state} className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-4">
       {containers.length > 0 && (
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="containerId" className="text-xs">
@@ -124,6 +125,6 @@ export default function FreeTimeRecordForm({
         {pending ? "جاري التسجيل..." : "+ سجل"}
       </Button>
       {state.formError && <p role="alert" className="w-full text-sm text-destructive">{state.formError}</p>}
-    </form>
+    </Form>
   );
 }

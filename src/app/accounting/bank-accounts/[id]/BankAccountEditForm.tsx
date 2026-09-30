@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Form } from "@/components/ui/form";
 
 const initialState: BankAccountEditFormState = {};
 
@@ -67,7 +68,7 @@ export default function BankAccountEditForm({
           {toggleError && <span className="text-xs text-destructive">{toggleError}</span>}
         </div>
       ) : (
-        <form action={formAction} className="flex flex-wrap items-end gap-3">
+        <Form action={formAction} state={state} className="flex flex-wrap items-end gap-3">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="ba-edit-name" className="text-xs">
               اسم الحساب *
@@ -89,7 +90,7 @@ export default function BankAccountEditForm({
             إلغاء
           </Button>
           {state.formError && <p className="w-full text-sm text-destructive">{state.formError}</p>}
-        </form>
+        </Form>
       )}
     </div>
   );

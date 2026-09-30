@@ -4,6 +4,7 @@ import { useActionState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { lockScenario, type LockScenarioState } from "../../../actions";
 import { Button } from "@/components/ui/button";
+import { Form } from "@/components/ui/form";
 
 const initialState: LockScenarioState = {};
 
@@ -25,7 +26,7 @@ export default function LockButton({
   }, [state, pending]);
 
   return (
-    <form action={formAction}>
+    <Form action={formAction} state={state}>
       <input type="hidden" name="expectedLockVersion" value={lockVersion} />
       <Button
         type="submit"
@@ -36,6 +37,6 @@ export default function LockButton({
         {pending ? "جاري القفل..." : "قفل السيناريو"}
       </Button>
       {state.formError && <p role="alert" className="mt-1 text-xs text-rose-600">{state.formError}</p>}
-    </form>
+    </Form>
   );
 }

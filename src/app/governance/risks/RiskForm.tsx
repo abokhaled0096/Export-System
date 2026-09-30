@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import CurrencySelect from "@/components/CurrencySelect";
 import { useFormDialogClose } from "@/components/FormDialog";
+import { Form } from "@/components/ui/form";
 
 const initialState: RiskFormState = {};
 
@@ -35,7 +36,7 @@ export default function RiskForm({
   }, [state.ok, closeDialog]);
 
   return (
-    <form action={formAction} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    <Form action={formAction} state={state} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="risk-title" className="text-xs">
           العنوان *
@@ -112,6 +113,6 @@ export default function RiskForm({
           {state.formError}
         </p>
       )}
-    </form>
+    </Form>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { login, type LoginFormState } from "./actions";
+import { Form } from "@/components/ui/form";
 
 const initialState: LoginFormState = {};
 
@@ -9,7 +10,7 @@ export default function LoginForm({ next }: { next?: string }) {
   const [state, formAction, pending] = useActionState(login, initialState);
 
   return (
-    <form action={formAction} className="flex flex-col gap-5 w-full max-w-sm">
+    <Form action={formAction} state={state} className="flex flex-col gap-5 w-full max-w-sm">
       <input type="hidden" name="next" value={next ?? ""} />
       <label className="flex flex-col gap-1.5">
         <span className="text-sm font-medium text-neutral-700">الإيميل</span>
@@ -44,6 +45,6 @@ export default function LoginForm({ next }: { next?: string }) {
       <p className="text-xs text-neutral-400 text-center">
         للحصول على حساب، تواصل مع مدير النظام في الشركة.
       </p>
-    </form>
+    </Form>
   );
 }

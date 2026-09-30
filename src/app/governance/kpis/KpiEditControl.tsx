@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { updateKpiAction, type KpiEditFormState } from "../actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Form } from "@/components/ui/form";
 
 const initialState: KpiEditFormState = {};
 
@@ -38,7 +39,7 @@ export default function KpiEditControl({
   }
 
   return (
-    <form action={formAction} className="flex flex-col gap-1.5 rounded-lg border border-border bg-secondary/40 p-2">
+    <Form action={formAction} state={state} className="flex flex-col gap-1.5 rounded-lg border border-border bg-secondary/40 p-2">
       <Input name="name" defaultValue={name} className="w-40" placeholder="الاسم" />
       {state.errors?.name && <span className="text-xs text-destructive">{state.errors.name[0]}</span>}
       <Input name="category" defaultValue={category} className="w-40" placeholder="الفئة" />
@@ -56,6 +57,6 @@ export default function KpiEditControl({
         </Button>
       </div>
       {state.formError && <span className="text-xs text-destructive">{state.formError}</span>}
-    </form>
+    </Form>
   );
 }

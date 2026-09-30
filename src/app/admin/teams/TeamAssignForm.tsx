@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { assignUserTeam, type AssignUserTeamFormState } from "./actions";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Form } from "@/components/ui/form";
 
 const initialState: AssignUserTeamFormState = {};
 
@@ -21,7 +22,7 @@ export default function TeamAssignForm({
   const [state, formAction, pending] = useActionState(assignUserTeam, initialState);
 
   return (
-    <form action={formAction} className="flex items-center gap-2">
+    <Form action={formAction} state={state} className="flex items-center gap-2">
       <input type="hidden" name="userId" value={userId} />
       <Select name="teamId" defaultValue={currentTeamId ?? NO_TEAM}>
         <SelectTrigger className="w-44">
@@ -44,6 +45,6 @@ export default function TeamAssignForm({
         {pending ? "جاري الحفظ..." : "حفظ"}
       </Button>
       {state.formError && <span role="alert" className="text-xs text-destructive">{state.formError}</span>}
-    </form>
+    </Form>
   );
 }

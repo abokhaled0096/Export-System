@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import CurrencySelect from "@/components/CurrencySelect";
+import { Form } from "@/components/ui/form";
 
 const initialState: CustomerSampleFormState = {};
 const statuses = Object.keys(customerSampleStatusLabel);
@@ -27,7 +28,7 @@ export default function CustomerSampleForm({
   const [state, formAction, pending] = useActionState(action, initialState);
 
   return (
-    <form action={formAction} className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-4">
+    <Form action={formAction} state={state} className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-4">
       <input type="hidden" name="productId" value={productId} />
       <div className="flex flex-col gap-1.5">
         <Label className="text-xs">المنتج</Label>
@@ -97,6 +98,6 @@ export default function CustomerSampleForm({
         {pending ? "جاري الإضافة..." : "+ عينة"}
       </Button>
       {state.formError && <p role="alert" className="w-full text-sm text-destructive">{state.formError}</p>}
-    </form>
+    </Form>
   );
 }

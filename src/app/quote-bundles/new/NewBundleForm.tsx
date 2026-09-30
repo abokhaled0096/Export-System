@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { createQuoteBundle, type QuoteBundleFormState } from "../actions";
 import { Button } from "@/components/ui/button";
+import { Form } from "@/components/ui/form";
 
 const statusLabel: Record<string, string> = { Draft: "مسودة", PendingApproval: "بانتظار الموافقة", Sent: "مُرسَل" };
 
@@ -21,7 +22,7 @@ export default function NewBundleForm({ customerId, quotes }: { customerId: stri
   const [state, formAction, pending] = useActionState(createQuoteBundle, initialState);
 
   return (
-    <form action={formAction} className="mt-6 flex flex-col gap-3">
+    <Form action={formAction} state={state} className="mt-6 flex flex-col gap-3">
       <input type="hidden" name="customerId" value={customerId} />
       <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-4">
         {quotes.map((q) => (
@@ -51,6 +52,6 @@ export default function NewBundleForm({ customerId, quotes }: { customerId: stri
           {state.formError}
         </p>
       )}
-    </form>
+    </Form>
   );
 }

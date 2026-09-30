@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { companyClassificationLabel } from "@/lib/companyLabels";
+import { Form } from "@/components/ui/form";
 
 const initialState: CompanyFormState = {};
 
@@ -30,7 +31,7 @@ export default function CompanyForm() {
   const val = (name: string) => draft.values[name] ?? "";
 
   return (
-    <form action={formAction} className="flex max-w-xl flex-col gap-5">
+    <Form action={formAction} state={state} className="flex max-w-xl flex-col gap-5">
       {draft.hasRestoredDraft && (
         <div className="flex items-center justify-between rounded-lg bg-sky-50 px-3 py-2 text-xs text-sky-800">
           <span>استرجعنا مسودة كنت بتكتبها قبل كده.</span>
@@ -98,6 +99,6 @@ export default function CompanyForm() {
       <Button type="submit" disabled={pending} className="w-fit">
         {pending ? "جاري الحفظ..." : "حفظ الشركة"}
       </Button>
-    </form>
+    </Form>
   );
 }

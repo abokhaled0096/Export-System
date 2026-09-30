@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { StartBatchFormState } from "./batchActions";
+import { Form } from "@/components/ui/form";
 
 const initialState: StartBatchFormState = {};
 
@@ -55,7 +56,7 @@ export default function BulkAnalysisButton({
   }
 
   return (
-    <form action={formAction} className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
+    <Form action={formAction} state={state} className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
       <p className="text-sm text-foreground/80">{description}</p>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -120,6 +121,6 @@ export default function BulkAnalysisButton({
           {state.formError}
         </p>
       )}
-    </form>
+    </Form>
   );
 }

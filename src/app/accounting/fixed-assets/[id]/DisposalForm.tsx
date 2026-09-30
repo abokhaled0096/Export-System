@@ -5,6 +5,7 @@ import { disposeFixedAssetAction, type DisposalFormState } from "../../finance-a
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Form } from "@/components/ui/form";
 
 const initialState: DisposalFormState = {};
 
@@ -28,7 +29,7 @@ export default function DisposalForm({
   const gainLoss = value ? Number(value) - Number(netBookValue) : null;
 
   return (
-    <form action={formAction} className="flex flex-wrap items-end gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4">
+    <Form action={formAction} state={state} className="flex flex-wrap items-end gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4">
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="disp-date" className="text-xs">
           تاريخ التخلص *
@@ -70,6 +71,6 @@ export default function DisposalForm({
           {state.formError}
         </p>
       )}
-    </form>
+    </Form>
   );
 }

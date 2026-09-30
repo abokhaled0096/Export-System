@@ -6,6 +6,7 @@ import { operationTypeLabel } from "@/lib/complianceLabels";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Form } from "@/components/ui/form";
 
 const initialState: ComplianceCaseFormState = {};
 
@@ -24,7 +25,7 @@ export default function OpenComplianceCaseForm({
   const [state, formAction, pending] = useActionState(action, initialState);
 
   return (
-    <form action={formAction} className="flex flex-wrap items-end gap-3">
+    <Form action={formAction} state={state} className="flex flex-wrap items-end gap-3">
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="operationType" className="text-xs">
           نوع العملية
@@ -67,6 +68,6 @@ export default function OpenComplianceCaseForm({
         {pending ? "جاري الفتح..." : "فتح ملف امتثال"}
       </Button>
       {state.formError && <span role="alert" className="text-xs text-destructive">{state.formError}</span>}
-    </form>
+    </Form>
   );
 }

@@ -5,6 +5,7 @@ import { createAiCompetitors, type AiCompetitorsFormState } from "../../actions"
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Form } from "@/components/ui/form";
 
 const initialState: AiCompetitorsFormState = {};
 
@@ -24,7 +25,7 @@ export default function AiCompetitorForm({
   const [state, formAction, pending] = useActionState(createAiCompetitors, initialState);
 
   return (
-    <form action={formAction} className="flex max-w-xl flex-col gap-5">
+    <Form action={formAction} state={state} className="flex max-w-xl flex-col gap-5">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="productId">المنتج *</Label>
@@ -79,6 +80,6 @@ export default function AiCompetitorForm({
       <Button type="submit" disabled={pending} className="w-fit">
         {pending ? "جاري البحث..." : "ابحث بالذكاء الاصطناعي"}
       </Button>
-    </form>
+    </Form>
   );
 }

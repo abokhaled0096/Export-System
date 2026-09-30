@@ -10,6 +10,7 @@ import {
   type ClearAiKeyState,
 } from "./actions";
 import { Button } from "@/components/ui/button";
+import { Form } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -56,7 +57,7 @@ export default function AiSettingsForm({
       </div>
 
       {editing && (
-        <form action={formAction} className="flex flex-wrap items-end gap-3 border-t border-border pt-3">
+        <Form action={formAction} state={state} className="flex flex-wrap items-end gap-3 border-t border-border pt-3">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="ai-api-key" className="text-xs">
               مفتاح API جديد
@@ -124,11 +125,11 @@ export default function AiSettingsForm({
               )}
             </p>
           )}
-        </form>
+        </Form>
       )}
 
       {hasCustomApiKey && (
-        <form action={clearAction} className="flex items-center gap-3 border-t border-border pt-3">
+        <Form action={clearAction} state={clearState} className="flex items-center gap-3 border-t border-border pt-3">
           <Button type="submit" variant="outline" size="sm" disabled={clearPending}>
             {clearPending ? "جاري المسح..." : "امسح المفتاح المخصّص وارجع لـ.env"}
           </Button>
@@ -146,11 +147,11 @@ export default function AiSettingsForm({
               )}
             </p>
           )}
-        </form>
+        </Form>
       )}
 
       {hasTavilyKey && (
-        <form action={clearTavilyAction} className="flex items-center gap-3 border-t border-border pt-3">
+        <Form action={clearTavilyAction} state={clearTavilyState} className="flex items-center gap-3 border-t border-border pt-3">
           <Button type="submit" variant="outline" size="sm" disabled={clearTavilyPending}>
             {clearTavilyPending ? "جاري المسح..." : "امسح مفتاح Tavily"}
           </Button>
@@ -168,7 +169,7 @@ export default function AiSettingsForm({
               )}
             </p>
           )}
-        </form>
+        </Form>
       )}
     </div>
   );

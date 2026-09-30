@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Form } from "@/components/ui/form";
 
 const initialState: SupplierFormState = {};
 const types = Object.keys(supplierTypeLabel);
@@ -15,7 +16,7 @@ export default function SupplierForm() {
   const [state, formAction, pending] = useActionState(createSupplier, initialState);
 
   return (
-    <form action={formAction} className="flex flex-col gap-3">
+    <Form action={formAction} state={state} className="flex flex-col gap-3">
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="legalName" className="text-xs">
@@ -78,6 +79,6 @@ export default function SupplierForm() {
         </div>
       </div>
       {state.formError && <p role="alert" className="text-sm text-destructive">{state.formError}</p>}
-    </form>
+    </Form>
   );
 }

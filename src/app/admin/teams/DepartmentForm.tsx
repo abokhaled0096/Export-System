@@ -5,6 +5,7 @@ import { createDepartment, type CreateDepartmentFormState } from "./actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Form } from "@/components/ui/form";
 
 const initialState: CreateDepartmentFormState = {};
 
@@ -12,7 +13,7 @@ export default function DepartmentForm() {
   const [state, formAction, pending] = useActionState(createDepartment, initialState);
 
   return (
-    <form action={formAction} className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-4">
+    <Form action={formAction} state={state} className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-4">
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="dept-name" className="text-xs">
           اسم القسم
@@ -28,6 +29,6 @@ export default function DepartmentForm() {
           {state.formError}
         </p>
       )}
-    </form>
+    </Form>
   );
 }

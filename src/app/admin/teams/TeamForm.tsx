@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Form } from "@/components/ui/form";
 
 const initialState: CreateTeamFormState = {};
 
@@ -15,7 +16,7 @@ export default function TeamForm({ departments, users }: { departments: Option[]
   const [state, formAction, pending] = useActionState(createTeam, initialState);
 
   return (
-    <form action={formAction} className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-4">
+    <Form action={formAction} state={state} className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-4">
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="team-name" className="text-xs">
           اسم الفريق
@@ -72,6 +73,6 @@ export default function TeamForm({ departments, users }: { departments: Option[]
           {state.formError}
         </p>
       )}
-    </form>
+    </Form>
   );
 }

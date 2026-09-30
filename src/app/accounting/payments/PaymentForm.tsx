@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import CurrencySelect from "@/components/CurrencySelect";
 import { useFormDialogClose } from "@/components/FormDialog";
+import { Form } from "@/components/ui/form";
 
 const initialState: PaymentFormState = {};
 const directions = Object.keys(paymentDirectionLabel);
@@ -47,7 +48,7 @@ export default function PaymentForm({ bankAccounts, companies, suppliers }: Prop
   }
 
   return (
-    <form action={formAction} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    <Form action={formAction} state={state} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="pay-dir" className="text-xs">
@@ -186,6 +187,6 @@ export default function PaymentForm({ bankAccounts, companies, suppliers }: Prop
           {state.formError}
         </p>
       )}
-    </form>
+    </Form>
   );
 }

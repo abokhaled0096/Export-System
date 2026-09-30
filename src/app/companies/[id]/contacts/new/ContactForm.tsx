@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { contactDecisionRoleLabel } from "@/lib/companyLabels";
+import { Form } from "@/components/ui/form";
 
 const initialState: ContactFormState = {};
 
@@ -31,7 +32,7 @@ export default function ContactForm({ companyId }: { companyId: string }) {
   const [state, formAction, pending] = useActionState(createContact, initialState);
 
   return (
-    <form action={formAction} className="flex max-w-xl flex-col gap-5">
+    <Form action={formAction} state={state} className="flex max-w-xl flex-col gap-5">
       <input type="hidden" name="companyId" value={companyId} />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="flex flex-col gap-1.5">
@@ -86,6 +87,6 @@ export default function ContactForm({ companyId }: { companyId: string }) {
       <Button type="submit" disabled={pending} className="w-fit">
         {pending ? "جاري الحفظ..." : "حفظ جهة الاتصال"}
       </Button>
-    </form>
+    </Form>
   );
 }

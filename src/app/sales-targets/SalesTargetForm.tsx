@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import CurrencySelect from "@/components/CurrencySelect";
 import { useFormDialogClose } from "@/components/FormDialog";
+import { Form } from "@/components/ui/form";
 
 const initialState: SalesTargetFormState = {};
 const targetTypes = Object.keys(salesTargetTypeLabel);
@@ -31,7 +32,7 @@ export default function SalesTargetForm({
   }, [state.ok, closeDialog]);
 
   return (
-    <form action={formAction} className="flex flex-wrap items-end gap-3">
+    <Form action={formAction} state={state} className="flex flex-wrap items-end gap-3">
       {users.length > 0 && (
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="st-userId" className="text-xs">
@@ -123,6 +124,6 @@ export default function SalesTargetForm({
         {pending ? "جاري الإضافة..." : "+ هدف"}
       </Button>
       {state.formError && <p role="alert" className="w-full text-sm text-destructive">{state.formError}</p>}
-    </form>
+    </Form>
   );
 }

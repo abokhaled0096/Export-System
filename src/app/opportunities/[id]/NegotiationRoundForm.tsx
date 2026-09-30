@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Form } from "@/components/ui/form";
 
 const initialState: NegotiationRoundFormState = {};
 const concessionTypes = Object.keys(negotiationConcessionTypeLabel);
@@ -16,7 +17,7 @@ export default function NegotiationRoundForm({ opportunityId, negotiationId, nex
   const [state, formAction, pending] = useActionState(action, initialState);
 
   return (
-    <form action={formAction} className="flex flex-wrap items-end gap-2 rounded-lg bg-muted/40 p-3">
+    <Form action={formAction} state={state} className="flex flex-wrap items-end gap-2 rounded-lg bg-muted/40 p-3">
       <input type="hidden" name="negotiationId" value={negotiationId} />
       <div className="flex flex-col gap-1">
         <Label htmlFor={`roundNumber-${negotiationId}`} className="text-xs">
@@ -69,6 +70,6 @@ export default function NegotiationRoundForm({ opportunityId, negotiationId, nex
         {pending ? "جاري الإضافة..." : "+ جولة"}
       </Button>
       {state.formError && <p role="alert" className="w-full text-xs text-destructive">{state.formError}</p>}
-    </form>
+    </Form>
   );
 }

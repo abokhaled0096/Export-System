@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import CurrencySelect from "@/components/CurrencySelect";
+import { Form } from "@/components/ui/form";
 
 const initialState: FixedAssetFormState = {};
 const categories = Object.keys(fixedAssetCategoryLabel);
@@ -26,7 +27,7 @@ export default function FixedAssetForm({ costCenters, functionalCurrency }: { co
   }, [state.assetId, router]);
 
   return (
-    <form action={formAction} className="grid gap-3 rounded-xl border border-border bg-card p-4 sm:grid-cols-2 lg:grid-cols-3">
+    <Form action={formAction} state={state} className="grid gap-3 rounded-xl border border-border bg-card p-4 sm:grid-cols-2 lg:grid-cols-3">
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="fa-nameAr" className="text-xs">
           الاسم بالعربي *
@@ -145,6 +146,6 @@ export default function FixedAssetForm({ costCenters, functionalCurrency }: { co
           {state.formError}
         </p>
       )}
-    </form>
+    </Form>
   );
 }

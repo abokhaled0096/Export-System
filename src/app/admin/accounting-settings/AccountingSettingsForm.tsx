@@ -5,6 +5,7 @@ import { updateAccountingSettingsAction, type AccountingSettingsFormState } from
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import CurrencySelect from "@/components/CurrencySelect";
+import { Form } from "@/components/ui/form";
 
 const initialState: AccountingSettingsFormState = {};
 
@@ -31,7 +32,7 @@ export default function AccountingSettingsForm({ currentFunctionalCurrency }: { 
       </div>
 
       {editing && (
-        <form action={formAction} className="flex flex-wrap items-end gap-3 border-t border-border pt-3">
+        <Form action={formAction} state={state} className="flex flex-wrap items-end gap-3 border-t border-border pt-3">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="functionalCurrency">العملة الوظيفية (فاضية = إلغاء التفعيل)</Label>
             <CurrencySelect id="functionalCurrency" name="functionalCurrency" defaultValue={currentFunctionalCurrency ?? "EGP"} className="w-44" />
@@ -45,7 +46,7 @@ export default function AccountingSettingsForm({ currentFunctionalCurrency }: { 
           </Button>
           {state.mfaRequired && <span className="w-full text-xs text-amber-700">فعّل MFA من إعدادات حسابك الأول.</span>}
           {state.formError && <p className="w-full text-sm text-destructive">{state.formError}</p>}
-        </form>
+        </Form>
       )}
     </div>
   );

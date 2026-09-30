@@ -2,6 +2,7 @@
 
 import { useActionState, useState, useTransition } from "react";
 import { startEnrollment, verifyEnrollment, type VerifyEnrollmentState, type EnrollmentData } from "./actions";
+import { Form } from "@/components/ui/form";
 
 const initialState: VerifyEnrollmentState = {};
 
@@ -57,7 +58,7 @@ export default function EnrollmentFlow() {
       <img src={enrollment.qrCode} alt="QR كود التحقق بخطوتين" className="mt-3 h-40 w-40" />
       <p className="mt-2 break-all font-mono text-xs text-neutral-500">{enrollment.secret}</p>
 
-      <form action={formAction} className="mt-4 flex items-center gap-2">
+      <Form action={formAction} state={state} className="mt-4 flex items-center gap-2">
         <input
           type="text"
           name="code"
@@ -72,7 +73,7 @@ export default function EnrollmentFlow() {
         >
           {pending ? "جاري التحقق..." : "تأكيد"}
         </button>
-      </form>
+      </Form>
       {state.formError && <p role="alert" className="mt-2 text-sm text-rose-600">{state.formError}</p>}
     </div>
   );

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import CurrencySelect from "@/components/CurrencySelect";
+import { Form } from "@/components/ui/form";
 
 const initialState: BankAccountFormState = {};
 
@@ -13,7 +14,7 @@ export default function BankAccountForm() {
   const [state, formAction, pending] = useActionState(createBankAccount, initialState);
 
   return (
-    <form action={formAction} className="flex flex-wrap items-end gap-3">
+    <Form action={formAction} state={state} className="flex flex-wrap items-end gap-3">
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="accountName" className="text-xs">
           اسم الحساب *
@@ -60,6 +61,6 @@ export default function BankAccountForm() {
           </a>
         </p>
       )}
-    </form>
+    </Form>
   );
 }

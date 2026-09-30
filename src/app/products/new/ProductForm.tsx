@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { COUNTRIES_AR } from "@/lib/countries";
+import { Form } from "@/components/ui/form";
 
 const initialState: ProductFormState = {};
 const monthLabel = ["", "يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
@@ -47,7 +48,7 @@ export default function ProductForm() {
   const router = useRouter();
 
   return (
-    <form action={formAction} className="flex max-w-xl flex-col gap-5">
+    <Form action={formAction} state={state} className="flex max-w-xl flex-col gap-5">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Field label="الاسم بالعربية" name="nameAr" error={state.errors?.nameAr} required />
         <Field label="Name (English)" name="nameEn" error={state.errors?.nameEn} required />
@@ -170,6 +171,6 @@ export default function ProductForm() {
           إلغاء
         </Button>
       </div>
-    </form>
+    </Form>
   );
 }

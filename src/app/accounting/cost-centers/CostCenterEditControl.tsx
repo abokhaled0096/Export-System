@@ -6,6 +6,7 @@ import { costCenterTypeLabel } from "@/lib/accountingLabels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Form } from "@/components/ui/form";
 
 const initialState: CostCenterEditFormState = {};
 const types = Object.keys(costCenterTypeLabel);
@@ -29,7 +30,7 @@ export default function CostCenterEditControl({ costCenterId, name, type }: { co
   }
 
   return (
-    <form action={formAction} className="flex flex-wrap items-center gap-1.5">
+    <Form action={formAction} state={state} className="flex flex-wrap items-center gap-1.5">
       <Input name="name" defaultValue={name} className="w-32" />
       <Select name="type" defaultValue={type}>
         <SelectTrigger className="w-28">
@@ -50,6 +51,6 @@ export default function CostCenterEditControl({ costCenterId, name, type }: { co
         إلغاء
       </Button>
       {(state.errors?.name || state.formError) && <span className="text-xs text-destructive">{state.errors?.name?.[0] ?? state.formError}</span>}
-    </form>
+    </Form>
   );
 }

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Form } from "@/components/ui/form";
 
 const initialState: AllocationFormState = {};
 
@@ -32,7 +33,7 @@ export default function AllocationForm({
   }
 
   return (
-    <form action={formAction} className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-4">
+    <Form action={formAction} state={state} className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-4">
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="alloc-invoice" className="text-xs">
           الفاتورة *
@@ -67,6 +68,6 @@ export default function AllocationForm({
           {state.formError}
         </p>
       )}
-    </form>
+    </Form>
   );
 }

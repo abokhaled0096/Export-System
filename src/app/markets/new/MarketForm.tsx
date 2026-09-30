@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import CurrencySelect from "@/components/CurrencySelect";
+import { Form } from "@/components/ui/form";
 
 const initialState: MarketFormState = {};
 
@@ -38,7 +39,7 @@ export default function MarketForm() {
   const [state, formAction, pending] = useActionState(createMarket, initialState);
 
   return (
-    <form action={formAction} className="flex max-w-xl flex-col gap-5">
+    <Form action={formAction} state={state} className="flex max-w-xl flex-col gap-5">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Field label="اسم الدولة بالعربية" name="countryNameAr" error={state.errors?.countryNameAr} required />
         <Field label="Country Name (English)" name="countryNameEn" error={state.errors?.countryNameEn} required />
@@ -84,6 +85,6 @@ export default function MarketForm() {
       <Button type="submit" disabled={pending} className="w-fit">
         {pending ? "جاري الحفظ..." : "حفظ السوق"}
       </Button>
-    </form>
+    </Form>
   );
 }
