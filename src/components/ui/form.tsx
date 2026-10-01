@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type ComponentProps } from "react";
+import { useFormDialogClose } from "@/components/FormDialog";
 
 /**
  * `<Form>` — بديل `<form action={formAction}>` بيحافظ على اللي المستخدم كتبه لما الحفظ يفشل.
@@ -64,12 +65,18 @@ export function Form({
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const submitted = useRef<FormData | null>(null);
+  const closeDialog = useFormDialogClose();
 
   useEffect(() => {
     const snapshot = submitted.current;
     if (!snapshot) return;
     submitted.current = null;
     const failed = Boolean(state?.formError) || Boolean(state?.errors);
+    // ⚠️ الفورم هو اللي يعرف إنه نجح، فهو اللي بيقفل النافذة. قبل كده كل فورم كان لازم
+    // يضيف `ok: true` في الـaction بتاعته و`useEffect` خاص بيها عشان تقفل — يعني تعديل
+    // في تلات ملفات عشان تحط فورم في نافذة. دلوقتي كفاية تلفّه بـ`<FormDialog>`.
+    // بره النافذة `useFormDialogClose()` بترجّع null والسطر ده مابيعملش حاجة.
+    if (!failed) closeDialog?.();
     if (!failed || !preserveOnError) return;
     const form = formRef.current;
     if (!form) return;
@@ -87,7 +94,7 @@ export function Form({
       // والكتابة دي مالهاش أثر — مابنعملهاش عشان مانبوّظش تزامن React معاها.
       if (element.value !== values[0]) element.value = values[0];
     }
-  }, [state, preserveOnError]);
+  }, [state, preserveOnError, closeDialog]);
 
   return (
     <form

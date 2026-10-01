@@ -42,6 +42,7 @@ import {
 import { shipmentStatusLabel, shipmentStatusStyle, transportModeLabel, aciStatusLabel, aciStatusStyle } from "@/lib/logisticsLabels";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import FormDialog from "@/components/FormDialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDate, toDateInputValue } from "@/lib/format";
 
@@ -177,7 +178,9 @@ export default async function ComplianceCaseDetailPage({ params }: { params: Pro
       <section className="mt-8">
         <h2 className="text-lg font-medium text-foreground">المتطلبات</h2>
         <div className="mt-3">
-          <RequirementForm complianceCaseId={kase.id} />
+          <FormDialog triggerLabel="+ متطلب" title="إضافة متطلب">
+            <RequirementForm complianceCaseId={kase.id} />
+          </FormDialog>
         </div>
         <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card">
           <Table>
@@ -232,11 +235,13 @@ export default async function ComplianceCaseDetailPage({ params }: { params: Pro
       <section className="mt-8">
         <h2 className="text-lg font-medium text-foreground">البوابات (Gates)</h2>
         <div className="mt-3">
-          <GateForm
-            complianceCaseId={kase.id}
-            requirements={kase.requirements.map((r) => ({ id: r.id, name: r.name }))}
-            nextGateNumber={(kase.gates.at(-1)?.gateNumber ?? 0) + 1}
-          />
+          <FormDialog triggerLabel="+ بوابة" title="إضافة بوابة">
+            <GateForm
+              complianceCaseId={kase.id}
+              requirements={kase.requirements.map((r) => ({ id: r.id, name: r.name }))}
+              nextGateNumber={(kase.gates.at(-1)?.gateNumber ?? 0) + 1}
+            />
+          </FormDialog>
         </div>
         <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card">
           <Table>
@@ -295,7 +300,9 @@ export default async function ComplianceCaseDetailPage({ params }: { params: Pro
           أي بوابة معلَّمة &quot;تحقق مهلة ACI&quot; لازم يكون فيها شحنة مرتبطة استوفت مهلة الـ48 ساعة قبل ما تعدّي.
         </p>
         <div className="mt-3">
-          <ShipmentCreateForm dealId={kase.dealId} complianceCaseId={kase.id} />
+          <FormDialog triggerLabel="+ شحنة" title="إنشاء شحنة من ملف الامتثال">
+            <ShipmentCreateForm dealId={kase.dealId} complianceCaseId={kase.id} />
+          </FormDialog>
         </div>
         <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card">
           <Table>
@@ -343,7 +350,9 @@ export default async function ComplianceCaseDetailPage({ params }: { params: Pro
       <section className="mt-8">
         <h2 className="text-lg font-medium text-foreground">التصنيف الجمركي (HS Code)</h2>
         <div className="mt-3">
-          <HSClassificationForm complianceCaseId={kase.id} productId={kase.productId} marketId={kase.marketId} />
+          <FormDialog triggerLabel="+ تصنيف جمركي" title="إضافة تصنيف جمركي (HS Code)">
+            <HSClassificationForm complianceCaseId={kase.id} productId={kase.productId} marketId={kase.marketId} />
+          </FormDialog>
         </div>
         <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card">
           <Table>
@@ -418,13 +427,15 @@ export default async function ComplianceCaseDetailPage({ params }: { params: Pro
       <section className="mt-8">
         <h2 className="text-lg font-medium text-foreground">الشهادات</h2>
         <div className="mt-3">
-          <CertificateForm
-            complianceCaseId={kase.id}
-            companyId={kase.deal.customerId}
-            productId={kase.productId}
-            suppliers={suppliers}
-            facilities={facilities}
-          />
+          <FormDialog triggerLabel="+ شهادة" title="إضافة شهادة">
+            <CertificateForm
+              complianceCaseId={kase.id}
+              companyId={kase.deal.customerId}
+              productId={kase.productId}
+              suppliers={suppliers}
+              facilities={facilities}
+            />
+          </FormDialog>
         </div>
         <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card">
           <Table>
@@ -467,7 +478,9 @@ export default async function ComplianceCaseDetailPage({ params }: { params: Pro
       <section className="mt-8">
         <h2 className="text-lg font-medium text-foreground">التسجيلات</h2>
         <div className="mt-3">
-          <RegistrationForm complianceCaseId={kase.id} productId={kase.productId} suppliers={suppliers} facilities={facilities} />
+          <FormDialog triggerLabel="+ تسجيل" title="إضافة تسجيل">
+            <RegistrationForm complianceCaseId={kase.id} productId={kase.productId} suppliers={suppliers} facilities={facilities} />
+          </FormDialog>
         </div>
         <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card">
           <Table>
@@ -513,7 +526,9 @@ export default async function ComplianceCaseDetailPage({ params }: { params: Pro
           قواعد PEM المنقّحة سارية فعليًا — أي بوابة شحن بعلامة PEM لازم تتحقق من عبارة &quot;revised rules&quot; هنا قبل ما تعدّي.
         </p>
         <div className="mt-3">
-          <OriginProofForm complianceCaseId={kase.id} dealId={kase.dealId} shipments={kase.shipments} />
+          <FormDialog triggerLabel="+ إثبات منشأ" title="إضافة إثبات منشأ">
+            <OriginProofForm complianceCaseId={kase.id} dealId={kase.dealId} shipments={kase.shipments} />
+          </FormDialog>
         </div>
         <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card">
           <Table>
@@ -585,11 +600,13 @@ export default async function ComplianceCaseDetailPage({ params }: { params: Pro
       <section className="mt-8">
         <h2 className="text-lg font-medium text-foreground">حالات الرفض</h2>
         <div className="mt-3">
-          <RejectionCaseForm
-            complianceCaseId={kase.id}
-            capas={capas}
-            shipments={kase.shipments.map((s) => ({ id: s.id, originPort: s.originPort, destinationPort: s.destinationPort }))}
-          />
+          <FormDialog triggerLabel="+ حالة رفض" title="تسجيل حالة رفض">
+            <RejectionCaseForm
+              complianceCaseId={kase.id}
+              capas={capas}
+              shipments={kase.shipments.map((s) => ({ id: s.id, originPort: s.originPort, destinationPort: s.destinationPort }))}
+            />
+          </FormDialog>
         </div>
         <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card">
           <Table>
@@ -636,7 +653,9 @@ export default async function ComplianceCaseDetailPage({ params }: { params: Pro
       <section className="mt-8">
         <h2 className="text-lg font-medium text-foreground">متطلبات خطاب الاعتماد (LC)</h2>
         <div className="mt-3">
-          <LCRequirementForm complianceCaseId={kase.id} dealId={kase.dealId} />
+          <FormDialog triggerLabel="+ متطلب LC" title="إضافة متطلب خطاب اعتماد">
+            <LCRequirementForm complianceCaseId={kase.id} dealId={kase.dealId} />
+          </FormDialog>
         </div>
         <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card">
           <Table>
