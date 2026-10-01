@@ -67,8 +67,15 @@ function SelectContent({
   // يحاذي العنصر المختار فوق الـtrigger، وده بيطلع غلط في RTL (القائمة بتتزحلق يمين/فوق منفصلة
   // عن الحقل) — لوحظ فعليًا في اختبار حي بصفحة /deals/new. راجع STATUS.md.
   alignItemWithTrigger = false,
+  emptyHint,
   ...props
-}: SelectPrimitive.Popup.Props &
+}: SelectPrimitive.Popup.Props & {
+  /**
+   * نص بديل لما القايمة تطلع فاضية — المفروض يقول **إزاي** المستخدم يضيف خيار،
+   * مش بس إنها فاضية. مثال: «مفيش منشآت للمورّد ده — ضيفها من صفحة المورّد».
+   */
+  emptyHint?: React.ReactNode;
+} &
   Pick<
     SelectPrimitive.Positioner.Props,
     "align" | "alignOffset" | "side" | "sideOffset" | "alignItemWithTrigger"
@@ -90,7 +97,17 @@ function SelectContent({
           {...props}
         >
           <SelectScrollUpButton />
-          <SelectPrimitive.List>{children}</SelectPrimitive.List>
+          <SelectPrimitive.List>
+            {/* ⚠️ قايمة فاضية من غير أي تفسير كانت بتخلّي المستخدم يفتكر إن فيه عطل.
+                حصل فعليًا معايا في فورم دفعة الإنتاج: قايمة المنشآت طلعت فاضية، وفضلت
+                أدوّر في الكود على عيب — والحقيقة إن المورّد مالوش منشآت أصلًا.
+                صفحة الشحنة بتعمل ده صح من زمان، وده تعميم لنفس الأسلوب على كل القوايم. */}
+            {React.Children.count(children) === 0 ? (
+              <div className="px-2.5 py-3 text-sm text-muted-foreground">{emptyHint ?? "مفيش خيارات متاحة."}</div>
+            ) : (
+              children
+            )}
+          </SelectPrimitive.List>
           <SelectScrollDownButton />
         </SelectPrimitive.Popup>
       </SelectPrimitive.Positioner>

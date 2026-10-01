@@ -105,7 +105,7 @@ export default async function PurchaseOrderDetailPage({ params }: { params: Prom
       <section className="mt-8">
         <h2 className="text-lg font-medium text-foreground">خطط الإنتاج</h2>
         <div className="mt-3">
-          <ProductionPlanForm purchaseOrderId={purchaseOrder.id} facilities={facilities} />
+          <ProductionPlanForm purchaseOrderId={purchaseOrder.id} facilities={facilities} supplierId={purchaseOrder.supplierId} />
         </div>
         <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card">
           <Table>
@@ -146,7 +146,7 @@ export default async function PurchaseOrderDetailPage({ params }: { params: Prom
       <section className="mt-8">
         <h2 className="text-lg font-medium text-foreground">دفعات الإنتاج</h2>
         <div className="mt-3">
-          <BatchForm purchaseOrderId={purchaseOrder.id} facilities={facilities} />
+          <BatchForm purchaseOrderId={purchaseOrder.id} facilities={facilities} supplierId={purchaseOrder.supplierId} />
         </div>
         <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card">
           <Table>

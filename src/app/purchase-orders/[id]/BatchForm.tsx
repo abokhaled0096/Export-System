@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import Link from "next/link";
 import { createBatch, type BatchFormState } from "../actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,9 +14,11 @@ const initialState: BatchFormState = {};
 export default function BatchForm({
   purchaseOrderId,
   facilities,
+  supplierId,
 }: {
   purchaseOrderId: string;
   facilities: { id: string; name: string }[];
+  supplierId: string;
 }) {
   const action = createBatch.bind(null, purchaseOrderId);
   const [state, formAction, pending] = useActionState(action, initialState);
@@ -30,7 +33,17 @@ export default function BatchForm({
           <SelectTrigger id="batch-facilityId" className="w-40">
             <SelectValue placeholder="اختر منشأة">{(value: string) => facilities.find((f) => f.id === value)?.name ?? value}</SelectValue>
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent
+            emptyHint={
+              <>
+                مفيش منشآت مسجّلة لمورّد أمر الشراء ده — سجّلها من{" "}
+                <Link href={`/suppliers/${supplierId}`} className="text-primary hover:underline">
+                  صفحة المورّد
+                </Link>{" "}
+                الأول.
+              </>
+            }
+          >
             {facilities.map((f) => (
               <SelectItem key={f.id} value={f.id}>
                 {f.name}

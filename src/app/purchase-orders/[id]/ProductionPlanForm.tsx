@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import Link from "next/link";
 import { createProductionPlan, type ProductionPlanFormState } from "../actions";
 import { productionProcessLabel } from "@/lib/procurementLabels";
 import { Button } from "@/components/ui/button";
@@ -15,9 +16,11 @@ const processes = Object.keys(productionProcessLabel);
 export default function ProductionPlanForm({
   purchaseOrderId,
   facilities,
+  supplierId,
 }: {
   purchaseOrderId: string;
   facilities: { id: string; name: string }[];
+  supplierId: string;
 }) {
   const action = createProductionPlan.bind(null, purchaseOrderId);
   const [state, formAction, pending] = useActionState(action, initialState);
@@ -32,7 +35,17 @@ export default function ProductionPlanForm({
           <SelectTrigger id="pp-facilityId" className="w-40">
             <SelectValue placeholder="اختر منشأة">{(value: string) => facilities.find((f) => f.id === value)?.name ?? value}</SelectValue>
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent
+            emptyHint={
+              <>
+                مفيش منشآت مسجّلة لمورّد أمر الشراء ده — سجّلها من{" "}
+                <Link href={`/suppliers/${supplierId}`} className="text-primary hover:underline">
+                  صفحة المورّد
+                </Link>{" "}
+                الأول.
+              </>
+            }
+          >
             {facilities.map((f) => (
               <SelectItem key={f.id} value={f.id}>
                 {f.name}
