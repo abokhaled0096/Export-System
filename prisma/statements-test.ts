@@ -19,6 +19,7 @@ import { countShipmentsNeedingAttention } from "../src/lib/logisticsAttention";
 import { labTestConflict, labTestsBlockingFullRelease } from "../src/lib/labTestVerdict";
 import { commissionAutomationState, commissionAutomationMessage } from "../src/lib/commissionAutomation";
 import { isSodRuleEnforcing, sodRuleEffectiveLabel } from "../src/lib/sodRules";
+import { computeCostConfidenceScore, computeDealScore, dealScoreBand, DEAL_SCORE_WEIGHTS } from "../src/lib/dealScoring";
 import { deterministicUuid } from "../src/lib/csv";
 import { z } from "zod";
 import { WORKFLOW_ENFORCED_ENTITY_TYPES } from "../src/lib/workflow";
@@ -497,6 +498,84 @@ async function runCollectionCycle(
       (k) => z.string().uuid().safeParse(k).success
     );
     check("200 مفتاح مختلف كلهم UUID صالح", String(allValid), "true");
+
+    // ── درجة الصفقة وثقة التكاليف (مواصفة مشروع ٢ §٢٥ و§٢٦) ──────────────────
+    // البند ده اتأجّل في SCOPE-P2.md لحد ما ScoreSnapshot يتبني، واتبنى 18 سبتمبر،
+    // والبند فضل مقفول. اتكشف في جرد docs/SPEC-COVERAGE.md (1 أكتوبر).
+
+    // §٢٦: الترجيح **بالمبلغ** مش متوسط حسابي — بند ضخم بافتراض غير مؤكد لازم يطغى
+    // على بند صغير بعقد ساري، وإلا الرقم بيطمّن غلط.
+    const bigUncertain = computeCostConfidenceScore([
+      { amount: 50000, confidenceLevel: "Assumption20" },
+      { amount: 200, confidenceLevel: "Contract100" },
+    ]);
+    check("ثقة التكاليف موزونة بالمبلغ مش متوسط بسيط", String(bigUncertain.score), "20");
+    check("نسبة التكاليف التقديرية اتحسبت", String(bigUncertain.estimatedSharePct), "100");
+    check("تحذير لما التقديري يتعدّى 40%", String(bigUncertain.reason.includes("⚠️")), "true");
+    check(
+      "قيم الثقة مطابقة للمواصفة حرفيًا",
+      String(
+        ([["Contract100", 100], ["OfficialQuote90", 90], ["ExpiringQuote75", 75], ["HistoricalAvg60", 60], ["InternalEstimate40", 40], ["Assumption20", 20]] as [string, number][])
+          .every(([lvl, expected]) => computeCostConfidenceScore([{ amount: 1, confidenceLevel: lvl }]).score === expected)
+      ),
+      "true"
+    );
+    check("مفيش بنود = null مش صفر", String(computeCostConfidenceScore([]).score), "null");
+
+    // §٢٥: المكوّن اللي مفيش له بيانات بيتشال من الوزن — **مابيتحطّش له 50 محايدة**.
+    // ده جوهر قاعدة «ممنوع درجة موزونة بلا تبرير»: درجة 80 بتغطية 60% مش زي 80 بتغطية 100%.
+    const sparseScore = computeDealScore({
+      expectedMarginPct: 25,
+      costConfidence: computeCostConfidenceScore([{ amount: 100, confidenceLevel: "Contract100" }]),
+      productStatus: "Verified",
+      openRedFlagSeverities: [],
+      advanceRatePct: 50,
+      creditDays: 30,
+      supplierOverallScore: null,
+      containerUtilizationPct: null,
+    });
+    check("هامش 25% = الدرجة الكاملة للربحية", String(sparseScore.components.find((c) => c.key === "profitability")?.score), "100");
+    check("المكوّن بلا بيانات بيرجع null مش 50", String(sparseScore.components.find((c) => c.key === "supplierReadiness")?.score), "null");
+    check("سعر السوق المرجعي مش متاح (محتاج مكتبة أسعار)", String(sparseScore.components.find((c) => c.key === "priceVsMarket")?.score), "null");
+    // المتاح: الربحية 25 + مخاطر العميل 15 + ثقة التكاليف 10 + جاهزية المنتج 10 = 60
+    check("التغطية = مجموع أوزان المتاح بس", String(sparseScore.coveragePct), "60");
+    check("كل مكوّن معاه سبب مكتوب", String(sparseScore.components.every((c) => c.reason.length > 0)), "true");
+    check("عدد المكوّنات 8 زي المواصفة", String(sparseScore.components.length), "8");
+    check("مجموع الأوزان 100", String(Object.values(DEAL_SCORE_WEIGHTS).reduce((a, b) => a + b, 0)), "100");
+
+    // علامة حمراء حرجة مفتوحة لازم تهبط مخاطر العميل بشدة
+    const flaggedScore = computeDealScore({
+      expectedMarginPct: 25,
+      costConfidence: computeCostConfidenceScore([{ amount: 100, confidenceLevel: "Contract100" }]),
+      productStatus: "Verified",
+      openRedFlagSeverities: ["Critical"],
+      advanceRatePct: 50,
+      creditDays: 30,
+      supplierOverallScore: null,
+      containerUtilizationPct: null,
+    });
+    check("علامة حمراء حرجة بتهبط مخاطر العميل", String(flaggedScore.components.find((c) => c.key === "customerPaymentRisk")?.score), "30");
+    check("الدرجة الكلية بتنزل مع العلامة الحمراء", String((flaggedScore.totalScore ?? 0) < (sparseScore.totalScore ?? 0)), "true");
+
+    // §٢٥ شرائح التفسير
+    check("85 = صفقة قوية", dealScoreBand(85).label, "صفقة قوية");
+    check("84 = مناسبة مع مراقبة", dealScoreBand(84).label, "مناسبة مع مراقبة");
+    check("55 = تحتاج تفاوضًا", dealScoreBand(55).label, "تحتاج تفاوضًا أو إعادة تصميم");
+    check("54 = مخاطرة مرتفعة", dealScoreBand(54).label, "مخاطرة مرتفعة أو ربح ضعيف");
+
+    // مفيش ولا مكوّن متاح = null مش صفر
+    const emptyScore = computeDealScore({
+      expectedMarginPct: null,
+      costConfidence: computeCostConfidenceScore([]),
+      productStatus: null,
+      openRedFlagSeverities: [],
+      advanceRatePct: null,
+      creditDays: null,
+      supplierOverallScore: null,
+      containerUtilizationPct: null,
+    });
+    check("مفيش بيانات خالص = درجة null وتغطية صفر", `${emptyScore.totalScore}/${emptyScore.coveragePct}`, "null/0");
+
 
     console.log(`\n${fail === 0 ? "✅" : "❌"} ${pass}/${pass + fail} فحوصات ناجحة`);
   } finally {
