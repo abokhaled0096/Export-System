@@ -14,6 +14,8 @@ import { sourcingRequestStatusLabel } from "@/lib/procurementLabels";
 import { containerTypeLabel } from "@/lib/logisticsLabels";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import DealScoreCard from "./DealScoreCard";
+import { computeDealScore, computeCostConfidenceScore } from "@/lib/dealScoring";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export const dynamic = "force-dynamic";
@@ -87,7 +89,31 @@ export default async function ScenarioDetailPage({
   });
 
   // وحدة 4 — مواصفات منتج الصفقة (لو موجودة)، لملء select "المواصفة" في فورم فتح طلب التوريد.
-  const deal = await prisma.deal.findUniqueOrThrow({ where: { id }, select: { productId: true, marketId: true } });
+  const deal = await prisma.deal.findUniqueOrThrow({ where: { id }, select: { productId: true, marketId: true, customerId: true } });
+
+  // ── مدخلات درجة الصفقة (مواصفة مشروع ٢ §٢٥) ────────────────────────────────
+  // ⚠️ مش Promise.all — راجع BACKLOG.md (P2028).
+  // المكوّن اللي مالوش بيانات هنا بيوصل `null` للمحرك، والمحرك بيشيله من الوزن
+  // بدل ما يحط له قيمة محايدة تضلّل الدرجة. راجع src/lib/dealScoring.ts.
+  const scoredProduct = await prisma.product.findUnique({ where: { id: deal.productId }, select: { status: true } });
+  const openRedFlags = await prisma.redFlag.findMany({
+    where: { orgId, companyId: deal.customerId, resolvedAt: null },
+    select: { severity: true },
+  });
+  // أداء المورّد بييجي من أمر شراء مرتبط بطلب توريد للصفقة دي — أقرب رابط حقيقي
+  // بين الصفقة والمورّد. لو مفيش، المكوّن بيتشال من الوزن.
+  const dealPurchaseOrder = await prisma.purchaseOrder.findFirst({
+    where: { orgId, sourcingRequest: { dealId: id } },
+    select: { supplierId: true },
+    orderBy: { createdAt: "desc" },
+  });
+  const supplierPerformance = dealPurchaseOrder
+    ? await prisma.supplierPerformance.findFirst({
+        where: { orgId, supplierId: dealPurchaseOrder.supplierId },
+        select: { overallScore: true },
+        orderBy: { createdAt: "desc" },
+      })
+    : null;
   const specifications = await prisma.productSpecification.findMany({
     where: { orgId, productId: deal.productId },
     select: { id: true, version: true, status: true },
@@ -109,6 +135,19 @@ export default async function ScenarioDetailPage({
     return sum + amountInScenarioCurrency;
   }, 0);
   const totalRiskCost = scenario.riskItems.reduce((sum, item) => sum + Number(item.expectedCost), 0);
+
+  // استغلال الحاوية بيتحسب تحت من حاويات فعلية سابقة؛ لو مفيش تاريخ بيفضل null
+  // والمكوّن بيتشال من وزن الدرجة (مش بيتحط له رقم قياسي مفترض).
+  const dealScoreResult = computeDealScore({
+    expectedMarginPct: scenario.expectedMarginPct === null ? null : Number(scenario.expectedMarginPct),
+    costConfidence: computeCostConfidenceScore(scenario.costItems),
+    productStatus: scoredProduct?.status ?? null,
+    openRedFlagSeverities: openRedFlags.map((f) => f.severity),
+    advanceRatePct: scenario.advanceRatePct === null ? null : Number(scenario.advanceRatePct),
+    creditDays: scenario.creditDays,
+    supplierOverallScore: supplierPerformance?.overallScore == null ? null : Number(supplierPerformance.overallScore),
+    containerUtilizationPct: null,
+  });
 
   // وحدة 6 — اقتصاديات الكونتينر: عدد الحاويات الحقيقي اللي محتاجينه لكمية السيناريو دي، وتكلفة
   // الشحن الحقيقية من عروض أسعار مسجَّلة فعليًا. سعة كل نوع حاوية (avgMaxPayload) بتتحسب من
@@ -336,6 +375,12 @@ export default async function ScenarioDetailPage({
             currentValue={scenario.finalPrice?.toString()}
             lockVersion={scenario.lockVersion}
           />
+        </section>
+      )}
+
+      {canSeeInternalPricing && (
+        <section className="mt-6">
+          <DealScoreCard result={dealScoreResult} />
         </section>
       )}
 
