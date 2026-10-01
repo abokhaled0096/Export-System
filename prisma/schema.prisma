@@ -159,6 +159,8 @@ model Organization {
   workflowDefinitions      WorkflowDefinition[]
   bankTransactionMatches   BankTransactionMatch[]
   scoreSnapshots           ScoreSnapshot[]
+  dealActuals          DealActual[]
+  dealActualDeviations DealActualDeviation[]
 }
 
 // ==================== الوحدة 9 — الحوكمة والإدارة (13/13 كيان، ERD v4 §12) ====================
@@ -333,6 +335,7 @@ model User {
 
   opportunitiesOwned                Opportunity[]             @relation("OpportunityOwner")
   companiesOwned                    Company[]                 @relation("CompanyOwner")
+  dealActualsRecorded               DealActual[]              @relation("DealActualRecordedBy")
   companiesLeadFound                Company[]                 @relation("CompanyLeadFoundBy")
   auditLogs                         AuditLog[]
   scoreSnapshots                    ScoreSnapshot[]
@@ -1429,6 +1432,7 @@ model Deal {
   market            Market            @relation(fields: [marketId], references: [id])
   customer          Company           @relation(fields: [customerId], references: [id])
   scenarios         DealScenario[]    @relation("DealScenarios")
+  actual            DealActual?
   quotes            Quote[]
   salesOrders       SalesOrder[]
   complianceCases   ComplianceCase[]
@@ -1460,6 +1464,107 @@ enum Incoterm {
   DAP
   DPU
   DDP
+}
+
+/// أسباب الانحراف — مواصفة مشروع ٢ §٢٧ «تصنيف أسباب الانحراف» حرفيًا (١٥ سبب).
+enum DeviationReason {
+  Supplier
+  Quality
+  Waste
+  Processing
+  Packaging
+  InlandTransport
+  Freight
+  Port
+  Bank
+  Currency
+  Customer
+  Delay
+  Compliance
+  DataEntryError
+  HiddenCost
+}
+
+/// النتائج الفعلية بعد تنفيذ الشحنة — مواصفة مشروع ٢ §٢٧.
+///
+/// ⚠️ **مدخلات خام بس.** كل المخرجات اللي المواصفة بتطلبها (Actual Full Cost،
+/// Actual Profit، Actual Margin، Cost Variance، Actual Cash Cycle، دقة التسعير...)
+/// بتتحسب في `src/lib/dealActual.ts` وقت العرض — **مش أعمدة مخزَّنة**.
+///
+/// السبب: لو معادلة اتغيّرت بعدين، التعديل في دالة واحدة. لو كانت مخزَّنة، كان لازم
+/// migration + إعادة حساب لكل الصفوف القديمة + فترة بتبقى فيها صفوف قديمة محسوبة
+/// بمعادلة وصفوف جديدة بمعادلة تانية. نفس نمط `variance` في CashFlowForecastLine
+/// و`chargeDays` في FreeTimeRecord.
+///
+/// ⚠️ **ليه البند ده بُني قبل المحرّكات اللي بتستهلكه** (Deal Register §٢٨، Price
+/// Waterfall §٣٠، Reorder Price §٣٢): دي **بيانات التقاط**. أي صفقة بتتقفل من غير
+/// تسجيل نتيجتها الفعلية بتبقى صفقة **مستحيل** تتحلل بعدين — مفيش مصدر تاني للرقم.
+/// (قرار 2 أكتوبر 2026، راجع docs/SPEC-COVERAGE.md.)
+model DealActual {
+  id         String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId      String   @db.Uuid
+  dealId     String   @unique @db.Uuid
+  /// السيناريو اللي اتسعّر بيه فعليًا — أساس المقارنة «مخطط مقابل فعلي».
+  scenarioId String   @db.Uuid
+
+  /// الكميات الفعلية
+  actualQuantityRaw      Decimal? @db.Decimal(14, 3)
+  actualQuantitySaleable Decimal? @db.Decimal(14, 3)
+  actualWasteQuantity    Decimal? @db.Decimal(14, 3)
+
+  /// التكاليف الفعلية — كلها بعملة السيناريو
+  actualPurchasePrice   Decimal? @db.Decimal(14, 4)
+  actualProcessingCost  Decimal? @db.Decimal(14, 2)
+  actualPackagingCost   Decimal? @db.Decimal(14, 2)
+  actualInlandTransport Decimal? @db.Decimal(14, 2)
+  actualPortCharges     Decimal? @db.Decimal(14, 2)
+  actualFreight         Decimal? @db.Decimal(14, 2)
+  actualBankCharges     Decimal? @db.Decimal(14, 2)
+  actualFinanceCost     Decimal? @db.Decimal(14, 2)
+  penalties             Decimal? @db.Decimal(14, 2)
+  claims                Decimal? @db.Decimal(14, 2)
+  postSaleDeductions    Decimal? @db.Decimal(14, 2)
+  fxDifference          Decimal? @db.Decimal(14, 2)
+  unexpectedCosts       Decimal? @db.Decimal(14, 2)
+  unexpectedCostsNote   String?
+
+  /// التحصيل
+  amountCollected Decimal?  @db.Decimal(14, 2)
+  collectedAt     DateTime?
+
+  recordedBy String   @db.Uuid
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  organization   Organization          @relation(fields: [orgId], references: [id])
+  deal           Deal                  @relation(fields: [dealId], references: [id])
+  scenario       DealScenario          @relation(fields: [scenarioId], references: [id])
+  recordedByUser User                  @relation("DealActualRecordedBy", fields: [recordedBy], references: [id])
+  deviations     DealActualDeviation[]
+
+  @@index([orgId])
+}
+
+/// سبب انحراف واحد على النتيجة الفعلية — مواصفة مشروع ٢ §٢٧.
+///
+/// ⚠️ **جدول مش مصفوفة/jsonb عن قصد**: السؤال التشغيلي الحقيقي هو «أكتر سبب انحراف
+/// بيتكرر عندنا إيه؟» — وده استعلام تجميعي مينفعش على jsonb بكفاءة. المشروع اتعلّم
+/// الدرس ده قبل كده (Batch.marketEligibility اتحوّلت من jsonb لجدول).
+model DealActualDeviation {
+  id           String          @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orgId        String          @db.Uuid
+  dealActualId String          @db.Uuid
+  reason       DeviationReason
+  /// تأثير السبب ده بالمبلغ — موجب = زوّد التكلفة، سالب = وفّر.
+  impactAmount Decimal?        @db.Decimal(14, 2)
+  note         String?
+  createdAt    DateTime        @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  dealActual   DealActual   @relation(fields: [dealActualId], references: [id], onDelete: Cascade)
+
+  @@unique([dealActualId, reason])
+  @@index([orgId])
 }
 
 /// كل الأرقام هنا — مقارنة السيناريوهات هي الميزة الأساسية لوحدة 2 (ERD v2 §5).
@@ -1504,6 +1609,7 @@ model DealScenario {
   fxRate          ExchangeRate     @relation(fields: [fxRateId], references: [id])
   costItems       CostItem[]
   riskItems       RiskItem[]
+  actuals         DealActual[]
   quotes          Quote[]
   complianceCases ComplianceCase[]
 

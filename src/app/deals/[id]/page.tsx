@@ -18,6 +18,11 @@ import { commissionEntryStatusLabel, commissionEntryStatusStyle } from "@/lib/co
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import FormDialog from "@/components/FormDialog";
+import DealActualCard from "./DealActualCard";
+import DealActualForm from "./DealActualForm";
+import DeviationForm from "./DeviationForm";
+import { computeDealActual, needsDeviationExplanation } from "@/lib/dealActual";
+import { toDateInputValue } from "@/lib/format";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDate } from "@/lib/format";
@@ -89,9 +94,37 @@ export default async function DealDetailPage({ params }: { params: Promise<{ id:
       documents: { orderBy: { createdAt: "desc" } },
       documentPackages: { orderBy: { createdAt: "desc" } },
       commissionEntries: { include: { plan: { select: { name: true } }, user: { select: { fullName: true } } }, orderBy: { createdAt: "desc" } },
+      // النتيجة الفعلية — صف واحد لكل صفقة (مواصفة مشروع ٢ §٢٧).
+      actual: { include: { deviations: { orderBy: { createdAt: "asc" } } } },
     },
   });
   if (!deal) notFound();
+
+  // ── مقارنة «مخطط مقابل فعلي» ───────────────────────────────────────────────
+  // ⚠️ المقارنة بتتحسب وقت العرض من مدخلات خام مخزَّنة — مفيش أعمدة محسوبة.
+  // راجع src/lib/dealActual.ts للسبب الكامل.
+  const actualScenario = deal.actual ? deal.scenarios.find((sc) => sc.id === deal.actual!.scenarioId) ?? null : null;
+  const actualResult =
+    deal.actual && actualScenario
+      ? computeDealActual(deal.actual, {
+          quantityRaw: actualScenario.quantityRaw,
+          quantitySaleable: actualScenario.quantitySaleable,
+          expectedProfit: actualScenario.expectedProfit,
+          expectedMarginPct: actualScenario.expectedMarginPct,
+          finalPrice: actualScenario.finalPrice,
+          closedAt: deal.closedAt,
+        })
+      : null;
+  const plannedForCard = actualScenario
+    ? {
+        cost:
+          actualScenario.finalPrice !== null && actualScenario.expectedProfit !== null
+            ? Number(actualScenario.finalPrice) * Number(actualScenario.quantitySaleable) - Number(actualScenario.expectedProfit)
+            : null,
+        profit: actualScenario.expectedProfit === null ? null : Number(actualScenario.expectedProfit),
+        marginPct: actualScenario.expectedMarginPct === null ? null : Number(actualScenario.expectedMarginPct),
+      }
+    : { cost: null, profit: null, marginPct: null };
 
   // ⚠️ مش Promise.all — راجع BACKLOG.md (P2028).
   const documentVersions = await prisma.documentVersion.findMany({
@@ -447,6 +480,55 @@ export default async function DealDetailPage({ params }: { params: Promise<{ id:
           )}
         </section>
       )}
+
+      <section className="mt-8">
+        <h2 className="text-lg font-medium text-foreground">النتيجة الفعلية</h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          بعد تنفيذ الشحنة — الأرقام دي هي اللي بتخلّي تسعير الصفقة الجاية مبني على تجربة
+          حقيقية مش تقدير. أي صفقة بتتقفل من غيرها بتبقى صفقة مستحيل تتحلل بعدين.
+        </p>
+
+        {actualResult && deal.actual && (
+          <div className="mt-3">
+            <DealActualCard
+              result={actualResult}
+              planned={plannedForCard}
+              currency={actualScenario?.currency ?? ""}
+              deviations={deal.actual.deviations}
+              collectedAt={deal.actual.collectedAt}
+              needsExplanation={needsDeviationExplanation(actualResult, plannedForCard.profit)}
+            />
+          </div>
+        )}
+
+        <div className="mt-3">
+          <FormDialog
+            triggerLabel={deal.actual ? "تعديل النتيجة الفعلية" : "+ النتيجة الفعلية"}
+            title={deal.actual ? "تعديل النتيجة الفعلية" : "تسجيل النتيجة الفعلية"}
+          >
+            <DealActualForm
+              dealId={deal.id}
+              currency={actualScenario?.currency ?? deal.scenarios[0]?.currency ?? ""}
+              scenarios={deal.scenarios.map((sc) => ({ id: sc.id, label: `${sc.scenarioName} (نسخة ${sc.version})` }))}
+              current={
+                deal.actual
+                  ? Object.fromEntries(
+                      Object.entries(deal.actual)
+                        .filter(([, v]) => v !== null && v !== undefined)
+                        .map(([k, v]) => [k, v instanceof Date ? toDateInputValue(v) : String(v)])
+                    )
+                  : null
+              }
+            />
+          </FormDialog>
+        </div>
+
+        {deal.actual && (
+          <div className="mt-3">
+            <DeviationForm dealId={deal.id} usedReasons={deal.actual.deviations.map((d) => d.reason)} />
+          </div>
+        )}
+      </section>
 
       <section className="mt-8">
         <h2 className="text-lg font-medium text-foreground">عمولات المبيعات</h2>

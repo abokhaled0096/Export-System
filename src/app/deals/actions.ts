@@ -1410,3 +1410,163 @@ export async function loadMoreDealsAction(
     })),
   };
 }
+
+// ==================== النتائج الفعلية (مواصفة مشروع ٢ §٢٧) ====================
+
+const DEVIATION_REASONS = [
+  "Supplier", "Quality", "Waste", "Processing", "Packaging", "InlandTransport",
+  "Freight", "Port", "Bank", "Currency", "Customer", "Delay", "Compliance",
+  "DataEntryError", "HiddenCost",
+] as const;
+
+/** رقم اختياري موجب — فاضي = مش متسجّل (null)، مش صفر. */
+const optionalAmount = z.coerce.number().min(0, "لازم يكون صفر أو أكتر").optional().or(z.literal(""));
+
+const DealActualSchema = z.object({
+  scenarioId: z.string().uuid("اختار السيناريو اللي اتسعّر بيه"),
+  actualQuantityRaw: optionalAmount,
+  actualQuantitySaleable: optionalAmount,
+  actualWasteQuantity: optionalAmount,
+  actualPurchasePrice: optionalAmount,
+  actualProcessingCost: optionalAmount,
+  actualPackagingCost: optionalAmount,
+  actualInlandTransport: optionalAmount,
+  actualPortCharges: optionalAmount,
+  actualFreight: optionalAmount,
+  actualBankCharges: optionalAmount,
+  actualFinanceCost: optionalAmount,
+  penalties: optionalAmount,
+  claims: optionalAmount,
+  postSaleDeductions: optionalAmount,
+  // ⚠️ فرق العملة بيقبل السالب — مكسب صرف بيقلّل التكلفة.
+  fxDifference: z.coerce.number().optional().or(z.literal("")),
+  unexpectedCosts: optionalAmount,
+  unexpectedCostsNote: z.string().trim().optional(),
+  amountCollected: optionalAmount,
+  collectedAt: z.string().trim().optional().or(z.literal("")),
+});
+
+export type DealActualFormState = { errors?: Record<string, string[]>; formError?: string };
+
+/** `""` → `undefined` عشان Prisma تسيب العمود null بدل ما تحاول تحط سلسلة فاضية. */
+function amt(v: number | string | undefined): number | undefined {
+  return v === "" || v === undefined ? undefined : Number(v);
+}
+
+/**
+ * بيسجّل أو بيحدّث النتيجة الفعلية للصفقة (صف واحد لكل صفقة، `@unique` على dealId).
+ *
+ * ⚠️ **upsert مش create**: تسجيل النتيجة بيحصل على مراحل — التكاليف أول ما الشحنة
+ * تخلص، والتحصيل بعدها بأسابيع. لو كان create، المستخدم كان هيضطر يستنى لحد ما كل
+ * حاجة تكتمل، وساعتها نص البيانات بتكون اتنسيت.
+ */
+export async function saveDealActual(
+  dealId: string,
+  _prevState: DealActualFormState,
+  formData: FormData
+): Promise<DealActualFormState> {
+  const raw: Record<string, unknown> = { scenarioId: formData.get("scenarioId") };
+  for (const key of [
+    "actualQuantityRaw", "actualQuantitySaleable", "actualWasteQuantity", "actualPurchasePrice",
+    "actualProcessingCost", "actualPackagingCost", "actualInlandTransport", "actualPortCharges",
+    "actualFreight", "actualBankCharges", "actualFinanceCost", "penalties", "claims",
+    "postSaleDeductions", "fxDifference", "unexpectedCosts", "amountCollected",
+  ]) {
+    raw[key] = formData.get(key) || undefined;
+  }
+  raw.unexpectedCostsNote = formData.get("unexpectedCostsNote") || undefined;
+  raw.collectedAt = formData.get("collectedAt") || undefined;
+
+  const parsed = DealActualSchema.safeParse(raw);
+  if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
+
+  const user = await requireCurrentUser();
+  const { scenarioId, collectedAt, unexpectedCostsNote, ...amounts } = parsed.data;
+
+  try {
+    await requirePermission(user.roleId, "Deal", "Edit");
+    await withScopedTransaction(async (tx) => {
+      const numeric = Object.fromEntries(
+        Object.entries(amounts).map(([k, v]) => [k, amt(v as number | string | undefined)])
+      );
+      const data = {
+        ...numeric,
+        unexpectedCostsNote: unexpectedCostsNote || undefined,
+        collectedAt: collectedAt ? new Date(collectedAt) : undefined,
+      };
+      const actual = await tx.dealActual.upsert({
+        where: { dealId },
+        create: { orgId: user.orgId, dealId, scenarioId, recordedBy: user.id, ...data },
+        update: { scenarioId, ...data },
+      });
+      await logAudit(tx, {
+        orgId: user.orgId,
+        userId: user.id,
+        action: "dealActual.saved",
+        entityType: "DealActual",
+        entityId: actual.id,
+        afterValue: { dealId, scenarioId, ...data },
+      });
+    });
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "saveDealActual", error: e });
+    // `businessRuleMessage` بتطلّع رسالة الـTrigger العربية من جوه نص Prisma التقني،
+    // وبترجع البديل لو مش لاقياها — فمفيش تسريب لتفاصيل القاعدة.
+    return { formError: businessRuleMessage(e, "حصل خطأ أثناء حفظ النتيجة الفعلية — حاول تاني.") };
+  }
+
+  revalidatePath(`/deals/${dealId}`);
+  return {};
+}
+
+const DeviationSchema = z.object({
+  reason: z.enum(DEVIATION_REASONS, "اختار سبب انحراف صحيح"),
+  impactAmount: z.coerce.number().optional().or(z.literal("")),
+  note: z.string().trim().optional(),
+});
+
+export type DeviationFormState = { errors?: Record<string, string[]>; formError?: string };
+
+export async function addDealActualDeviation(
+  dealId: string,
+  _prevState: DeviationFormState,
+  formData: FormData
+): Promise<DeviationFormState> {
+  const parsed = DeviationSchema.safeParse({
+    reason: formData.get("reason"),
+    impactAmount: formData.get("impactAmount") || undefined,
+    note: formData.get("note") || undefined,
+  });
+  if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
+
+  const user = await requireCurrentUser();
+  try {
+    await requirePermission(user.roleId, "Deal", "Edit");
+    await withScopedTransaction(async (tx) => {
+      const actual = await tx.dealActual.findUnique({ where: { dealId }, select: { id: true } });
+      if (!actual) throw new Error("سجّل النتيجة الفعلية الأول قبل ما تضيف سبب انحراف.");
+      await tx.dealActualDeviation.create({
+        data: {
+          orgId: user.orgId,
+          dealActualId: actual.id,
+          reason: parsed.data.reason,
+          impactAmount: amt(parsed.data.impactAmount),
+          note: parsed.data.note || undefined,
+        },
+      });
+    });
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e;
+    await logError({ orgId: user.orgId, userId: user.id, action: "addDealActualDeviation", error: e });
+    if (e instanceof Error && e.message.includes("سجّل النتيجة")) return { formError: e.message };
+    // قيد الفريدة: نفس السبب مرتين على نفس النتيجة.
+    if (e instanceof Error && e.message.includes("Unique constraint")) {
+      return { formError: "السبب ده متسجّل بالفعل على النتيجة دي — عدّله بدل ما تضيفه تاني." };
+    }
+    return { formError: "حصل خطأ أثناء إضافة سبب الانحراف — حاول تاني." };
+  }
+
+  revalidatePath(`/deals/${dealId}`);
+  return {};
+}

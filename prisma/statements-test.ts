@@ -21,6 +21,7 @@ import { commissionAutomationState, commissionAutomationMessage } from "../src/l
 import { isSodRuleEnforcing, sodRuleEffectiveLabel } from "../src/lib/sodRules";
 import { computeCostConfidenceScore, computeDealScore, dealScoreBand, DEAL_SCORE_WEIGHTS } from "../src/lib/dealScoring";
 import { computeReadinessScore, readinessBand, READINESS_WEIGHTS } from "../src/lib/complianceScoring";
+import { computeDealActual, needsDeviationExplanation, DEVIATION_REASON_LABEL } from "../src/lib/dealActual";
 import { deterministicUuid } from "../src/lib/csv";
 import { z } from "zod";
 import { WORKFLOW_ENFORCED_ENTITY_TYPES } from "../src/lib/workflow";
@@ -706,6 +707,101 @@ async function runCollectionCycle(
         "كلها"
       );
     }
+
+
+    // ── النتائج الفعلية (مواصفة مشروع ٢ §٢٧) ──────────────────────────────────
+    // سيناريو محسوب بالإيد: شراء 10×1000 = 10,000 · تشغيل 500 · تعبئة 300 ·
+    // نقل 200 · ميناء 150 · شحن 2,000 · بنك 50 · تمويل 100 = 13,300
+    // + فرق عملة 200 = 13,500. محصَّل 18,000 → ربح 4,500.
+    const plannedRef = {
+      quantityRaw: 1000, quantitySaleable: 900, expectedProfit: 5000,
+      expectedMarginPct: 27.78, finalPrice: 20, closedAt: new Date("2026-01-01T00:00:00Z"),
+    };
+    const actualRef = computeDealActual({
+      actualQuantityRaw: 1000, actualQuantitySaleable: 900, actualWasteQuantity: 100,
+      actualPurchasePrice: 10, actualProcessingCost: 500, actualPackagingCost: 300,
+      actualInlandTransport: 200, actualPortCharges: 150, actualFreight: 2000,
+      actualBankCharges: 50, actualFinanceCost: 100, penalties: null, claims: null,
+      postSaleDeductions: null, fxDifference: 200, unexpectedCosts: null,
+      amountCollected: 18000, collectedAt: new Date("2026-02-15T00:00:00Z"),
+    }, plannedRef);
+
+    check("إجمالي التكلفة الفعلية", String(actualRef.actualFullCost), "13500");
+    check("تكلفة الكيلو على القابل للبيع مش الخام", String(actualRef.actualCostPerKg), "15");
+    check("العائد الفعلي %", String(actualRef.actualYieldPct), "90");
+    check("الربح الفعلي = المحصَّل − التكلفة", String(actualRef.actualProfit), "4500");
+    check("الهامش الفعلي %", String(actualRef.actualMarginPct), "25");
+    check("دورة النقد بالأيام", String(actualRef.actualCashCycleDays), "45");
+    // المخطط: إيراد 20×900 = 18,000، ربح 5,000 → تكلفة مخططة 13,000
+    check("فرق التكلفة عن المخطط", String(actualRef.costVariance), "500");
+    check("فرق الربح عن المخطط", String(actualRef.profitVariance), "-500");
+    // |4500-5000|/5000 = 10% → دقة 90%
+    check("دقة التسعير %", String(actualRef.pricingAccuracyPct), "90");
+
+    // ⚠️ فرق العملة بإشارته: مكسب صرف بيقلّل التكلفة
+    const fxGain = computeDealActual({
+      actualQuantityRaw: null, actualQuantitySaleable: null, actualWasteQuantity: null,
+      actualPurchasePrice: null, actualProcessingCost: 1000, actualPackagingCost: null,
+      actualInlandTransport: null, actualPortCharges: null, actualFreight: null,
+      actualBankCharges: null, actualFinanceCost: null, penalties: null, claims: null,
+      postSaleDeductions: null, fxDifference: -300, unexpectedCosts: null,
+      amountCollected: null, collectedAt: null,
+    }, { quantityRaw: null, quantitySaleable: null, expectedProfit: null, expectedMarginPct: null, finalPrice: null, closedAt: null });
+    check("مكسب صرف بيقلّل التكلفة", String(fxGain.actualFullCost), "700");
+
+    // ⚠️ القاعدة المتكررة: ناقص = null مش صفر
+    const emptyActual = computeDealActual({
+      actualQuantityRaw: null, actualQuantitySaleable: null, actualWasteQuantity: null,
+      actualPurchasePrice: null, actualProcessingCost: null, actualPackagingCost: null,
+      actualInlandTransport: null, actualPortCharges: null, actualFreight: null,
+      actualBankCharges: null, actualFinanceCost: null, penalties: null, claims: null,
+      postSaleDeductions: null, fxDifference: null, unexpectedCosts: null,
+      amountCollected: null, collectedAt: null,
+    }, { quantityRaw: null, quantitySaleable: null, expectedProfit: null, expectedMarginPct: null, finalPrice: null, closedAt: null });
+    check("مفيش بيانات = تكلفة null مش صفر", String(emptyActual.actualFullCost), "null");
+    check("مفيش بيانات = ربح null مش صفر", String(emptyActual.actualProfit), "null");
+    check("مفيش بيانات = دقة تسعير null", String(emptyActual.pricingAccuracyPct), "null");
+
+    // سعر شراء بلا كمية = تحذير على البيانات، مش رقم ناقص بصمت
+    const priceNoQty = computeDealActual({
+      actualQuantityRaw: null, actualQuantitySaleable: null, actualWasteQuantity: null,
+      actualPurchasePrice: 10, actualProcessingCost: 500, actualPackagingCost: null,
+      actualInlandTransport: null, actualPortCharges: null, actualFreight: null,
+      actualBankCharges: null, actualFinanceCost: null, penalties: null, claims: null,
+      postSaleDeductions: null, fxDifference: null, unexpectedCosts: null,
+      amountCollected: null, collectedAt: null,
+    }, { quantityRaw: null, quantitySaleable: null, expectedProfit: null, expectedMarginPct: null, finalPrice: null, closedAt: null });
+    check("سعر شراء بلا كمية = تحذير", String(priceNoQty.warnings.length > 0), "true");
+    check("والتكلفة بتفضل من الباقي", String(priceNoQty.actualFullCost), "500");
+
+    // تحصيل قبل الإقفال = تواريخ غلط
+    const badDates = computeDealActual({
+      actualQuantityRaw: null, actualQuantitySaleable: null, actualWasteQuantity: null,
+      actualPurchasePrice: null, actualProcessingCost: 100, actualPackagingCost: null,
+      actualInlandTransport: null, actualPortCharges: null, actualFreight: null,
+      actualBankCharges: null, actualFinanceCost: null, penalties: null, claims: null,
+      postSaleDeductions: null, fxDifference: null, unexpectedCosts: null,
+      amountCollected: null, collectedAt: new Date("2026-01-01T00:00:00Z"),
+    }, { quantityRaw: null, quantitySaleable: null, expectedProfit: null, expectedMarginPct: null, finalPrice: null, closedAt: new Date("2026-02-01T00:00:00Z") });
+    check("تحصيل قبل الإقفال = تحذير", String(badDates.warnings.some((w) => w.includes("قبل تاريخ إقفال"))), "true");
+
+    // ربح مخطط صفر → دقة التسعير null (نسبة بلا معنى)
+    const zeroPlanned = computeDealActual({
+      actualQuantityRaw: null, actualQuantitySaleable: null, actualWasteQuantity: null,
+      actualPurchasePrice: null, actualProcessingCost: 100, actualPackagingCost: null,
+      actualInlandTransport: null, actualPortCharges: null, actualFreight: null,
+      actualBankCharges: null, actualFinanceCost: null, penalties: null, claims: null,
+      postSaleDeductions: null, fxDifference: null, unexpectedCosts: null,
+      amountCollected: 150, collectedAt: null,
+    }, { quantityRaw: null, quantitySaleable: null, expectedProfit: 0, expectedMarginPct: null, finalPrice: null, closedAt: null });
+    check("ربح مخطط صفر = دقة تسعير null", String(zeroPlanned.pricingAccuracyPct), "null");
+
+    // عتبة الجوهرية
+    check("انحراف 10% مش جوهري (الحد نفسه)", String(needsDeviationExplanation({ ...actualRef, profitVariance: -500 }, 5000)), "false");
+    check("انحراف 11% جوهري", String(needsDeviationExplanation({ ...actualRef, profitVariance: -550 }, 5000)), "true");
+    check("مفيش فرق محسوب = مش جوهري", String(needsDeviationExplanation({ ...actualRef, profitVariance: null }, 5000)), "false");
+
+    check("أسباب الانحراف 15 زي المواصفة", String(Object.keys(DEVIATION_REASON_LABEL).length), "15");
 
 
     console.log(`\n${fail === 0 ? "✅" : "❌"} ${pass}/${pass + fail} فحوصات ناجحة`);
