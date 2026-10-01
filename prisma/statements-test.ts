@@ -19,6 +19,8 @@ import { countShipmentsNeedingAttention } from "../src/lib/logisticsAttention";
 import { labTestConflict, labTestsBlockingFullRelease } from "../src/lib/labTestVerdict";
 import { commissionAutomationState, commissionAutomationMessage } from "../src/lib/commissionAutomation";
 import { isSodRuleEnforcing, sodRuleEffectiveLabel } from "../src/lib/sodRules";
+import { deterministicUuid } from "../src/lib/csv";
+import { z } from "zod";
 import { WORKFLOW_ENFORCED_ENTITY_TYPES } from "../src/lib/workflow";
 import { readdir, readFile } from "node:fs/promises";
 import { weekKey } from "../src/lib/treasuryLabels";
@@ -474,6 +476,27 @@ async function runCollectionCycle(
       [...calledTypes].sort().join("،"),
       [...WORKFLOW_ENFORCED_ENTITY_TYPES].sort().join("،")
     );
+
+    // ── UUID الحتمي بتاع استيراد كشف الحساب ──────────────────────────────────
+    // الدالة كانت بتقصّ هاش SHA-256 على شكل UUID بلا ضبط الإصدار والـvariant، فـ`z.uuid()`
+    // بترفض الناتج (احتمال إنه يطلع صالح بالصدفة = 1/64). النتيجة: **استيراد كشف الحساب
+    // مكانش بينجح أبدًا** — المعاينة تعدّي والتأكيد يرجّع «بيانات المعاينة تالفة» دايمًا.
+    // العيب كان مستخبّي ورا بوابة MFA لحد ما فعّلناها (1 أكتوبر).
+    const sampleKey = deterministicUuid(["acct-1", "2026-10-02", "250", "Charge", "", "رسوم تحويل", "0"]);
+    check("المفتاح الحتمي UUID صالح لـZod", String(z.string().uuid().safeParse(sampleKey).success), "true");
+    check("نفس المدخلات = نفس المفتاح", deterministicUuid(["acct-1", "2026-10-02", "250", "Charge", "", "رسوم تحويل", "0"]), sampleKey);
+    check(
+      "اختلاف رقم التكرار = مفتاح مختلف (صفّين متطابقين في الكشف)",
+      String(deterministicUuid(["acct-1", "2026-10-02", "250", "Charge", "", "رسوم تحويل", "1"]) !== sampleKey),
+      "true"
+    );
+    check("رقم الإصدار = 8", sampleKey[14], "8");
+    check("بتّات الـvariant صحيحة", String(["8", "9", "a", "b"].includes(sampleKey[19])), "true");
+    // 200 مدخل مختلف — لو الضبط اتشال، الفحص ده بيفشل بشبه يقين بدل ما يعدّي بالصدفة.
+    const allValid = Array.from({ length: 200 }, (_, i) => deterministicUuid(["k", i])).every(
+      (k) => z.string().uuid().safeParse(k).success
+    );
+    check("200 مفتاح مختلف كلهم UUID صالح", String(allValid), "true");
 
     console.log(`\n${fail === 0 ? "✅" : "❌"} ${pass}/${pass + fail} فحوصات ناجحة`);
   } finally {
