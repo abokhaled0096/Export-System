@@ -12,6 +12,8 @@ import CustomerServiceCaseForm from "./CustomerServiceCaseForm";
 import { redFlagSeverityLabel, redFlagSeverityStyle } from "@/lib/redFlagLabels";
 import { customerServiceCaseTypeLabel, customerServiceCaseStatusLabel, customerServiceCaseStatusStyle } from "@/lib/customerServiceCaseLabels";
 import { companyClassificationLabel } from "@/lib/companyLabels";
+import { formatDate } from "@/lib/format";
+import { LEAD_SOURCE_TYPE_LABEL } from "@/lib/companySchema";
 
 export const dynamic = "force-dynamic";
 
@@ -66,6 +68,15 @@ export default async function CompanyDetailPage({
             {company.country}
             {company.city ? ` · ${company.city}` : ""} · {company.classification.map((c) => companyClassificationLabel[c] ?? c).join("، ")}
           </p>
+          {/* المصدر معروض مع هوية العميل مش في تبويب جانبي — بيانات متسجّلة ومش
+              معروضة بتتعامل عمليًا كأنها مش موجودة. (مواصفة مشروع ٣ §٩) */}
+          {company.leadSourceType && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              المصدر: {LEAD_SOURCE_TYPE_LABEL[company.leadSourceType] ?? company.leadSourceType}
+              {company.leadSourceDetail ? ` — ${company.leadSourceDetail}` : ""}
+              {company.leadFoundAt ? ` · ${formatDate(company.leadFoundAt)}` : ""}
+            </p>
+          )}
         </div>
         <Button nativeButton={false} render={<Link href={`/opportunities/new?companyId=${company.id}`}>+ فرصة جديدة</Link>} />
       </div>

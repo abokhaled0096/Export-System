@@ -29,6 +29,12 @@ export async function createCompany(
     country: formData.get("country"),
     city: formData.get("city") || undefined,
     classification: formData.get("classification"),
+    // ⚠️ الـaction بيقرا من formData **حقل بحقل** — أي حقل جديد في الـschema لازم
+    // يتضاف هنا كمان، وإلا بيوصل undefined بصمت والبيانات بتضيع من غير أي خطأ.
+    // (حصل فعليًا: الفورم كان فيه TradeFair والقاعدة اتسجّلت فاضية — 1 أكتوبر.)
+    // فيه فحص في prisma/statements-test.ts بيقارن مفاتيح الـschema بالمقروء هنا.
+    leadSourceType: formData.get("leadSourceType") || undefined,
+    leadSourceDetail: formData.get("leadSourceDetail") || undefined,
   });
 
   if (!parsed.success) {
@@ -62,11 +68,22 @@ export async function createCompany(
 
   try {
     await requirePermission(user.roleId, "Company", "Create");
-    const { classification, ...rest } = parsed.data;
+    const { classification, leadSourceType, leadSourceDetail, ...rest } = parsed.data;
     await withScopedTransaction(async (tx) => {
       // الشركة الجديدة بتبقى ملك المستخدم اللي أنشأها — أساس فحص Own scope على أي حاجة تابعة ليها لاحقًا.
       const company = await tx.company.create({
-        data: { orgId: user.orgId, ...rest, classification: [classification], status: "Lead", ownerId: user.id },
+        data: {
+          orgId: user.orgId,
+          ...rest,
+          classification: [classification],
+          status: "Lead",
+          ownerId: user.id,
+          // مصدر العميل — بيانات التقاط، بتتسجّل في لحظتها أو بتضيع (مواصفة مشروع ٣ §٩).
+          leadSourceType: leadSourceType || undefined,
+          leadSourceDetail: leadSourceDetail || undefined,
+          leadFoundAt: leadSourceType ? new Date() : undefined,
+          leadFoundBy: leadSourceType ? user.id : undefined,
+        },
       });
       await logAudit(tx, {
         orgId: user.orgId,
@@ -310,7 +327,15 @@ export async function importCompaniesCsv(
     try {
       await withScopedTransaction(async (tx) => {
         const company = await tx.company.create({
-          data: { orgId: user.orgId, ...rest, classification: classifications, status: "Lead", ownerId: user.id },
+          data: {
+            orgId: user.orgId,
+            ...rest,
+            classification: classifications,
+            status: "Lead",
+            ownerId: user.id,
+            // ⚠️ الاستيراد الجماعي بيسيب المصدر فاضي عن قصد — مابنفترضش مصدر لصفوف
+            // جاية من ملف. لو احتجنا، الحل الصح عمود مصدر في الـCSV مش قيمة مخترعة.
+          },
         });
         await logAudit(tx, {
           orgId: user.orgId,

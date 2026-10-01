@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { companyClassificationLabel } from "@/lib/companyLabels";
+import { LEAD_SOURCE_TYPE_LABEL } from "@/lib/companySchema";
 import { Form } from "@/components/ui/form";
 
 const initialState: CompanyFormState = {};
@@ -67,6 +68,45 @@ export default function CompanyForm() {
           <Input id="city" name="city" value={val("city")} onChange={(e) => draft.setField("city", e.target.value)} />
         </div>
       </div>
+      {/* مصدر العميل — مواصفة مشروع ٣ §٩. ⚠️ **بيانات التقاط**: لو مااتسجّلش دلوقتي
+          مفيش طريقة نرجّعه بعدين، عشان كده موجود في فورم الإنشاء نفسه مش شاشة منفصلة. */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="leadSourceType">مصدر العميل</Label>
+          <Select
+            name="leadSourceType"
+            value={val("leadSourceType")}
+            onValueChange={(v) => draft.setField("leadSourceType", String(v ?? ""))}
+          >
+            <SelectTrigger id="leadSourceType" className="w-full">
+              <SelectValue placeholder="— اختر المصدر —">
+                {(value: string | null) => (value ? (LEAD_SOURCE_TYPE_LABEL[value] ?? value) : "")}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {Object.keys(LEAD_SOURCE_TYPE_LABEL).map((k) => (
+                <SelectItem key={k} value={k}>
+                  {LEAD_SOURCE_TYPE_LABEL[k]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <span className="text-xs text-muted-foreground">
+            سجّله دلوقتي — مش هينفع يترجع بعدين.
+          </span>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="leadSourceDetail">تفاصيل المصدر</Label>
+          <Input
+            id="leadSourceDetail"
+            name="leadSourceDetail"
+            placeholder="رابط، اسم معرض/دليل، أو كلمة البحث"
+            value={val("leadSourceDetail")}
+            onChange={(e) => draft.setField("leadSourceDetail", e.target.value)}
+          />
+        </div>
+      </div>
+
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="classification">التصنيف *</Label>
         <Select

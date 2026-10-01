@@ -44,9 +44,20 @@ async function createEntityFromChangeRequest(
 ): Promise<string> {
   switch (entityType) {
     case "Company": {
-      const { classification, ...rest } = CompanySchema.parse(proposedChanges);
+      const { classification, leadSourceType, leadSourceDetail, ...rest } = CompanySchema.parse(proposedChanges);
       const company = await tx.company.create({
-        data: { orgId, ...rest, classification: [classification], status: "Lead", ownerId: requestedBy },
+        data: {
+          orgId,
+          ...rest,
+          classification: [classification],
+          status: "Lead",
+          ownerId: requestedBy,
+          leadSourceType: leadSourceType || undefined,
+          leadSourceDetail: leadSourceDetail || undefined,
+          leadFoundAt: leadSourceType ? new Date() : undefined,
+          // الباحث هو مقدّم الطلب مش المعتمِد — المصدر بتاعه هو.
+          leadFoundBy: leadSourceType ? requestedBy : undefined,
+        },
       });
       await logAudit(tx, { orgId, userId: approverId, action: "company.created", entityType: "Company", entityId: company.id, afterValue: { ...rest, source: "changeRequest", requestedBy } });
       return company.id;

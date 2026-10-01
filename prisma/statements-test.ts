@@ -670,6 +670,44 @@ async function runCollectionCycle(
     check("اكتمال المستندات لسه null (محرك مش متبني)", String(emptyReadiness.components.find((c) => c.key === "documents")?.score), "null");
 
 
+    // ── كل حقل في الـschema بيتقرا فعلًا من formData ─────────────────────────
+    // ⚠️ عيب حقيقي حصل: اتضافت `leadSourceType`/`leadSourceDetail` للـschema وللفورم،
+    // واتنسوا في `formData.get(...)` جوه الـaction. النتيجة: الفورم كان فيه "TradeFair"
+    // والقاعدة اتسجّلت **فاضية بلا أي خطأ** — لأن الحقل اختياري فالـparse نجح.
+    //
+    // الفحص ده بيقارن مفاتيح الـschema بمفاتيح formData.get() في الـaction المقابلة.
+    // بيمسك نسيان الربط ده في أي فورم، مش بس الشركات. (1 أكتوبر)
+    const SCHEMA_ACTION_PAIRS: { label: string; schemaFile: string; schemaName: string; actionFile: string }[] = [
+      { label: "الشركات", schemaFile: "src/lib/companySchema.ts", schemaName: "CompanySchema", actionFile: "src/app/companies/actions.ts" },
+      { label: "الموردين", schemaFile: "src/lib/supplierSchema.ts", schemaName: "SupplierSchema", actionFile: "src/app/suppliers/actions.ts" },
+      { label: "المنتجات", schemaFile: "src/lib/productSchema.ts", schemaName: "ProductSchema", actionFile: "src/app/products/actions.ts" },
+    ];
+
+    for (const pair of SCHEMA_ACTION_PAIRS) {
+      let schemaSrc: string;
+      let actionSrc: string;
+      try {
+        schemaSrc = await readFile(pair.schemaFile, "utf8");
+        actionSrc = await readFile(pair.actionFile, "utf8");
+      } catch {
+        check(`[${pair.label}] الملفات موجودة`, "مفقود", "موجود");
+        continue;
+      }
+      // مفاتيح الـschema: السطور اللي شكلها `  key: z.` جوه z.object الأساسي
+      const body = schemaSrc.slice(schemaSrc.indexOf(`${pair.schemaName} = z.object({`));
+      const schemaKeys = [...body.matchAll(/^ {2}(\w+):\s*z\./gm)].map((m) => m[1]);
+      // ⚠️ `getAll` كمان — الحقول المتعددة (checkboxes) بتتقرا بيها، ومطابقة `get` لوحدها
+      // بتدّي إيجابية كاذبة. (حصل مع supplierType أول ما اتكتب الفحص ده.)
+      const readKeys = new Set([...actionSrc.matchAll(/formData\.get(?:All)?\("(\w+)"\)/g)].map((m) => m[1]));
+      const missing = schemaKeys.filter((k) => !readKeys.has(k));
+      check(
+        `[${pair.label}] كل حقول الـschema بتتقرا من formData`,
+        missing.length === 0 ? "كلها" : `ناقص: ${missing.join("، ")}`,
+        "كلها"
+      );
+    }
+
+
     console.log(`\n${fail === 0 ? "✅" : "❌"} ${pass}/${pass + fail} فحوصات ناجحة`);
   } finally {
     await prisma.$executeRawUnsafe(`ALTER TABLE "JournalLine" DISABLE TRIGGER USER`);

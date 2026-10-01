@@ -333,6 +333,7 @@ model User {
 
   opportunitiesOwned                Opportunity[]             @relation("OpportunityOwner")
   companiesOwned                    Company[]                 @relation("CompanyOwner")
+  companiesLeadFound                Company[]                 @relation("CompanyLeadFoundBy")
   auditLogs                         AuditLog[]
   scoreSnapshots                    ScoreSnapshot[]
   errorLogs                         ErrorLog[]
@@ -684,6 +685,29 @@ model Competitor {
 
 // ==================== الوحدة 3 — العملاء (نطاق P1 فقط، ERD v3 §6) ====================
 
+enum LeadSourceType {
+  GoogleSearch
+  GoogleMaps
+  LinkedIn
+  CompanyDirectory
+  TradeFair
+  ChamberOfCommerce
+  IndustryAssociation
+  GovernmentSite
+  CommercialRegistry
+  TradePlatform
+  ShippingData
+  TenderSite
+  Referral
+  ExistingCustomer
+  Supplier
+  Embassy
+  ImporterList
+  CompanyWebsite
+  SocialMedia
+  ManualEntry
+}
+
 enum CompanyStatus {
   Lead
   Suspect
@@ -713,6 +737,15 @@ model Company {
   status         CompanyStatus @default(Lead)
   ownerId        String?       @db.Uuid
 
+  /// مصدر العميل — مواصفة مشروع ٣ §٩ («سجل مصدر العميل»).
+  /// ⚠️ **بيانات التقاط مش بيانات تحليل**: لو المصدر مااتسجّلش وقت إنشاء العميل،
+  /// مفيش طريقة نرجّعه بعدين. عشان كده اتبنى قبل Lead Source Score نفسه —
+  /// الدرجة تتحسب أي وقت، المصدر لازم يتسجّل من أول يوم. (1 أكتوبر)
+  leadSourceType   LeadSourceType?
+  leadSourceDetail String? /// رابط المصدر، اسم المعرض/الدليل، أو كلمة البحث المستخدمة
+  leadFoundAt      DateTime?
+  leadFoundBy      String?         @db.Uuid
+
   /// 🔒 مشفّر عموديًا عبر Supabase Vault (src/lib/vault.ts) — العمود بيخزّن secretId (UUID)
   /// مش القيمة نفسها، نفس نمط Document.fileUrl. بلا واجهة إدخال لسه (4 سبتمبر 2026).
   bankAccountNameSecretId String? @db.Uuid
@@ -721,6 +754,7 @@ model Company {
 
   organization         Organization          @relation(fields: [orgId], references: [id])
   owner                User?                 @relation("CompanyOwner", fields: [ownerId], references: [id])
+  leadFoundByUser      User?                 @relation("CompanyLeadFoundBy", fields: [leadFoundBy], references: [id])
   contacts             Contact[]
   opportunities        Opportunity[]
   deals                Deal[]
@@ -1378,6 +1412,11 @@ model Deal {
   customerId       String        @db.Uuid
   dealObjective    DealObjective
   status           DealStatus    @default(Draft)
+
+  /// لحظة إقفال الصفقة (فوز/خسارة) — مواصفة مشروع ٣ §٤١ (تحليل الفوز والخسارة).
+  /// ⚠️ `updatedAt` **مش بديل**: أي تعديل لاحق على الصفقة بيدوسه، فزمن دورة البيع
+  /// ومعدّل الفوز عبر الزمن بيبقوا غير قابلين للحساب بأثر رجعي. بيانات التقاط.
+  closedAt         DateTime?
   activeScenarioId String?       @db.Uuid
   lostReason       String?
   createdAt        DateTime      @default(now())
