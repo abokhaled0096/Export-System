@@ -20,6 +20,7 @@ import { labTestConflict, labTestsBlockingFullRelease } from "../src/lib/labTest
 import { commissionAutomationState, commissionAutomationMessage } from "../src/lib/commissionAutomation";
 import { isSodRuleEnforcing, sodRuleEffectiveLabel } from "../src/lib/sodRules";
 import { computeCostConfidenceScore, computeDealScore, dealScoreBand, DEAL_SCORE_WEIGHTS } from "../src/lib/dealScoring";
+import { computeReadinessScore, readinessBand, READINESS_WEIGHTS } from "../src/lib/complianceScoring";
 import { deterministicUuid } from "../src/lib/csv";
 import { z } from "zod";
 import { WORKFLOW_ENFORCED_ENTITY_TYPES } from "../src/lib/workflow";
@@ -575,6 +576,98 @@ async function runCollectionCycle(
       containerUtilizationPct: null,
     });
     check("مفيش بيانات خالص = درجة null وتغطية صفر", `${emptyScore.totalScore}/${emptyScore.coveragePct}`, "null/0");
+
+
+    // ── جاهزية الامتثال (مواصفة مشروع ٥ §٢٤) ─────────────────────────────────
+    // نفس قصة dealScore: اتشال في SCOPE-P5.md لحد ما ScoreSnapshot يتبني، واتبنى
+    // 18 سبتمبر والبند فضل مقفول. (جرد docs/SPEC-COVERAGE.md)
+
+    const emptyReadiness = computeReadinessScore({
+      requirementStatuses: [], gateStatuses: [], hsClassificationStatuses: [], certificates: [],
+      registrationStatuses: [], originProofStatuses: [], shipmentCount: 0, openRejectionCount: 0,
+      hasApprovedPackagingSpec: null, labTestResults: null, productBanned: null,
+    });
+    check("ملف فاضي = درجة null مش صفر", `${emptyReadiness.totalScore}/${emptyReadiness.coveragePct}`, "null/0");
+    check("عدد المكوّنات 10 زي المواصفة", String(emptyReadiness.components.length), "10");
+    check("مجموع أوزان الجاهزية 100", String(Object.values(READINESS_WEIGHTS).reduce((a, b) => a + b, 0)), "100");
+
+    // ⚠️ الـenum فيه ConfirmedInternally/ByBroker/ByRuling — **مفيش "Confirmed"**.
+    // الفحص ده بيمنع رجوع عيب المطابقة على اسم مش موجود (كان هيدّي صفر دايمًا).
+    const hsConfirmed = computeReadinessScore({
+      requirementStatuses: [], gateStatuses: [], hsClassificationStatuses: ["ConfirmedByRuling"], certificates: [],
+      registrationStatuses: [], originProofStatuses: [], shipmentCount: 0, openRejectionCount: 0,
+      hasApprovedPackagingSpec: null, labTestResults: null, productBanned: null,
+    });
+    check("تصنيف جمركي مؤكَّد بحكم = 100", String(hsConfirmed.components.find((c) => c.key === "hsClassification")?.score), "100");
+    const hsInternal = computeReadinessScore({
+      requirementStatuses: [], gateStatuses: [], hsClassificationStatuses: ["ConfirmedInternally", "Disputed"], certificates: [],
+      registrationStatuses: [], originProofStatuses: [], shipmentCount: 0, openRejectionCount: 0,
+      hasApprovedPackagingSpec: null, labTestResults: null, productBanned: null,
+    });
+    check("مؤكَّد داخليًا + متنازع = 50", String(hsInternal.components.find((c) => c.key === "hsClassification")?.score), "50");
+    check("التصنيف المتنازع عليه حاجز", String(hsInternal.blockers.some((b) => b.includes("متنازع"))), "true");
+
+    // §٢٤ القاعدة الحاكمة: الحواجز **منفصلة عن الدرجة**، الدرجة مابتعوّضهاش.
+    const highScoreBlocked = computeReadinessScore({
+      requirementStatuses: ["Met", "Met", "Met"], gateStatuses: ["Passed"],
+      hsClassificationStatuses: ["ConfirmedByRuling"],
+      certificates: [{ status: "Expired", expiryDate: new Date("2020-01-01") }],
+      registrationStatuses: ["Approved"], originProofStatuses: ["Verified"], shipmentCount: 1,
+      openRejectionCount: 0, hasApprovedPackagingSpec: true, labTestResults: ["Pass"], productBanned: false,
+    });
+    check("شهادة منتهية = حاجز", String(highScoreBlocked.blockers.some((b) => b.includes("منتهية"))), "true");
+    check("الدرجة بتفضل عالية رغم الحاجز (الفصل مقصود)", String((highScoreBlocked.totalScore ?? 0) >= 75), "true");
+
+    const banned = computeReadinessScore({
+      requirementStatuses: ["Met"], gateStatuses: [], hsClassificationStatuses: [], certificates: [],
+      registrationStatuses: [], originProofStatuses: [], shipmentCount: 0, openRejectionCount: 0,
+      hasApprovedPackagingSpec: null, labTestResults: null, productBanned: true,
+    });
+    check("منتج محظور = حاجز + صفر في المكوّن", String(banned.components.find((c) => c.key === "productLegality")?.score), "0");
+    check("الحظر مسجّل كحاجز", String(banned.blockers.some((b) => b.includes("محظور"))), "true");
+
+    const failedTest = computeReadinessScore({
+      requirementStatuses: [], gateStatuses: [], hsClassificationStatuses: [], certificates: [],
+      registrationStatuses: [], originProofStatuses: [], shipmentCount: 0, openRejectionCount: 0,
+      hasApprovedPackagingSpec: null, labTestResults: ["Pass", "Fail"], productBanned: null,
+    });
+    check("فحص معملي Fail = حاجز", String(failedTest.blockers.some((b) => b.includes("Fail"))), "true");
+
+    // المتطلب «مش منطبق» بيتشال من المقام — مش منطقي يتحسب ناقص
+    const naRequirements = computeReadinessScore({
+      requirementStatuses: ["Met", "NotApplicable", "NotApplicable"], gateStatuses: [],
+      hsClassificationStatuses: [], certificates: [], registrationStatuses: [], originProofStatuses: [],
+      shipmentCount: 0, openRejectionCount: 0, hasApprovedPackagingSpec: null, labTestResults: null, productBanned: null,
+    });
+    check("«مش منطبق» بيتشال من مقام المتطلبات", String(naRequirements.components.find((c) => c.key === "marketRequirements")?.score), "100");
+
+    // المستوفى جزئيًا بنص درجة
+    const partial = computeReadinessScore({
+      requirementStatuses: ["Met", "PartiallyMet"], gateStatuses: [], hsClassificationStatuses: [], certificates: [],
+      registrationStatuses: [], originProofStatuses: [], shipmentCount: 0, openRejectionCount: 0,
+      hasApprovedPackagingSpec: null, labTestResults: null, productBanned: null,
+    });
+    check("المستوفى جزئيًا بنص درجة", String(partial.components.find((c) => c.key === "marketRequirements")?.score), "75");
+
+    // ExpiringSoon لسه سارية
+    const expiringSoon = computeReadinessScore({
+      requirementStatuses: [], gateStatuses: [], hsClassificationStatuses: [],
+      certificates: [{ status: "ExpiringSoon", expiryDate: new Date("2099-01-01") }],
+      registrationStatuses: [], originProofStatuses: [], shipmentCount: 0, openRejectionCount: 0,
+      hasApprovedPackagingSpec: null, labTestResults: null, productBanned: null,
+    });
+    check("شهادة قرب انتهاؤها لسه سارية", String(expiringSoon.components.find((c) => c.key === "certificates")?.score), "100");
+    check("مش حاجز", String(expiringSoon.blockers.length), "0");
+
+    // §٢٤ شرائح التصنيف
+    check("90 = جاهز", readinessBand(90).label, "جاهز");
+    check("75 = جاهز بشروط بسيطة", readinessBand(75).label, "جاهز بشروط بسيطة");
+    check("60 = يحتاج إجراءات مهمة", readinessBand(60).label, "يحتاج إجراءات مهمة");
+    check("40 = غير جاهز", readinessBand(40).label, "غير جاهز");
+    check("39 = موقوف", readinessBand(39).label, "موقوف أو عالي المخاطر");
+
+    // المستندات مربوطة بمحرك مش متبني — لازم تفضل null مش تتحسب صفر
+    check("اكتمال المستندات لسه null (محرك مش متبني)", String(emptyReadiness.components.find((c) => c.key === "documents")?.score), "null");
 
 
     console.log(`\n${fail === 0 ? "✅" : "❌"} ${pass}/${pass + fail} فحوصات ناجحة`);

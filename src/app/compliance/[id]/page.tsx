@@ -42,6 +42,8 @@ import {
 import { shipmentStatusLabel, shipmentStatusStyle, transportModeLabel, aciStatusLabel, aciStatusStyle } from "@/lib/logisticsLabels";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import ReadinessCard from "./ReadinessCard";
+import { computeReadinessScore } from "@/lib/complianceScoring";
 import FormDialog from "@/components/FormDialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDate, toDateInputValue } from "@/lib/format";
@@ -128,6 +130,26 @@ export default async function ComplianceCaseDetailPage({ params }: { params: Pro
     where: { orgId, complianceCaseId: kase.id },
     orderBy: { createdAt: "desc" },
   });
+
+  // ── مؤشر الجاهزية (مواصفة مشروع ٥ §٢٤) ─────────────────────────────────────
+  // ⚠️ بيستخدم **نفس** الاستعلامات اللي الصفحة بتعرض بيها فوق — لو اتفرقوا، الدرجة
+  // هتخالف الجداول المعروضة تحتها، وده بالظبط عيب تضارب العدّادات اللي اتكشف قبل كده
+  // بين شارة التنقّل ولوحة القيادة (راجع src/lib/logisticsAttention.ts).
+  const readiness = computeReadinessScore({
+    requirementStatuses: kase.requirements.map((r) => r.status),
+    gateStatuses: kase.gates.map((g) => g.status),
+    hsClassificationStatuses: hsClassifications.map((h) => h.status),
+    certificates: certificates.map((c) => ({ status: c.status, expiryDate: c.expiryDate })),
+    registrationStatuses: registrations.map((r) => r.status),
+    originProofStatuses: originProofs.map((o) => o.status),
+    shipmentCount: kase.shipments.length,
+    openRejectionCount: rejectionCases.filter((r) => r.status !== "Closed").length,
+    // المواصفة والتعبئة/الملصق محتاجين قراءة ProductSpecification — مؤجَّلين لحد ما
+    // محرك اكتمال المستندات (§٢٥) يتبني، فبيوصلوا null والمكوّن بيتشال من الوزن.
+    hasApprovedPackagingSpec: null,
+    labTestResults: null,
+    productBanned: null,
+  });
   const lcRequirements = await prisma.lCRequirement.findMany({
     where: { orgId, dealId: kase.dealId },
     orderBy: { createdAt: "desc" },
@@ -174,6 +196,10 @@ export default async function ComplianceCaseDetailPage({ params }: { params: Pro
           <Button nativeButton={false} variant="outline" size="sm" render={<Link href={`/deals/${kase.dealId}`}>عرض الصفقة</Link>} />
         </div>
       </div>
+
+      <section className="mt-6">
+        <ReadinessCard result={readiness} />
+      </section>
 
       <section className="mt-8">
         <h2 className="text-lg font-medium text-foreground">المتطلبات</h2>
