@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form } from "@/components/ui/form";
+import { WORKFLOW_ENFORCED_ENTITY_TYPES } from "@/lib/workflow";
 
 const initialState: WorkflowDefinitionFormState = {};
 
@@ -64,7 +65,12 @@ export default function WorkflowDefinitionForm({ approvalPolicies }: { approvalP
         {pending ? "جاري الإضافة..." : "+ انتقال مسموح"}
       </Button>
       <p className="w-full text-xs text-muted-foreground">
-        الانتقال مش موجود هنا = مرفوض تلقائيًا وقت التنفيذ (لو الكيان مربوط بمحرك الانتقالات — Opportunity وCAPA حاليًا).
+        {/* ⚠️ القايمة بتتقرا من ثابت محروس باختبار (WORKFLOW_ENFORCED_ENTITY_TYPES) مش
+            مكتوبة بالإيد — قبل كده كانت «Opportunity وCAPA حاليًا» وهي اتأخرت على الكود
+            لحد ما بقوا ١١ كيان. */}
+        الانتقال مش موجود هنا = مرفوض تلقائيًا وقت التنفيذ، للكيانات المربوطة بمحرك الانتقالات:{" "}
+        <span className="font-mono">{WORKFLOW_ENFORCED_ENTITY_TYPES.join("، ")}</span>. أي كيان تاني الجدول ده
+        بالنسبة له تسجيل مرجعي بس.
       </p>
       {state.formError && (
         <p role="alert" className="w-full text-sm text-destructive">

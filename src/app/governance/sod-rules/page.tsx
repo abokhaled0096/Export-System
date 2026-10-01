@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PAGE_SIZE, parsePage } from "@/lib/pagination";
 import Pagination from "@/components/Pagination";
+import { sodRuleEffectiveLabel, sodRuleEffectiveStyle } from "@/lib/sodRules";
 
 export const dynamic = "force-dynamic";
 
@@ -77,9 +78,12 @@ export default async function SoDRulesPage({
                   <TableCell className="font-mono text-foreground/80">{r.action2}</TableCell>
                   <TableCell className="text-foreground/80">{r.mustBeDifferentUser ? "نعم" : "لا"}</TableCell>
                   <TableCell>
-                    <Badge className={r.isActive ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-100" : "bg-secondary text-secondary-foreground hover:bg-secondary"}>
-                      {r.isActive ? "مفعّلة" : "موقوفة"}
-                    </Badge>
+                    {/* ⚠️ الحالة بتتقرا من `isActive` **و**`mustBeDifferentUser` مع بعض، لأن
+                        الـTrigger بيشترط الاتنين. قبل كده كانت الشارة بتقرا `isActive` بس،
+                        فقاعدة متسجّلة بـ«أشخاص مختلفين = لا» كانت بتظهر **«مفعّلة» خضرا**
+                        وهي مابتمنعش أي حاجة — ومسؤول الامتثال يفتكر إن فصل المهام شغّال على
+                        الدفعات وهو مقفول. اتكشف بتسجيل القاعدة من الشاشة، 1 أكتوبر. */}
+                    <Badge className={sodRuleEffectiveStyle(r)}>{sodRuleEffectiveLabel(r)}</Badge>
                   </TableCell>
                   <TableCell>
                     <ToggleRuleButton ruleId={r.id} isActive={r.isActive} />

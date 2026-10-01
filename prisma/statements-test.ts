@@ -18,6 +18,9 @@ import { getDashboardData } from "../src/lib/dashboard";
 import { countShipmentsNeedingAttention } from "../src/lib/logisticsAttention";
 import { labTestConflict, labTestsBlockingFullRelease } from "../src/lib/labTestVerdict";
 import { commissionAutomationState, commissionAutomationMessage } from "../src/lib/commissionAutomation";
+import { isSodRuleEnforcing, sodRuleEffectiveLabel } from "../src/lib/sodRules";
+import { WORKFLOW_ENFORCED_ENTITY_TYPES } from "../src/lib/workflow";
+import { readdir, readFile } from "node:fs/promises";
 import { weekKey } from "../src/lib/treasuryLabels";
 import { formatDate, toDateInputValue, businessYear } from "../src/lib/format";
 import { amountToArabicWords } from "../src/lib/numberToArabicWords";
@@ -439,6 +442,37 @@ async function runCollectionCycle(
       "رسالة الغموض بتقول إن التسجيل التلقائي متوقّف",
       String(commissionAutomationMessage(commissionAutomationState([planOk, { ...planOk, name: "تانية" }])).includes("التسجيل التلقائي متوقّف")),
       "true"
+    );
+
+    // ── الحوكمة ──────────────────────────────────────────────────────────────
+    // قاعدة فصل المهام بتمنع بس لو `isActive` **و**`mustBeDifferentUser` الاتنين true
+    // (نفس شرط الـTrigger). الشاشة كانت بتعرض «مفعّلة» من `isActive` لوحدها، فقاعدة
+    // بـ«أشخاص مختلفين = لا» كانت تبان خضرا وهي مابتمنعش. (اتكشف 1 أكتوبر.)
+    check("قاعدة مفعّلة + أشخاص مختلفين = بتمنع", String(isSodRuleEnforcing({ isActive: true, mustBeDifferentUser: true })), "true");
+    check("مفعّلة بس من غير «أشخاص مختلفين» = مابتمنعش", String(isSodRuleEnforcing({ isActive: true, mustBeDifferentUser: false })), "false");
+    check("موقوفة = مابتمنعش", String(isSodRuleEnforcing({ isActive: false, mustBeDifferentUser: true })), "false");
+    check(
+      "القاعدة اللي مابتمنعش ليها نص مختلف عن «مفعّلة»",
+      String(sodRuleEffectiveLabel({ isActive: true, mustBeDifferentUser: false }) !== sodRuleEffectiveLabel({ isActive: true, mustBeDifferentUser: true })),
+      "true"
+    );
+
+    // الشاشة بتقول للمستخدم أنهي كيانات مربوطة بمحرك الانتقالات. الجملة كانت مكتوبة
+    // بالإيد («Opportunity وCAPA») واتأخرت على الكود لحد ما بقوا ١١. الفحص ده بيقرا
+    // نداءات assertWorkflowTransitionAllowed من الكود الفعلي ويقارنها بالثابت.
+    const appFiles = await readdir("src/app", { recursive: true });
+    const calledTypes = new Set<string>();
+    for (const name of appFiles.filter((f) => f.endsWith("actions.ts"))) {
+      const file = `src/app/${name}`;
+      const source = await readFile(file, "utf8");
+      for (const match of source.matchAll(/assertWorkflowTransitionAllowed\(\s*[^)]*?"([A-Za-z]+)"/g)) {
+        calledTypes.add(match[1]);
+      }
+    }
+    check(
+      "ثابت الكيانات المربوطة بالمحرك مطابق للكود الفعلي",
+      [...calledTypes].sort().join("،"),
+      [...WORKFLOW_ENFORCED_ENTITY_TYPES].sort().join("،")
     );
 
     console.log(`\n${fail === 0 ? "✅" : "❌"} ${pass}/${pass + fail} فحوصات ناجحة`);

@@ -60,6 +60,19 @@ export async function getReadiness(
   const users = await prisma.user.count({ where: { orgId, isActive: true } });
 
   /**
+   * ⚠️ فصل المهام على الدفعات **مقفول افتراضيًا**. الـTrigger
+   * (enforce_segregation_of_duty_payment) مابيمنعش حاجة إلا لو فيه صف
+   * SegregationOfDutyRule بـ`isActive` **و**`mustBeDifferentUser` الاتنين true — والنظام
+   * مابيشحنش الصف ده. يعني شركة ممكن تشتغل وهي فاكرة إن منشئ الدفعة مش قادر يعتمدها
+   * بنفسه، وهو قادر. (اتكشف وأنا بجرّب شاشة قواعد فصل المهام ولقيتها فاضية، 1 أكتوبر.)
+   *
+   * الشرط هنا **نفس شرط الـTrigger بالحرف** — لو اتفرقوا، الشاشة هتطمّن على حاجة مش بتحصل.
+   */
+  const paymentSodRules = await prisma.segregationOfDutyRule.count({
+    where: { orgId, action1: "Payment.Create", action2: "Payment.Approve", isActive: true, mustBeDifferentUser: true },
+  });
+
+  /**
    * ⚠️ المصادقة الثنائية مش رفاهية أمنية هنا — هي **شرط تشغيلي**. تريجرز في القاعدة
    * (enforce_approval_decision_requires_aal2, enforce_origin_proof_revised_rules_requires_aal2)
    * بترفض أي اعتماد من جلسة مستواها aal1. يعني من غير MFA مفعّلة، الاعتماد **مستحيل** —
@@ -147,6 +160,15 @@ export async function getReadiness(
       done: users > 1,
       href: "/admin/users",
       actionLabel: "ضيف مستخدمين",
+      severity: "optional",
+    },
+    {
+      id: "sod-payment",
+      label: "فصل المهام على الدفعات",
+      blocks: "من غير القاعدة دي، اللي بيسجّل الدفعة يقدر يعتمدها بنفسه",
+      done: paymentSodRules > 0,
+      href: "/governance/sod-rules",
+      actionLabel: "فعّل القاعدة",
       severity: "optional",
     },
   ];
