@@ -1,6 +1,7 @@
 import { Prisma } from "@/generated/prisma/client";
 import type { ScopedTx } from "@/lib/scoped-prisma";
 import { logAudit } from "@/lib/audit";
+import { commissionAutomationState, eligiblePlansForAutoAccrual } from "@/lib/commissionAutomation";
 
 /**
  * محرك عمولة تلقائي — بند وحيد من BACKLOG.md § وحدة 3: "دفعة اتحصّلت → عمولة اتحسبت واتسجّلت"،
@@ -12,6 +13,10 @@ import { logAudit } from "@/lib/audit";
  * `OnCollection` مؤهّلة (أو صفر)، مفيش طريقة مضمونة نعرف بيها أنهي واحدة تتطبّق، فالمحرك بيتجاهل
  * الحالة دي عمدًا (بلا تخمين) ويسيب الإنشاء اليدوي زي ما هو — نفس مبدأ "ممنوع تلفيق" المتكرر في
  * المشروع. بالمثل، لو الصفقة/الفرصة بلا `ownerId`، مفيش موظف واضح يستحق العمولة، فمفيش إنشاء.
+ *
+ * ⚠️ التجاهل ده **مابقاش صامت**: صفحة خطط العمولة بتعرض حالة الأتمتة دايمًا بنفس الدالة
+ * المستخدمة هنا (`commissionAutomationState`). قبل كده كان المحاسب يخصّص دفعة، التخصيص
+ * ينجح، والعمولة ما تتسجّلش بلا أي إشارة — راجع src/lib/commissionAutomation.ts.
  *
  * الإنشاء دايمًا `status: "Accrued"` — نفس قاعدة الإنشاء اليدوي بالحرف، لسه محتاج اعتماد إداري
  * صريح (`approveCommissionEntryAction`) قبل أي سداد فعلي، فمفيش أثر مالي مباشر من الأتمتة دي.
@@ -31,14 +36,18 @@ export async function accrueCommissionOnCollection(
   const ownerId = deal?.opportunity.ownerId;
   if (!ownerId) return;
 
-  const plans = await tx.commissionPlan.findMany({
-    where: { orgId, triggerEvent: "OnCollection", basis: { in: ["RevenuePercent", "CollectionBased"] } },
-  });
-  if (plans.length !== 1) return; // صفر أو أكتر من خطة مؤهّلة — غموض حقيقي، مش تخمين.
-  const plan = plans[0];
-  if (!plan.ratePct || Number(plan.ratePct) <= 0) return;
+  // ⚠️ الفلترة بتتعمل في TypeScript بـ`eligiblePlansForAutoAccrual` مش في الاستعلام،
+  // عشان الشاشة اللي بتعرض حالة الأتمتة (/commission-plans) تستخدم **نفس الدالة** بالحرف.
+  // لو الاتنين اتفرقوا، الشاشة هتقول «الأتمتة شغّالة» والمحرك مابيسجّلش (أو العكس) —
+  // وده أسوأ من الصمت الأصلي لأنه بيدّي طمأنينة غلط.
+  const allPlans = await tx.commissionPlan.findMany({ where: { orgId } });
+  const state = commissionAutomationState(allPlans);
+  if (state.status !== "Active") return;
+  const plan = eligiblePlansForAutoAccrual(allPlans)[0];
 
-  const amount = new Prisma.Decimal(allocatedAmount).mul(plan.ratePct).div(100).toDecimalPlaces(2);
+  // النسبة جاية من `state` مش من `plan.ratePct` مباشرة — عشان الرقم اللي بيتحسب بيه
+  // المبلغ يبقى **نفس** الرقم اللي الشاشة بتعرضه للمستخدم، بلا أي احتمال اختلاف.
+  const amount = new Prisma.Decimal(allocatedAmount).mul(state.ratePct).div(100).toDecimalPlaces(2);
   if (amount.lte(0)) return;
 
   const entry = await tx.commissionEntry.create({

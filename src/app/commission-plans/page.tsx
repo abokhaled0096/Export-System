@@ -5,6 +5,7 @@ import { PAGE_SIZE, parsePage } from "@/lib/pagination";
 import Pagination from "@/components/Pagination";
 import CommissionPlanForm from "./CommissionPlanForm";
 import { commissionBasisLabel, commissionTriggerEventLabel } from "@/lib/commissionLabels";
+import { commissionAutomationState, commissionAutomationMessage, isCommissionAutomationWarning } from "@/lib/commissionAutomation";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export const dynamic = "force-dynamic";
@@ -37,12 +38,31 @@ export default async function CommissionPlansPage({ searchParams }: { searchPara
   const total = await prisma.commissionPlan.count({ where: { orgId } });
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
+  // ⚠️ كل الخطط مش صفحة واحدة — حالة الأتمتة بتتحدّد بكل الخطط المؤهّلة في المنظمة،
+  // فلو حسبناها من `records` (المقسّمة لصفحات) الشاشة هتقول «الأتمتة شغّالة» وفي
+  // الحقيقة فيه خطة تانية مؤهّلة في صفحة 2 موقّفاها.
+  const allPlans = await prisma.commissionPlan.findMany({ where: { orgId }, select: { name: true, basis: true, triggerEvent: true, ratePct: true } });
+  const automation = commissionAutomationState(allPlans);
+
   return (
     <main className="mx-auto max-w-4xl px-6 py-10">
       <div>
         <h1 className="text-2xl font-semibold text-foreground">خطط العمولة</h1>
         <p className="mt-1 text-sm text-muted-foreground">{total} خطة مسجّلة</p>
       </div>
+
+      {/* حالة الأتمتة ظاهرة دايمًا — الحالة اللي بتوقّف التسجيل التلقائي كانت بتحصل في
+          صمت تام قبل كده، والمحاسب يخصّص دفعة والعمولة ما تتسجّلش بلا أي إشارة. */}
+      <p
+        role={isCommissionAutomationWarning(automation) ? "alert" : undefined}
+        className={`mt-4 rounded-xl border p-3 text-sm ${
+          isCommissionAutomationWarning(automation)
+            ? "border-amber-300 bg-amber-50 text-amber-900"
+            : "border-emerald-300 bg-emerald-50 text-emerald-900"
+        }`}
+      >
+        {commissionAutomationMessage(automation)}
+      </p>
 
       <div className="mt-6">
         <CommissionPlanForm />

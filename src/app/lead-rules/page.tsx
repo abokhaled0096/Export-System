@@ -46,10 +46,18 @@ export default async function LeadRulesPage({ searchParams }: { searchParams: Pr
       <div>
         <h1 className="text-2xl font-semibold text-foreground">قواعد توزيع العملاء المحتملين</h1>
         <p className="mt-1 text-sm text-muted-foreground">{total} قاعدة مسجّلة</p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          تسجيل قواعد بس — بلا محرك توزيع تلقائي فعلي يربطها بإنشاء فرصة جديدة لسه.
-        </p>
       </div>
+
+      {/* الملاحظة دي كانت سطر رمادي صغير تحت العدّاد بيقول «تسجيل قواعد بس». ده صحيح بس
+          سهل مايتقراش، وكمان مكانش بيقول **إيه اللي بيحصل فعلًا بدالها** — فمدير المبيعات
+          ممكن يسجّل قواعد ويفتكر إن العملاء اتوزّعوا. القيد نفسه قرار نطاق موثّق في
+          BACKLOG.md؛ اللي اتصلح هنا إنه بقى ظاهر وواضح. (1 أكتوبر) */}
+      <p role="alert" className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+        القواعد دي «بتتسجّل بس ومابتتطبّقش تلقائيًا لسه» — مفيش محرك توزيع بيربطها بإنشاء
+        فرصة أو عميل جديد. اللي بيحصل فعلًا دلوقتي: أي فرصة أو شركة جديدة بتتسجّل باسم
+        «المستخدم اللي أنشأها»، وتغيير المسؤول بيتعمل بالإيد. استخدم الجدول ده كمرجع
+        للتوزيع المتّفق عليه لحد ما المحرك يتبني.
+      </p>
 
       <div className="mt-6">
         <LeadAssignmentRuleForm users={users} teams={teams} />

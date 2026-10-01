@@ -17,6 +17,7 @@ import { Prisma } from "../src/generated/prisma/client";
 import { getDashboardData } from "../src/lib/dashboard";
 import { countShipmentsNeedingAttention } from "../src/lib/logisticsAttention";
 import { labTestConflict, labTestsBlockingFullRelease } from "../src/lib/labTestVerdict";
+import { commissionAutomationState, commissionAutomationMessage } from "../src/lib/commissionAutomation";
 import { weekKey } from "../src/lib/treasuryLabels";
 import { formatDate, toDateInputValue, businessYear } from "../src/lib/format";
 import { amountToArabicWords } from "../src/lib/numberToArabicWords";
@@ -400,6 +401,45 @@ async function runCollectionCycle(
     ]);
     check("الفحوصات المانعة للإفراج الكامل", String(blocking.length), "2");
     check("الفحص السليم مش مانع", String(blocking.some((t) => t.parameter === "داخل الحدود وناجح")), "false");
+
+    // ── حالة أتمتة العمولة ───────────────────────────────────────────────────
+    // المحرك بيرفض يخمّن لو فيه أكتر من خطة مؤهّلة — القرار ده صح، لكنه كان بيحصل في
+    // صمت: خصّصت دفعة 20,000 والتخصيص نجح والعمولة ما اتسجّلتش بلا أي تحذير (اتكشف
+    // بتجربة دورة عمولة كاملة، 1 أكتوبر). الدالة دي هي نفسها اللي المحرك بيستخدمها
+    // وهي نفسها اللي الشاشة بتعرض منها — لو اتفرقوا، الشاشة هتطمّن على حاجة مش بتحصل.
+    const planOk = { name: "عمولة المندوبين", basis: "RevenuePercent", triggerEvent: "OnCollection", ratePct: 2 };
+    check("خطة واحدة مؤهّلة = الأتمتة شغّالة", commissionAutomationState([planOk]).status, "Active");
+    check("مفيش خطط خالص = مفيش أتمتة", commissionAutomationState([]).status, "NoPlan");
+    check(
+      "خطة مش «عند التحصيل» مابتفعّلش الأتمتة",
+      commissionAutomationState([{ ...planOk, triggerEvent: "OnInvoice" }]).status,
+      "NoPlan"
+    );
+    check(
+      "أساس غير مدعوم (شرايح) مابيفعّلش الأتمتة",
+      commissionAutomationState([{ ...planOk, basis: "Tiered" }]).status,
+      "NoPlan"
+    );
+    check(
+      "خطتين مؤهّلتين = غموض، الأتمتة بتتوقّف",
+      commissionAutomationState([planOk, { ...planOk, name: "خطة تانية", basis: "CollectionBased", ratePct: 5 }]).status,
+      "Ambiguous"
+    );
+    check("نسبة صفر = الأتمتة مش هتشتغل", commissionAutomationState([{ ...planOk, ratePct: 0 }]).status, "InvalidRate");
+    check("نسبة فاضية = الأتمتة مش هتشتغل", commissionAutomationState([{ ...planOk, ratePct: null }]).status, "InvalidRate");
+    // خطة مؤهّلة واحدة + خطط تانية غير مؤهّلة = لسه شغّالة (الغموض بين المؤهّلات بس).
+    check(
+      "خطة مؤهّلة واحدة جنب خطط غير مؤهّلة = شغّالة",
+      commissionAutomationState([planOk, { ...planOk, name: "عند الفوترة", triggerEvent: "OnInvoice" }]).status,
+      "Active"
+    );
+    const activeState = commissionAutomationState([planOk]);
+    check("النسبة المعروضة = النسبة المحسوب بيها", activeState.status === "Active" ? activeState.ratePct : "—", "2");
+    check(
+      "رسالة الغموض بتقول إن التسجيل التلقائي متوقّف",
+      String(commissionAutomationMessage(commissionAutomationState([planOk, { ...planOk, name: "تانية" }])).includes("التسجيل التلقائي متوقّف")),
+      "true"
+    );
 
     console.log(`\n${fail === 0 ? "✅" : "❌"} ${pass}/${pass + fail} فحوصات ناجحة`);
   } finally {

@@ -16,10 +16,13 @@ export default function AllocationForm({
   paymentId,
   invoices,
   unallocated,
+  allAlreadyAllocated = false,
 }: {
   paymentId: string;
   invoices: OpenInvoiceOption[];
   unallocated: string;
+  /** كل الفواتير المؤهّلة متخصَّص عليها من الدفعة دي بالفعل — سبب مختلف تمامًا عن "مفيش فواتير". */
+  allAlreadyAllocated?: boolean;
 }) {
   const action = createPaymentAllocation.bind(null, paymentId);
   const [state, formAction, pending] = useActionState(action, initialState);
@@ -27,7 +30,13 @@ export default function AllocationForm({
   if (invoices.length === 0) {
     return (
       <p className="rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
-        مفيش فواتير مفتوحة بنفس العملة تتخصّص عليها الدفعة دي.
+        {/* الرسالتين كانوا رسالة واحدة بتقول «مفيش فواتير مفتوحة بنفس العملة» — وده كان
+            بيبعت المستخدم يدوّر على مشكلة عملة مش موجودة أصلًا، والسبب الحقيقي إن الفاتورة
+            متخصَّص عليها من نفس الدفعة قبل كده (صف تخصيص واحد لكل فاتورة/دفعة بالتصميم).
+            اتكشف وأنا بحاول أخصّص الباقي على نفس الفاتورة، 1 أكتوبر. */}
+        {allAlreadyAllocated
+          ? "كل الفواتير المفتوحة المناسبة متخصَّص عليها من الدفعة دي بالفعل. عشان تغيّر مبلغ تخصيص قايم، ألغِ التخصيص من الجدول تحت وسجّله تاني بالمبلغ الصح."
+          : "مفيش فواتير مفتوحة بنفس العملة تتخصّص عليها الدفعة دي."}
       </p>
     );
   }

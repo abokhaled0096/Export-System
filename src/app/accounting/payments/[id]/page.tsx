@@ -148,7 +148,12 @@ export default async function PaymentDetailPage({ params }: { params: Promise<{ 
 
       <h2 className="mt-8 text-lg font-semibold text-foreground">تخصيص الدفعة على الفواتير</h2>
       <div className="mt-2">
-        <AllocationForm paymentId={payment.id} invoices={invoiceOptions} unallocated={unallocated.toFixed(2)} />
+        <AllocationForm
+          paymentId={payment.id}
+          invoices={invoiceOptions}
+          unallocated={unallocated.toFixed(2)}
+          allAlreadyAllocated={invoiceOptions.length === 0 && allocatedIds.length > 0}
+        />
       </div>
 
       <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card">
