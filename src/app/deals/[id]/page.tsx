@@ -17,6 +17,7 @@ import { documentPackageTypeLabel, documentPackageStatusLabel, documentPackageSt
 import { commissionEntryStatusLabel, commissionEntryStatusStyle } from "@/lib/commissionLabels";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import FormDialog from "@/components/FormDialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDate } from "@/lib/format";
@@ -325,7 +326,9 @@ export default async function DealDetailPage({ params }: { params: Promise<{ id:
       <section className="mt-8">
         <h2 className="text-lg font-medium text-foreground">المستندات</h2>
         <div className="mt-3">
-          <DocumentForm dealId={deal.id} />
+          <FormDialog triggerLabel="+ مستند" title="إضافة مستند">
+            <DocumentForm dealId={deal.id} />
+          </FormDialog>
         </div>
         {deal.documents.length === 0 ? (
           <p className="mt-3 text-sm text-muted-foreground">لسه مفيش مستندات مسجّلة لهذه الصفقة.</p>
@@ -376,7 +379,9 @@ export default async function DealDetailPage({ params }: { params: Promise<{ id:
       <section className="mt-8">
         <h2 className="text-lg font-medium text-foreground">حزم المستندات</h2>
         <div className="mt-3">
-          <DocumentPackageForm dealId={deal.id} />
+          <FormDialog triggerLabel="+ حزمة مستندات" title="إضافة حزمة مستندات">
+            <DocumentPackageForm dealId={deal.id} />
+          </FormDialog>
         </div>
         {deal.documentPackages.length === 0 ? (
           <p className="mt-3 text-sm text-muted-foreground">لسه مفيش حزم مستندات مسجّلة لهذه الصفقة.</p>
@@ -410,7 +415,9 @@ export default async function DealDetailPage({ params }: { params: Promise<{ id:
         <section className="mt-8">
           <h2 className="text-lg font-medium text-foreground">سجل إصدارات المستندات</h2>
           <div className="mt-3">
-            <DocumentVersionForm dealId={deal.id} documents={deal.documents} />
+            <FormDialog triggerLabel="+ إصدار مستند" title="تسجيل إصدار مستند">
+              <DocumentVersionForm dealId={deal.id} documents={deal.documents} />
+            </FormDialog>
           </div>
           {documentVersions.length === 0 ? (
             <p className="mt-3 text-sm text-muted-foreground">لسه مفيش إصدارات مسجّلة.</p>
@@ -444,12 +451,14 @@ export default async function DealDetailPage({ params }: { params: Promise<{ id:
       <section className="mt-8">
         <h2 className="text-lg font-medium text-foreground">عمولات المبيعات</h2>
         <div className="mt-3">
-          <CommissionEntryForm
-            dealId={deal.id}
-            plans={commissionPlans}
-            users={orgUsers}
-            salesOrders={deal.salesOrders.map((so) => ({ id: so.id, soNumber: so.soNumber }))}
-          />
+          <FormDialog triggerLabel="+ عمولة" title="تسجيل عمولة">
+            <CommissionEntryForm
+              dealId={deal.id}
+              plans={commissionPlans}
+              users={orgUsers}
+              salesOrders={deal.salesOrders.map((so) => ({ id: so.id, soNumber: so.soNumber }))}
+            />
+          </FormDialog>
         </div>
         {deal.commissionEntries.length === 0 ? (
           <p className="mt-3 text-sm text-muted-foreground">لسه مفيش عمولات مسجّلة لهذه الصفقة.</p>
